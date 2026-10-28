@@ -1,0 +1,86 @@
+[
+  {
+    "filename": "attrs-26.1.0-py3-none-any.whl",
+    "name": "attrs",
+    "version": "26.1.0",
+    "sha256": "c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309",
+    "url": "https://files.pythonhosted.org/packages/64/b4/17d4b0b2a2dc85a6df63d1157e028ed19f90d4cd97c36717afef2bc2f395/attrs-26.1.0-py3-none-any.whl"
+  },
+  {
+    "filename": "bpy-5.2.3-cp313-cp313-win_amd64.whl",
+    "name": "bpy",
+    "version": "5.2.3",
+    "sha256": "81c6aed7a0f2f6e755a51b507687e5b719b15dfea818859b59af351fac8cce96",
+    "url": "https://files.pythonhosted.org/packages/95/82/c0403458ffdb3fd8119e643819cc942f7e1b250c3265ba57d3b9d0eb3d8a/bpy-5.2.3-cp313-cp313-win_amd64.whl"
+  },
+  {
+    "filename": "cattrs-26.2.1-py3-none-any.whl",
+    "name": "cattrs",
+    "version": "26.2.1",
+    "sha256": "a12aaa3453dc8f633a815293179f08b7421ed18d2575c459c3c736f840beac24",
+    "url": "https://files.pythonhosted.org/packages/e8/cf/22794a399d99480486120e26e879ef008e21f5e85274c2ed591d568bb326/cattrs-26.2.1-py3-none-any.whl"
+  },
+  {
+    "filename": "certifi-2026.10.23-py3-none-any.whl",
+    "name": "certifi",
+    "version": "2026.10.23",
+    "sha256": "e9b54de76e530bb6cf0ccd036787103acb58fd42ba930ea8bf948ddbaa2f61d1",
+    "url": "https://files.pythonhosted.org/packages/32/d1/a3652fe2c19134d0d15922177821d863cbd7e842d53a21bbe7e8e3a1b5ac/certifi-2026.10.23-py3-none-any.whl"
+  },
+  {
+    "filename": "charset_normalizer-3.5.2-cp313-cp313-win_amd64.whl",
+    "name": "charset-normalizer",
+    "version": "3.5.2",
+    "sha256": "78456a747de8dc58360ffa581f30a002baf5aa28cb262536545e91f113ed7639",
+    "url": "https://files.pythonhosted.org/packages/9c/76/b8ec57f4e9ee3253541abf95e4a462c0175fe8032dcd070f1f2421240942/charset_normalizer-3.5.2-cp313-cp313-win_amd64.whl"
+  },
+  {
+    "filename": "cython-3.3.0-cp313-cp313-win_amd64.whl",
+    "name": "cython",
+    "version": "3.3.0",
+    "sha256": "ab24d1a4fb6aaf0b5b6fcd75a6d70255fbd3130fa78884c26991f8d5502616b5",
+    "url": "https://files.pythonhosted.org/packages/d8/d7/376572ff69ef39a9bdcd727124f6c38aa066300e97734a4902a3ae0d2af0/cython-3.3.0-cp313-cp313-win_amd64.whl"
+  },
+  {
+    "filename": "idna-3.20-py3-none-any.whl",
+    "name": "idna",
+    "version": "3.20",
+    "sha256": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c",
+    "url": "https://files.pythonhosted.org/packages/58/a2/bb081bab032533a855d44de1d56f8e8426114ff1ba5d1f07a438a0a654f8/idna-3.20-py3-none-any.whl"
+  },
+  {
+    "filename": "numpy-2.5.4-cp313-cp313-win_amd64.whl",
+    "name": "numpy",
+    "version": "2.5.4",
+    "sha256": "8b4d2fd2d34e5f8c9235ee787de5631a37a28402b15cb80814df973d2be54129",
+    "url": "https://files.pythonhosted.org/packages/90/8c/140a40398a66b4471211be1affdb6ed24c486d581bd28d07b7f2fcb69540/numpy-2.5.4-cp313-cp313-win_amd64.whl"
+  },
+  {
+    "filename": "requests-2.34.2-py3-none-any.whl",
+    "name": "requests",
+    "version": "2.34.2",
+    "sha256": "2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0",
+    "url": "https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl"
+  },
+  {
+    "filename": "typing_extensions-4.16.0-py3-none-any.whl",
+    "name": "typing-extensions",
+    "version": "4.16.0",
+    "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+    "url": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl"
+  },
+  {
+    "filename": "urllib3-2.8.0-py3-none-any.whl",
+    "name": "urllib3",
+    "version": "2.8.0",
+    "sha256": "0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3",
+    "url": "https://files.pythonhosted.org/packages/92/9d/c4e665119135114480843e7ab388fa94d8480650450e6f8e26b70d323a4c/urllib3-2.8.0-py3-none-any.whl"
+  },
+  {
+    "filename": "zstandard-0.25.0-cp313-cp313-win_amd64.whl",
+    "name": "zstandard",
+    "version": "0.25.0",
+    "sha256": "1f830a0dac88719af0ae43b8b2d6aef487d437036468ef3c2ea59c51f9d55fd5",
+    "url": "https://files.pythonhosted.org/packages/d9/82/b9c06c870f3bd8767c201f1edbdf9e8dc34be5b0fbc5682c4f80fe948475/zstandard-0.25.0-cp313-cp313-win_amd64.whl"
+  }
+]

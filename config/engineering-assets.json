@@ -1,0 +1,5 @@
+{
+  "qgis": {"version":"3.44.15-2","url":"https://download.qgis.org/downloads/QGIS-OSGeo4W-3.44.15-2.msi","sha256":"81f7933bda110fa683a5f8f8129bc9b2ad2b814e65e99916c0d657af9518399c","archive":"qgis.msi"},
+  "kicad": {"version":"10.0.7","url":"https://github.com/KiCad/kicad-source-mirror/releases/download/10.0.7/kicad-10.0.7-x86_64.exe","sha256":"ce3881b6a9188eb34ac1ebaaec7651149e8a025206410addfb11a1a9656ecf95","archive":"kicad.exe"},
+  "7zip": {"version":"26.05","url":"https://github.com/ip7z/7zip/releases/download/26.05/7z2605-x64.msi","sha256":"3fe4ab99fa15629c652944309a2b2bc6e41fc933fc6b63f5df1ebcf3aea68263","archive":"7zip.msi"}
+}

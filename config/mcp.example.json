@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "servers": [
+    {
+      "id": "inventory",
+      "url": "http://127.0.0.1:8765/mcp",
+      "mode": "modern",
+      "headers": {
+        "Authorization": {"env": "ARIADNE_MCP_INVENTORY_TOKEN", "prefix": "Bearer "}
+      },
+      "tools": []
+    }
+  ]
+}

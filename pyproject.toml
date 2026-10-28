@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ariadne-box"
+version = "0.8.0"
+description = "A local AI workspace with bounded autonomy, durable memory and explicit tool authority"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+server = ["waitress==3.0.2"]
+documents = ["pypdf==6.21.3"]
+analytics = ["duckdb==2.0.0"]
+mcp = ["fastmcp-slim[client]==4.1.4"]
+ocr = ["rapidocr==3.10.0", "onnxruntime==1.31.1", "pillow==13.0.0", "pypdfium2==5.14.0"]
+
+[project.scripts]
+ariadne = "ariadne.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["ariadne*"]
+
+[tool.setuptools.package-data]
+ariadne = ["static/*", "resources/survival/*.json", "resources/survival/cards/*.md", "resources/survival/documents/*", "resources/briefing/*"]

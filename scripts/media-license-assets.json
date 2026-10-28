@@ -1,0 +1,145 @@
+{
+  "captured": "2026-10-28",
+  "files": [
+    {
+      "path": "qwen/LICENSE",
+      "url": "https://huggingface.co/Qwen/Qwen3.5-9B/resolve/c202236235762e1c871ad0ccb60c8ee5ba337b9a/LICENSE",
+      "sha256": "bbedc3fda3305820b977265f01b8619d87570a6739de3a5582c3464840f1e57a",
+      "bytes": 11544,
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "qwen/MODEL_CARD.md",
+      "url": "https://huggingface.co/Qwen/Qwen3.5-9B/resolve/c202236235762e1c871ad0ccb60c8ee5ba337b9a/README.md",
+      "sha256": "c5f5a8c2dddab69cfbf05279235aa5fddb137939a06539c4c7637aa900fef6d0",
+      "bytes": 77643,
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "kokoro/MODEL_CARD.md",
+      "url": "https://huggingface.co/hexgrad/Kokoro-82M/resolve/f3ff3571791e39611d31c381e3a41a3af07b4987/README.md",
+      "sha256": "91dcabced89db6f109b8786642f50402d3ee87450e8189589b6f85520e7f4d78",
+      "bytes": 6348,
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "kokoro/ONNX_CODE_LICENSE",
+      "url": "https://raw.githubusercontent.com/thewh1teagle/kokoro-onnx/main/LICENSE",
+      "sha256": "f61fdd0217de9ece8fa699912848d91187d84879fc2e689f0906d0c1299e955e",
+      "bytes": 1080,
+      "license": "MIT"
+    },
+    {
+      "path": "kokoro/APACHE_LICENSE",
+      "url": "https://huggingface.co/Qwen/Qwen3.5-9B/resolve/c202236235762e1c871ad0ccb60c8ee5ba337b9a/LICENSE",
+      "sha256": "bbedc3fda3305820b977265f01b8619d87570a6739de3a5582c3464840f1e57a",
+      "bytes": 11544,
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "silero/LICENSE",
+      "url": "https://raw.githubusercontent.com/snakers4/silero-vad/v6.2.3/LICENSE",
+      "sha256": "2e63e9a38b6e8fc0c7bc37ce174caca1862870856c6daf5697cfb785e925520b",
+      "bytes": 1075,
+      "license": "MIT"
+    },
+    {
+      "path": "silero/MODEL_CARD.md",
+      "url": "https://raw.githubusercontent.com/snakers4/silero-vad/v6.2.3/README.md",
+      "sha256": "cd0ee56c91b8042e62a714c0c94bc8b74dbea127a483e390f8033bb8ec8cec78",
+      "bytes": 9725,
+      "license": "MIT"
+    },
+    {
+      "path": "sherpa/LICENSE",
+      "url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/v2.0.1/LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "bytes": 11358,
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "sherpa/MODEL_CARD.md",
+      "url": "https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-en-2023-06-26/resolve/672fbf1b30579d6585301139bb363f42a0ad4a24/README.md",
+      "sha256": "c914dd28e23310a6dd345ea10495003d3e4820d2ed987181e4c2d67e501b6b76",
+      "bytes": 216,
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "sherpa/ORIGINAL_MODEL_CARD.md",
+      "url": "https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17/resolve/37cb5606808f3d5e55a3fc73554bdf757d82465a/README.md",
+      "sha256": "a4b186b5edb0d637f9e57b7a6d223609874d41f06f2f9d3cf8888454289b2e70",
+      "bytes": 48,
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "diarization/SEGMENTATION_LICENSE",
+      "url": "https://huggingface.co/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/9403a6902bb58e3d5ae8c7e77c3422de279db2e0/LICENSE",
+      "sha256": "14d7016ad68e7394d6e6b78d96cc2ae431c905287b89674cfdf021e79e62b8ba",
+      "bytes": 1061,
+      "license": "MIT"
+    },
+    {
+      "path": "diarization/SEGMENTATION_CARD.md",
+      "url": "https://huggingface.co/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/9403a6902bb58e3d5ae8c7e77c3422de279db2e0/README.md",
+      "sha256": "0380ed76a50efcc421dc62f251ed06e8349688466beac3177bee6e00dc336bfc",
+      "bytes": 115,
+      "license": "MIT"
+    },
+    {
+      "path": "diarization/CAMPLUS_CODE_LICENSE",
+      "url": "https://raw.githubusercontent.com/modelscope/3D-Speaker/main/LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "bytes": 11357,
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "diarization/CAMPLUS_MODEL_CARD.md",
+      "url": "https://modelscope.cn/api/v1/models/iic/speech_campplus_sv_en_voxceleb_16k/repo?Revision=v1.0.2&FilePath=README.md",
+      "sha256": "ff772de6927186eb597b724a9e77b5e89953105aa8c9e8daa964647a70ba93db",
+      "bytes": 5377,
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "flux/LICENSE.md",
+      "url": "https://huggingface.co/black-forest-labs/FLUX.2-klein-4B/resolve/e7b7dc27f91deacad38e78976d1f2b499d76a294/LICENSE.md",
+      "sha256": "ca02bc51900ab07789d1b70283329e7137f5af98f5161c23a1c81fc38a4af1fe",
+      "bytes": 9584,
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "flux/MODEL_CARD.md",
+      "url": "https://huggingface.co/black-forest-labs/FLUX.2-klein-4B/resolve/e7b7dc27f91deacad38e78976d1f2b499d76a294/README.md",
+      "sha256": "bd447051cf2db4bf67b992e563d89c35ebf1123f009c063361a222ab14e1c4f7",
+      "bytes": 9991,
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "flux/QWEN3_TEXT_ENCODER_LICENSE",
+      "url": "https://huggingface.co/Qwen/Qwen3-4B/resolve/1cfa9a7208912126459214e8b04321603b3df60c/LICENSE",
+      "sha256": "832dd9e00a68dd83b3c3fb9f5588dad7dcf337a0db50f7d9483f310cd292e92e",
+      "bytes": 11343,
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "flux/QWEN3_TEXT_ENCODER_CARD.md",
+      "url": "https://huggingface.co/Qwen/Qwen3-4B/resolve/1cfa9a7208912126459214e8b04321603b3df60c/README.md",
+      "sha256": "71add1cd091c309b1cb1a6b943f2476eb2b004124b3bd1d32dcd0b24cc1abc47",
+      "bytes": 16857,
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "espeak-ng/COPYING",
+      "url": "https://raw.githubusercontent.com/espeak-ng/espeak-ng/1.52.0/COPYING",
+      "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
+      "bytes": 35147,
+      "license": "GPL-3.0"
+    },
+    {
+      "path": "espeak-ng/LOADER_BUILD.yml",
+      "url": "https://raw.githubusercontent.com/thewh1teagle/espeakng-loader/main/.github/workflows/build.yml",
+      "sha256": "ae5b6f7c8e7a1d3b46dd6d94c70d120d48364599711d22e588a4617866e97c1c",
+      "bytes": 3080,
+      "license": "build provenance"
+    }
+  ]
+}

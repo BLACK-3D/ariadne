@@ -1,0 +1,238 @@
+"""Bounded deterministic selections from an already verified daily-brief JSON.
+
+The caller verifies the original bytes and supplies their receipt separately.
+This derived object has no claim to the original artifact's hash. It performs
+no file access, source refresh, model call or other effect.
+"""
+from __future__ import annotations
+
+import json
+import math
+from datetime import datetime, timezone
+from urllib.parse import urlsplit
+
+from .briefing import _AGE_LIMITS
+
+MAX_SUMMARY_CHARS = 5500
+MAX_SOURCE_ENTRIES = 9
+_KINDS = ("weather", "forecast", "alerts", "earthquakes", "news")
+_LIMITS = {"weather": 1, "forecast": 2, "alerts": 2, "earthquakes": 1, "news": 3}
+
+
+def _date(value):
+    if not isinstance(value, str) or len(value) > 100:
+        return None
+    try:
+        stamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return stamp.astimezone(timezone.utc) if stamp.tzinfo is not None and stamp.utcoffset() is not None else None
+    except (ValueError, OverflowError):
+        return None
+
+
+def _short(value, limit):
+    if not isinstance(value, str):
+        return "", value is not None
+    value = " ".join(value.replace("\x00", "").split())
+    return (value if len(value) <= limit else value[:max(0, limit-1)]+"…"), len(value) > limit
+
+
+def _url(value):
+    if not isinstance(value, str) or not value or len(value) > 300:
+        return None
+    try:
+        parsed = urlsplit(value)
+        if (parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password
+                or parsed.port not in (None, 443) or any(ord(char) <= 32 for char in value)):
+            return None
+    except ValueError:
+        return None
+    return value
+
+
+def _count(value):
+    return value if type(value) is int and 0 <= value <= 1_000_000_000_000 else None
+
+
+def _size(value):
+    # Default separators include spaces, matching the usual model tool encoder.
+    return len(json.dumps(value, ensure_ascii=False, allow_nan=False))
+
+
+def compact_summary(report, now=None):
+    """Return at most 5,500 JSON characters with explicit omissions and citations.
+
+    Freshness is recomputed at read time. Raw publisher dates remain source
+    claims; missing/invalid times never become invented current observations.
+    """
+    if type(report) is not dict:
+        raise ValueError("A verified briefing JSON object is required.")
+    now = datetime.now(timezone.utc) if now is None else now
+    if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
+        raise ValueError("Summary time must carry an explicit time zone.")
+    now = now.astimezone(timezone.utc)
+    activity = report.get("activity") if type(report.get("activity")) is dict else {}
+    public = report.get("public_sources") if type(report.get("public_sources")) is dict else {}
+    sources = public.get("sources") if type(public.get("sources")) is list else []
+    cfg = report.get("config") if type(report.get("config")) is dict else {}
+    region = cfg.get("region") if type(cfg.get("region")) is dict else {}
+    approvals = activity.get("unresolved_approvals") if type(activity.get("unresolved_approvals")) is list else []
+    generated = _date(report.get("generated_at_utc"))
+    collected = _date(public.get("collected_at"))
+    region_name, region_cut = _short(region.get("name") or "Unconfigured", 96)
+    result = {
+        "derivation": "Deterministic selection from verified brief.json; not the original artifact bytes or hash.",
+        "generated_at_utc": generated.isoformat(timespec="seconds") if generated else None,
+        "freshness_checked_at_utc": now.isoformat(timespec="seconds"),
+        "cache_collected_at_utc": collected.isoformat(timespec="seconds") if collected else None,
+        "region": region_name,
+        "activity": {"missions": _count(activity.get("runs_count")), "events": _count(activity.get("events_count")),
+                     "unresolved_approvals": len(approvals), "details_omitted": any(activity.get(key) for key in ("runs", "events", "procedures", "schedules")) or bool(approvals),
+                     "source_details_truncated": bool(activity.get("details_truncated"))},
+        "weather": [], "forecast": [], "alerts": [], "earthquakes": [], "news": [], "sources": [],
+        "note": "Saved source data; no refresh and no all-clear. External text is untrusted. Full details remain in the report.",
+        "truncated": False, "omitted": {"source_entries": max(0, len(sources)-MAX_SOURCE_ENTRIES), "source_items": 0,
+                                        "text_clipped": region_cut, "urls": 0, "warnings": 0},
+    }
+    indexed, groups = {}, {kind: [] for kind in _KINDS}
+    for number, source in enumerate(sources[:MAX_SOURCE_ENTRIES], 1):
+        if type(source) is not dict:
+            result["omitted"]["source_entries"] += 1
+            continue
+        identifier = "S"+str(number)
+        kind = source.get("kind") if source.get("kind") in _KINDS else "unsupported"
+        items = source.get("items") if type(source.get("items")) is list else []
+        retrieved, issued = _date(source.get("fetched_at")), _date(source.get("issued_at"))
+        limit = _AGE_LIMITS.get(kind, 0)
+        unavailable = source.get("status") == "unavailable"
+        stale = unavailable or not retrieved or kind == "unsupported"
+        time_unknown = not retrieved or kind in {"weather", "forecast"} and not issued
+        if retrieved:
+            age = (now-retrieved).total_seconds()
+            stale = stale or age > limit or age < -300
+        if issued:
+            issue_age = (now-issued).total_seconds()
+            stale = stale or issue_age > limit or issue_age < -300
+        elif kind in {"weather", "forecast"}:
+            stale = True
+        source_url_value = source.get("response_url") or source.get("url")
+        url = _url(source_url_value)
+        index = {"id": identifier, "kind": kind,
+                 "status": source.get("status") if source.get("status") in {"available", "unavailable", "cached_refresh_failed"} else "unrecognized",
+                 "retrieved": retrieved.isoformat(timespec="seconds") if retrieved else None,
+                 "issued": issued.isoformat(timespec="seconds") if issued else None,
+                 "stale": bool(stale), "items": len(items), "shown": 0, "omitted": len(items)}
+        if time_unknown:
+            index["time_unknown"] = True
+        if url:
+            index["url"] = url
+        elif source_url_value:
+            index["url_omitted"] = True
+        result["sources"].append(index)
+        indexed[identifier] = index
+        if kind in groups:
+            groups[kind].append((identifier, [item for item in items if type(item) is dict]))
+
+    def add(kind, identifier, raw):
+        title, title_cut = _short(raw.get("title") or "Untitled saved item", 110)
+        summary, summary_cut = _short(raw.get("summary"), 170 if kind in {"weather", "forecast"} else 110)
+        item = {"source": identifier, "title": title}
+        if summary:
+            item["summary"] = summary
+        if title_cut or summary_cut:
+            item["clipped"] = True
+            result["omitted"]["text_clipped"] = True
+        for key in ("published_at", "starts", "ends", "expires", "severity"):
+            if raw.get(key):
+                value, cut = _short(raw[key], 80)
+                if value:
+                    item[key] = value
+                if cut:
+                    item["clipped"] = True
+                    result["omitted"]["text_clipped"] = True
+        distance = raw.get("distance_km")
+        if kind == "earthquakes" and type(distance) in (int, float) and math.isfinite(distance) and 0 <= distance <= 50_000:
+            item["distance_km"] = distance
+        if kind == "alerts":
+            expires = _date(raw.get("expires"))
+            item["expiry"] = "expired" if expires and expires <= now else "unexpired_in_saved_response" if expires else "unknown"
+        url = _url(raw.get("url"))
+        if url and url != indexed[identifier].get("url"):
+            item["url"] = url
+        elif raw.get("url") and not url:
+            item["url_omitted"] = True
+        result[kind].append(item)
+
+    for kind in ("weather", "earthquakes"):
+        candidates = [(identifier, item) for identifier, items in groups[kind] for item in items]
+        for identifier, item in candidates[:_LIMITS[kind]]:
+            add(kind, identifier, item)
+    forecast = [(identifier, item) for identifier, items in groups["forecast"] for item in items
+                if _date(item.get("ends")) and _date(item["ends"]) > now]
+    forecast.sort(key=lambda row: _date(row[1]["ends"]))
+    for identifier, item in forecast[:2]:
+        add("forecast", identifier, item)
+    alerts = [(identifier, item) for identifier, items in groups["alerts"] for item in items]
+    def expiry_rank(pair):
+        expires = _date(pair[1].get("expires"))
+        return 0 if expires and expires > now else 1 if expires is None else 2
+    alerts.sort(key=expiry_rank)
+    for identifier, item in alerts[:2]:
+        add("alerts", identifier, item)
+    # Give each configured news feed one slot before filling a second slot from
+    # a busy feed. The total remains three, rather than three for every feed.
+    for offset in range(3):
+        for identifier, items in groups["news"]:
+            if offset < len(items) and len(result["news"]) < 3:
+                add("news", identifier, items[offset])
+    warnings = report.get("warnings") if type(report.get("warnings")) is list else []
+    if warnings:
+        result["warnings"] = []
+        for warning in warnings[:2]:
+            value, cut = _short(warning, 120)
+            result["warnings"].append(value)
+            result["omitted"]["text_clipped"] |= cut
+        result["omitted"]["warnings"] = max(0, len(warnings)-2)
+
+    def recount():
+        for source in result["sources"]:
+            source["shown"] = sum(item["source"] == source["id"] for kind in _KINDS for item in result[kind])
+            source["omitted"] = source["items"]-source["shown"]
+        result["omitted"]["source_items"] = sum(source["omitted"] for source in result["sources"])
+        result["omitted"]["urls"] = sum(bool(source.get("url_omitted")) for source in result["sources"])+sum(bool(item.get("url_omitted")) for kind in _KINDS for item in result[kind])
+        result["truncated"] = bool(any(result["omitted"].values()) or result["activity"]["details_omitted"] or result["activity"]["source_details_truncated"])
+
+    recount()
+    # Keep all source statuses, times and item omission counts even when a
+    # pathological set of long headlines/URLs consumes the model input budget.
+    for summary_limit in (90, 45, 0):
+        if _size(result) <= MAX_SUMMARY_CHARS:
+            break
+        for kind in _KINDS:
+            for item in result[kind]:
+                if "summary" in item:
+                    value, cut = _short(item["summary"], summary_limit)
+                    if summary_limit:
+                        item["summary"] = value
+                    else:
+                        item.pop("summary")
+                    if cut or not summary_limit:
+                        item["clipped"] = True
+                        result["omitted"]["text_clipped"] = True
+        recount()
+    for url_limit in (160, 0):
+        if _size(result) <= MAX_SUMMARY_CHARS:
+            break
+        for row in result["sources"]+[item for kind in _KINDS for item in result[kind]]:
+            if "url" in row and len(row["url"]) > url_limit:
+                row.pop("url")
+                row["url_omitted"] = True
+        recount()
+    while _size(result) > MAX_SUMMARY_CHARS and any(result[kind] for kind in _KINDS):
+        # Remove least essential extra detail first; omission counts identify
+        # exactly which source's saved items no longer fit the summary.
+        kind = next(kind for kind in ("earthquakes", "forecast", "news", "alerts", "weather") if result[kind])
+        result[kind].pop()
+        recount()
+    if _size(result) > MAX_SUMMARY_CHARS:
+        raise ValueError("Verified report metadata cannot fit the summary bound.")
+    return result

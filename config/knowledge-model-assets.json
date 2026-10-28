@@ -1,0 +1,179 @@
+{
+  "schema": 1,
+  "qualified_on": "2026-10-28",
+  "embedding": {
+    "assets": [
+      {
+        "bytes": 900,
+        "path": "model/README.md",
+        "sha256": "01e220eed6921254f7e086bb3506d1c03f019f5f747bb9ac2f6ec5ce541edc12"
+      },
+      {
+        "bytes": 706,
+        "path": "model/config.json",
+        "sha256": "13582bcf2effc85b7bf3d3f5532e686bc1c9ce86bb009d10f0ec33cbe92299dd"
+      },
+      {
+        "bytes": 66465124,
+        "path": "model/model_optimized.onnx",
+        "sha256": "51f1bd0addd6e859e42c2c8021a5e5461385bb676a649f4b269aa445449f2431"
+      },
+      {
+        "bytes": 695,
+        "path": "model/special_tokens_map.json",
+        "sha256": "5d5b662e421ea9fac075174bb0688ee0d9431699900b90662acd44b2a350503a"
+      },
+      {
+        "bytes": 711396,
+        "path": "model/tokenizer.json",
+        "sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66"
+      },
+      {
+        "bytes": 1242,
+        "path": "model/tokenizer_config.json",
+        "sha256": "0b29c7bfc889e53b36d9dd3e686dd4300f6525110eaa98c76a5dafceb2029f53"
+      },
+      {
+        "bytes": 231508,
+        "path": "model/vocab.txt",
+        "sha256": "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3"
+      }
+    ],
+    "license": "MIT",
+    "repository": "Qdrant/bge-small-en-v1.5-onnx-Q",
+    "revision": "aa8f8b060edb00e03bfdd08813a2949946c8ba55"
+  },
+  "layout": {
+    "assets": [
+      {
+        "bytes": 3219,
+        "path": "docling-models/docling-project--docling-layout-heron/README.md",
+        "sha256": "175700839bc7808eac6af1d0c23e4f483606ab2276fe01122f4093e61a1a65b6"
+      },
+      {
+        "bytes": 3268,
+        "path": "docling-models/docling-project--docling-layout-heron/config.json",
+        "sha256": "fdea30805ce2f5666b147fca941dcdd27ad468e27d6ed21902207d3da056a97d"
+      },
+      {
+        "bytes": 171658996,
+        "path": "docling-models/docling-project--docling-layout-heron/model.safetensors",
+        "sha256": "00333a43451945aaf89db8ca9c0a17e75d1537c17db60fdb91aa95f4c7929e0c"
+      },
+      {
+        "bytes": 444,
+        "path": "docling-models/docling-project--docling-layout-heron/preprocessor_config.json",
+        "sha256": "cd38cd59999e7a95d68e487fbe5132df3d4e5c32a0836add57e6126ba0c4eaf1"
+      },
+      {
+        "bytes": 3413,
+        "path": "docling-models/docling-project--docling-models/README.md",
+        "sha256": "d17f233378eff1240b623b36da76ee8b40afcca05d505949713bf03f7e00822a"
+      },
+      {
+        "bytes": 145453276,
+        "path": "docling-models/docling-project--docling-models/model_artifacts/tableformer/fast/tableformer_fast.safetensors",
+        "sha256": "3119563aab5a7c96fda4d621119b63fd8806272b86c30936d15507616422f718"
+      },
+      {
+        "bytes": 7060,
+        "path": "docling-models/docling-project--docling-models/model_artifacts/tableformer/fast/tm_config.json",
+        "sha256": "dca6762508dddfae6d57d6cb4ef822c6000119dff0f3b6489db7413118c2622a"
+      }
+    ],
+    "schema": 1,
+    "sources": [
+      {
+        "license": "apache-2.0",
+        "repository": "docling-project/docling-layout-heron",
+        "revision": "8f39ad3c0b4c58e9c2d2c84a38465abf757272d8"
+      },
+      {
+        "license": "cdla-permissive-2.0",
+        "repository": "docling-project/docling-models",
+        "revision": "fc0f2d45e2218ea24bce5045f58a389aed16dc23"
+      }
+    ]
+  },
+  "kiwix": {
+    "archives": [
+      {
+        "date": "2026-08-02",
+        "license": "PSF documentation terms; see archive notices",
+        "name": "devdocs_en_python_2026-08",
+        "path": "library/devdocs_en_python_2026-08.zim",
+        "sha256": "289e5d3e0e8c3d3470bf183e5c913be3be0b61a730ce52a247c23812799baa51",
+        "url": "https://download.kiwix.org/zim/devdocs/devdocs_en_python_2026-08.zim"
+      },
+      {
+        "date": "2026-10-01",
+        "license": "SQLite documentation: public domain; see archive notices",
+        "name": "devdocs_en_sqlite_2026-10",
+        "path": "library/devdocs_en_sqlite_2026-10.zim",
+        "sha256": "d83fda4ba97a83a68d8c369cf1b2f3185a1d2683e5acdeca79be365df690f538",
+        "url": "https://download.kiwix.org/zim/devdocs/devdocs_en_sqlite_2026-10.zim"
+      }
+    ],
+    "assets": [
+      {
+        "bytes": 2870128,
+        "path": "kiwix/kiwix-manage.exe",
+        "sha256": "43e9a19d3bf66d6d158a187b1799aee75b1797c06f8f17c6dd2bdebae56e177c"
+      },
+      {
+        "bytes": 1646960,
+        "path": "kiwix/kiwix-search.exe",
+        "sha256": "ebe683ab03d50bc6893e6d69d7f1753e5fd6ebdf89488adffd900574c24cdbb9"
+      },
+      {
+        "bytes": 3883888,
+        "path": "kiwix/kiwix-serve.exe",
+        "sha256": "619eccc76c112a57538e3ceb001d75e71caf5a040171b2c1399c4d19f8e9bc95"
+      },
+      {
+        "bytes": 30786560,
+        "path": "kiwix/icudt74.dll",
+        "sha256": "ce6f56b89f3c7163a166210977642559c87033b579ff129c61443de57fbd771b"
+      },
+      {
+        "bytes": 3099648,
+        "path": "kiwix/icuin74.dll",
+        "sha256": "a80efbe7966ecd99a86b9f1694bad6995c8b43febc1b42fbff5a3f5e9a6e36ff"
+      },
+      {
+        "bytes": 61440,
+        "path": "kiwix/icuio74.dll",
+        "sha256": "febda93002c9e70a2dee1da316a799b5416a6ec5430fa88aa9af82bba3ada0a6"
+      },
+      {
+        "bytes": 243712,
+        "path": "kiwix/icutu74.dll",
+        "sha256": "e533bd62973d215f5306b24c2bd473cc3b161c7f88819812284ee18132ca9560"
+      },
+      {
+        "bytes": 2345984,
+        "path": "kiwix/icuuc74.dll",
+        "sha256": "0e3ec2d0d821b6244b78129334aed0e7ebe3cde51f00d2ff77170c4900af7f67"
+      },
+      {
+        "bytes": 4390070,
+        "path": "library/devdocs_en_python_2026-08.zim",
+        "sha256": "289e5d3e0e8c3d3470bf183e5c913be3be0b61a730ce52a247c23812799baa51"
+      },
+      {
+        "bytes": 3487091,
+        "path": "library/devdocs_en_sqlite_2026-10.zim",
+        "sha256": "d83fda4ba97a83a68d8c369cf1b2f3185a1d2683e5acdeca79be365df690f538"
+      }
+    ],
+    "binary": "kiwix/kiwix-serve.exe",
+    "download": {
+      "official_md5": "95f953f726aac8f320c7038f85785df9",
+      "sha256": "fcd01ed2b93e9a68632c7863c83b9f66bf64406a66357be1df7b8b75596f3e45",
+      "url": "https://download.kiwix.org/release/kiwix-tools/kiwix-tools_win-x86_64-3.8.1.zip",
+      "verification": "Official HTTPS distribution and MD5 checksum; SHA-256 recorded locally. Upstream does not publish a SHA-256 signature here."
+    },
+    "schema": 1,
+    "version": "3.8.1"
+  }
+}

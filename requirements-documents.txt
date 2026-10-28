@@ -1,0 +1,1 @@
+pypdf==6.21.3 --hash=sha256:c8ca4d9a360dbd5d4b9bb7a8389e2a9ae6a106bee722b496f918040ba2daa17e

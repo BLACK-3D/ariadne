@@ -1,0 +1,3 @@
+# Official DuckDB wheels only. No extras; refuse source builds. Verified 2026-10-28.
+# Host: CPython 3.13 / Windows AMD64 uses cp312-abi3-win_amd64.
+duckdb==2.0.0 --hash=sha256:f61c96547ed432f54dae42a717fd88563eda55cb47549715fac9f61f770c205a

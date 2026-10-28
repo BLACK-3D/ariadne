@@ -1,0 +1,8 @@
+{
+  "checked": "2026-10-28",
+  "images": {
+    "frappe/erpnext:v16.52.1": "frappe/erpnext:v16.52.1@sha256:bc21532268c35cec5756c44a11fe510bfccbf23fb4ad651a38644d0c25b56299",
+    "mariadb:11.8": "mariadb:11.8@sha256:c4124d1afa875e47f2892edf26b482fa54f796e2f342d3717a04ca091a22a9bd",
+    "redis:6.2-alpine": "redis:6.2-alpine@sha256:63d5174750e285bc3069c4519c53c8b6de6ebe70715140a6c9d21d6f04b77319"
+  }
+}

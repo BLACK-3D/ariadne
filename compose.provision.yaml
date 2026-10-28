@@ -1,0 +1,4 @@
+# Use only during the one-time model pull; remove this overlay for offline use.
+networks:
+  offline:
+    internal: false

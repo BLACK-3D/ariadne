@@ -1,0 +1,304 @@
+{
+  "schema_version": 1,
+  "checked_at_utc": "2026-10-28",
+  "scope": "Research only; no installation, runtime change or new access granted",
+  "hardware": {
+    "os": "Windows",
+    "cpu": "Intel Core i9-9900K",
+    "physical_cores": 8,
+    "logical_processors": 16,
+    "ram_bytes": 68650188800,
+    "gpu": "NVIDIA GeForce RTX 5060 Ti",
+    "gpu_memory_mib": 16311,
+    "driver": "617.14"
+  },
+  "rank_basis": "Engineering judgment: incremental capability, offline completeness, hardware fit, license flexibility and recurring operating burden; no comparative host benchmark",
+  "existing_ariadne_baseline": [
+    "Qwen3:8b via Ollama",
+    "whisper.cpp plus Windows SAPI",
+    "RapidOCR",
+    "DuckDB fixed analytics",
+    "SQLite FTS",
+    "reviewed local MCP client"
+  ],
+  "capabilities": [
+    {
+      "id": "multimodal_assistant",
+      "priority": 1,
+      "ability": "Reasoning, coding, tools and image understanding",
+      "status": "research_only",
+      "host_qualification": "not_performed",
+      "projects": [
+        {
+          "name": "Qwen3.5-9B / 4B",
+          "observed_release_date": "2026-03-02",
+          "primary_url": "https://huggingface.co/Qwen/Qwen3.5-9B",
+          "license_note": "Apache-2.0 weights"
+        },
+        {
+          "name": "Gemma 4 12B Unified",
+          "observed_release_date": "2026-06-03",
+          "primary_url": "https://huggingface.co/google/gemma-4-12B-it",
+          "license_note": "Apache-2.0 weights"
+        }
+      ],
+      "qualification_note": "Plausible Windows quantized paths; package size is not total runtime memory. Image/audio plumbing still requires Ariadne integration."
+    },
+    {
+      "id": "streaming_speech",
+      "priority": 2,
+      "ability": "Streaming speech recognition, natural synthesis and speaker labels",
+      "status": "research_only",
+      "host_qualification": "not_performed",
+      "projects": [
+        {
+          "name": "NeMo-Speech.cpp 0.2.0",
+          "observed_release_date": "2026-10-02",
+          "primary_url": "https://github.com/NVIDIA/NeMo-Speech.cpp/releases/tag/v0.2.0",
+          "license_note": "Apache-2.0 code; selected weights separate"
+        },
+        {
+          "name": "Moonshine Voice 0.1.5",
+          "observed_release_date": "2026-08-24",
+          "primary_url": "https://github.com/moonshine-ai/moonshine",
+          "license_note": "Code/streaming ASR MIT in current main; verify release/model"
+        },
+        {
+          "name": "sherpa-onnx 2.0.1",
+          "observed_release_date": "2026-10-26",
+          "primary_url": "https://github.com/k2-fsa/sherpa-onnx/releases/tag/v2.0.1",
+          "license_note": "Apache-2.0 code; selected models separate"
+        },
+        {
+          "name": "Kokoro-82M v1.0",
+          "observed_release_date": "2025-01-27",
+          "primary_url": "https://huggingface.co/hexgrad/Kokoro-82M",
+          "license_note": "Apache-2.0 weights; pronunciation/voice dependencies separate"
+        }
+      ],
+      "qualification_note": "Compare backends, select one default. Cache codecs/voices and test CPU latency/noise. No ambient capture activated."
+    },
+    {
+      "id": "hybrid_retrieval",
+      "priority": 3,
+      "ability": "Semantic and exact search with source provenance",
+      "status": "research_only",
+      "host_qualification": "not_performed",
+      "projects": [
+        {
+          "name": "FastEmbed 0.9.1",
+          "observed_release_date": "2026-10-24",
+          "primary_url": "https://github.com/qdrant/fastembed/releases/tag/v0.9.1",
+          "license_note": "Apache-2.0 code; embedding weights separate"
+        },
+        {
+          "name": "SQLite-vec 0.1.9",
+          "observed_release_date": "2026-03-31",
+          "primary_url": "https://github.com/asg017/sqlite-vec/releases/tag/v0.1.9",
+          "license_note": "MIT/Apache-2.0"
+        }
+      ],
+      "qualification_note": "CPU-first embedded storage, no required daemon. Retain FTS and version/hash-bound passages."
+    },
+    {
+      "id": "constrained_code",
+      "priority": 4,
+      "ability": "Limited local Python programs and transformations",
+      "status": "research_only",
+      "host_qualification": "not_performed",
+      "projects": [
+        {
+          "name": "Monty 1.4.0",
+          "observed_release_date": "2026-10-26",
+          "primary_url": "https://github.com/pydantic/monty/releases/tag/1.4.0",
+          "license_note": "MIT"
+        }
+      ],
+      "qualification_note": "No third-party Python packages. Host callbacks/mounts grant authority. Exact Windows worker and explicit resource/session limits require qualification."
+    },
+    {
+      "id": "office_artifacts",
+      "priority": 5,
+      "ability": "Office creation, recalculation, rendering and PDF conversion",
+      "status": "research_only",
+      "host_qualification": "not_performed",
+      "projects": [
+        {
+          "name": "LibreOffice 26.8.1",
+          "observed_release_date": "2026-10-02",
+          "primary_url": "https://www.libreoffice.org/download/",
+          "license_note": "MPL-2.0 and component notices"
+        }
+      ],
+      "qualification_note": "Native Windows, no extra AI model. Download availability restored Oct 8. Fixed conversion/template adapters, private profiles, no macros/external refresh."
+    },
+    {
+      "id": "optimization",
+      "priority": 6,
+      "ability": "Scheduling, assignment, routing, packing and resource allocation",
+      "status": "research_only",
+      "host_qualification": "not_performed",
+      "projects": [
+        {
+          "name": "OR-Tools 9.15",
+          "observed_release_date": "2026-01-12",
+          "primary_url": "https://github.com/google/or-tools/releases/tag/v9.15",
+          "license_note": "Apache-2.0; external solvers separate"
+        }
+      ],
+      "qualification_note": "CPU native Windows. Fixed input templates, integer units, time limits and actual solver status. Offline routing needs local distances/maps."
+    },
+    {
+      "id": "structured_documents",
+      "priority": 7,
+      "ability": "Layout, tables and reading-order extraction",
+      "status": "research_only",
+      "host_qualification": "not_performed",
+      "projects": [
+        {
+          "name": "Docling 2.144.0",
+          "observed_release_date": "2026-10-28",
+          "primary_url": "https://github.com/docling-project/docling/releases/tag/v2.144.0",
+          "license_note": "MIT code; chosen model terms separate"
+        }
+      ],
+      "qualification_note": "Optional richer parser above existing RapidOCR. Prefetch full pipeline; disable remote services/image fetches."
+    },
+    {
+      "id": "offline_library",
+      "priority": 8,
+      "ability": "Search downloaded reference archives",
+      "status": "research_only",
+      "host_qualification": "not_performed",
+      "projects": [
+        {
+          "name": "Kiwix-tools 3.8.2",
+          "observed_release_date": "2026-03-02",
+          "primary_url": "https://github.com/kiwix/kiwix-tools/releases/tag/3.8.2",
+          "license_note": "GPL-3.0-or-later tools; archive content licenses separate"
+        }
+      ],
+      "qualification_note": "Qualify Windows artifact; curate dated ZIM corpora and storage."
+    },
+    {
+      "id": "image_generation",
+      "priority": 9,
+      "ability": "Local image generation and multi-reference editing",
+      "status": "research_only",
+      "host_qualification": "not_performed",
+      "projects": [
+        {
+          "name": "FLUX.2-klein-4B",
+          "observed_release_date": null,
+          "primary_url": "https://huggingface.co/black-forest-labs/FLUX.2-klein-4B",
+          "license_note": "Apache-2.0 weights/reference code"
+        },
+        {
+          "name": "FLUX 3 Image Klein",
+          "observed_release_date": "2026-10-15",
+          "primary_url": "https://bfl.ai/blog/flux-3-image-klein",
+          "license_note": "Custom FLUX Kommunity License; revenue/other conditions"
+        }
+      ],
+      "qualification_note": "Publisher figures: about 13 GB VRAM for FLUX.2; FLUX3 INT8 advertises 8 GB. Full pipeline and output resolution need memory measurement; serialize GPU jobs."
+    },
+    {
+      "id": "local_flows",
+      "priority": 10,
+      "ability": "Deterministic local HTTP/MQTT/event integrations",
+      "status": "research_only",
+      "host_qualification": "not_performed",
+      "projects": [
+        {
+          "name": "Node-RED 5.0.9",
+          "observed_release_date": "2026-10-21",
+          "primary_url": "https://github.com/node-red/node-red/releases/tag/5.0.9",
+          "license_note": "Apache-2.0 core; nodes separate"
+        }
+      ],
+      "qualification_note": "Node>=22.9. Secure admin UI, fixed reviewed flows, no unrestricted Exec/Function/palette operations. Cloud nodes remain online."
+    },
+    {
+      "id": "browser_work",
+      "priority": 11,
+      "ability": "Operate and test local web apps",
+      "status": "research_only",
+      "host_qualification": "not_performed",
+      "projects": [
+        {
+          "name": "Playwright 1.64.1",
+          "observed_release_date": "2026-10-14",
+          "primary_url": "https://github.com/microsoft/playwright/releases/tag/v1.64.1",
+          "license_note": "Apache-2.0"
+        }
+      ],
+      "qualification_note": "Cache browser binaries. Disposable profiles plus enforced file/network boundary. MCP/origin allowlists alone are not OS isolation."
+    },
+    {
+      "id": "engineering",
+      "priority": 12,
+      "ability": "Parametric CAD, product renders, electronics and checked exports",
+      "status": "research_only",
+      "host_qualification": "not_performed",
+      "projects": [
+        {
+          "name": "FreeCAD 1.1.4",
+          "observed_release_date": "2026-09-28",
+          "primary_url": "https://github.com/FreeCAD/FreeCAD/releases/tag/1.1.4",
+          "license_note": "LGPL-2.1 repository license; components separate"
+        },
+        {
+          "name": "Blender 5.2.3 LTS",
+          "observed_release_date": "2026-10-22",
+          "primary_url": "https://www.blender.org/download/lts/",
+          "license_note": "GPL-3.0 project; assets/addons separate"
+        },
+        {
+          "name": "KiCad 10.0.7",
+          "observed_release_date": "2026-10-07",
+          "primary_url": "https://www.kicad.org/blog/2026/10/KiCad-10.0.7-Release/",
+          "license_note": "Majority GPL-3.0-or-later; libraries CC-BY-SA4 with design exception"
+        }
+      ],
+      "qualification_note": "Native Windows. Fixed templates/exports before arbitrary scripting. Cache libraries and validate dimensions/design checks."
+    },
+    {
+      "id": "spatial",
+      "priority": 13,
+      "ability": "Offline maps and geospatial analysis",
+      "status": "research_only",
+      "host_qualification": "not_performed",
+      "projects": [
+        {
+          "name": "QGIS 4.2.3",
+          "observed_release_date": "2026-09-25",
+          "primary_url": "https://qgis.org/download/",
+          "license_note": "GPL-2.0; data/plugins separate"
+        },
+        {
+          "name": "QGIS 3.44.15 LTR",
+          "observed_release_date": null,
+          "primary_url": "https://qgis.org/download/",
+          "license_note": "GPL-2.0; data/plugins separate"
+        }
+      ],
+      "qualification_note": "Cache geodata/projection grids. Internet tiles, geocoding and WMS are separate services."
+    },
+    {
+      "id": "business_system",
+      "priority": 14,
+      "ability": "Local operational records, stock, procurement, CRM and accounting",
+      "status": "research_only",
+      "host_qualification": "not_performed",
+      "projects": [
+        {
+          "name": "ERPNext 16.52.1 / 15.124.1",
+          "observed_release_date": "2026-10-22",
+          "primary_url": "https://github.com/frappe/erpnext/releases",
+          "license_note": "GPL-3.0"
+        }
+      ],
+      "qualification_note": "Unix/database/service stack and maintenance, not a native Windows plugin. Local core records can work offline; banks/email/payment gateways do not."
+    }
+  ]
+}

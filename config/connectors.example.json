@@ -1,0 +1,23 @@
+{
+  "connectors": [
+    {
+      "id": "local_inventory",
+      "description": "Read stock levels from the operator-configured local inventory service.",
+      "url": "http://127.0.0.1:9090/inventory",
+      "method": "GET",
+      "read_only": true,
+      "timeout_seconds": 10
+    },
+    {
+      "id": "local_work_order",
+      "description": "Create a work order in the operator-configured local service. Requires approval.",
+      "url": "http://127.0.0.1:9090/work-orders",
+      "method": "POST",
+      "read_only": false,
+      "headers": {
+        "Authorization": {"env": "ARIADNE_WORK_ORDER_AUTHORIZATION"}
+      },
+      "timeout_seconds": 15
+    }
+  ]
+}

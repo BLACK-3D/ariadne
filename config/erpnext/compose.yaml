@@ -1,0 +1,244 @@
+# Adapted from frappe/frappe_docker pwd.yml (blob dc8a1ec4baa34596e0b02e003f3f72670215e377).
+# Operator launch only; Docker/Linux prerequisites are not installed by Ariadne.
+services:
+  backend:
+    image: frappe/erpnext:v16.52.1@sha256:bc21532268c35cec5756c44a11fe510bfccbf23fb4ad651a38644d0c25b56299
+    networks:
+      - frappe_network
+    deploy:
+      restart_policy:
+        condition: on-failure
+    volumes:
+      - "${ARIADNE_ERP_DATA:?Set storage under the box}/sites:/home/frappe/frappe-bench/sites"
+      - "${ARIADNE_ERP_DATA:?Set storage under the box}/logs:/home/frappe/frappe-bench/logs"
+    environment:
+      DB_HOST: db
+      DB_PORT: "3306"
+      MYSQL_ROOT_PASSWORD: ${ARIADNE_ERP_DB_PASSWORD:?Run scripts/prepare_erpnext.py}
+      MARIADB_ROOT_PASSWORD: ${ARIADNE_ERP_DB_PASSWORD:?Run scripts/prepare_erpnext.py}
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+
+  configurator:
+    image: frappe/erpnext:v16.52.1@sha256:bc21532268c35cec5756c44a11fe510bfccbf23fb4ad651a38644d0c25b56299
+    networks:
+      - frappe_network
+    deploy:
+      restart_policy:
+        condition: none
+    entrypoint:
+      - bash
+      - -c
+    command:
+      - >
+        ls -1 apps > sites/apps.txt;
+        bench set-config -g db_host $$DB_HOST;
+        bench set-config -gp db_port $$DB_PORT;
+        bench set-config -g redis_cache "redis://$$REDIS_CACHE";
+        bench set-config -g redis_queue "redis://$$REDIS_QUEUE";
+        bench set-config -g redis_socketio "redis://$$REDIS_QUEUE";
+        bench set-config -gp socketio_port $$SOCKETIO_PORT;
+    environment:
+      DB_HOST: db
+      DB_PORT: "3306"
+      REDIS_CACHE: redis-cache:6379
+      REDIS_QUEUE: redis-queue:6379
+      SOCKETIO_PORT: "9000"
+    volumes:
+      - "${ARIADNE_ERP_DATA:?Set storage under the box}/sites:/home/frappe/frappe-bench/sites"
+      - "${ARIADNE_ERP_DATA:?Set storage under the box}/logs:/home/frappe/frappe-bench/logs"
+
+  create-site:
+    environment:
+      ARIADNE_ERP_ADMIN_PASSWORD: ${ARIADNE_ERP_ADMIN_PASSWORD:?Run scripts/prepare_erpnext.py}
+      ARIADNE_ERP_DB_PASSWORD: ${ARIADNE_ERP_DB_PASSWORD:?Run scripts/prepare_erpnext.py}
+    image: frappe/erpnext:v16.52.1@sha256:bc21532268c35cec5756c44a11fe510bfccbf23fb4ad651a38644d0c25b56299
+    networks:
+      - frappe_network
+    deploy:
+      restart_policy:
+        condition: none
+    volumes:
+      - "${ARIADNE_ERP_DATA:?Set storage under the box}/sites:/home/frappe/frappe-bench/sites"
+      - "${ARIADNE_ERP_DATA:?Set storage under the box}/logs:/home/frappe/frappe-bench/logs"
+    entrypoint:
+      - bash
+      - -c
+    command:
+      - >
+        wait-for-it -t 120 db:3306;
+        wait-for-it -t 120 redis-cache:6379;
+        wait-for-it -t 120 redis-queue:6379;
+        export start=`date +%s`;
+        until [[ -n `grep -hs ^ sites/common_site_config.json | jq -r ".db_host // empty"` ]] && \
+          [[ -n `grep -hs ^ sites/common_site_config.json | jq -r ".redis_cache // empty"` ]] && \
+          [[ -n `grep -hs ^ sites/common_site_config.json | jq -r ".redis_queue // empty"` ]];
+        do
+          echo "Waiting for sites/common_site_config.json to be created";
+          sleep 5;
+          if (( `date +%s`-start > 120 )); then
+            echo "could not find sites/common_site_config.json with required keys";
+            exit 1
+          fi
+        done;
+        echo "sites/common_site_config.json found";
+        if [ -d "sites/frontend" ]; then
+          echo "Site frontend already exists, skipping creation";
+        else
+          bench new-site --mariadb-user-host-login-scope='%' --admin-password="$ARIADNE_ERP_ADMIN_PASSWORD" --db-root-username=root --db-root-password="$ARIADNE_ERP_DB_PASSWORD" --install-app erpnext --set-default frontend;
+        fi;
+
+  db:
+    image: mariadb:11.8@sha256:c4124d1afa875e47f2892edf26b482fa54f796e2f342d3717a04ca091a22a9bd
+    networks:
+      - frappe_network
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 5s
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      restart_policy:
+        condition: on-failure
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+    environment:
+      MYSQL_ROOT_PASSWORD: ${ARIADNE_ERP_DB_PASSWORD:?Run scripts/prepare_erpnext.py}
+      MARIADB_ROOT_PASSWORD: ${ARIADNE_ERP_DB_PASSWORD:?Run scripts/prepare_erpnext.py}
+    volumes:
+      - "${ARIADNE_ERP_DATA:?Set storage under the box}/db:/var/lib/mysql"
+
+  frontend:
+    image: frappe/erpnext:v16.52.1@sha256:bc21532268c35cec5756c44a11fe510bfccbf23fb4ad651a38644d0c25b56299
+    networks:
+      - frappe_network
+    depends_on:
+      - websocket
+      - backend
+    deploy:
+      restart_policy:
+        condition: on-failure
+    command:
+      - nginx-entrypoint.sh
+    environment:
+      BACKEND: backend:8000
+      FRAPPE_SITE_NAME_HEADER: frontend
+      SOCKETIO: websocket:9000
+      UPSTREAM_REAL_IP_ADDRESS: 127.0.0.1
+      UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
+      UPSTREAM_REAL_IP_RECURSIVE: "off"
+      PROXY_READ_TIMEOUT: 120
+      CLIENT_MAX_BODY_SIZE: 50m
+    volumes:
+      - "${ARIADNE_ERP_DATA:?Set storage under the box}/sites:/home/frappe/frappe-bench/sites"
+      - "${ARIADNE_ERP_DATA:?Set storage under the box}/logs:/home/frappe/frappe-bench/logs"
+    ports:
+      - "127.0.0.1:8092:8080"
+
+  queue-long:
+    image: frappe/erpnext:v16.52.1@sha256:bc21532268c35cec5756c44a11fe510bfccbf23fb4ad651a38644d0c25b56299
+    networks:
+      - frappe_network
+    deploy:
+      restart_policy:
+        condition: on-failure
+    command:
+      - bench
+      - worker
+      - --queue
+      - long,default,short
+    volumes:
+      - "${ARIADNE_ERP_DATA:?Set storage under the box}/sites:/home/frappe/frappe-bench/sites"
+      - "${ARIADNE_ERP_DATA:?Set storage under the box}/logs:/home/frappe/frappe-bench/logs"
+    environment:
+      FRAPPE_REDIS_CACHE: redis://redis-cache:6379
+      FRAPPE_REDIS_QUEUE: redis://redis-queue:6379
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+
+  queue-short:
+    image: frappe/erpnext:v16.52.1@sha256:bc21532268c35cec5756c44a11fe510bfccbf23fb4ad651a38644d0c25b56299
+    networks:
+      - frappe_network
+    deploy:
+      restart_policy:
+        condition: on-failure
+    command:
+      - bench
+      - worker
+      - --queue
+      - short,default
+    volumes:
+      - "${ARIADNE_ERP_DATA:?Set storage under the box}/sites:/home/frappe/frappe-bench/sites"
+      - "${ARIADNE_ERP_DATA:?Set storage under the box}/logs:/home/frappe/frappe-bench/logs"
+    environment:
+      FRAPPE_REDIS_CACHE: redis://redis-cache:6379
+      FRAPPE_REDIS_QUEUE: redis://redis-queue:6379
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+
+  redis-queue:
+    image: redis:6.2-alpine@sha256:63d5174750e285bc3069c4519c53c8b6de6ebe70715140a6c9d21d6f04b77319
+    networks:
+      - frappe_network
+    deploy:
+      restart_policy:
+        condition: on-failure
+    volumes:
+      - "${ARIADNE_ERP_DATA:?Set storage under the box}/redis:/data"
+
+  redis-cache:
+    image: redis:6.2-alpine@sha256:63d5174750e285bc3069c4519c53c8b6de6ebe70715140a6c9d21d6f04b77319
+    networks:
+      - frappe_network
+    deploy:
+      restart_policy:
+        condition: on-failure
+
+  scheduler:
+    image: frappe/erpnext:v16.52.1@sha256:bc21532268c35cec5756c44a11fe510bfccbf23fb4ad651a38644d0c25b56299
+    networks:
+      - frappe_network
+    deploy:
+      restart_policy:
+        condition: on-failure
+    command:
+      - bench
+      - schedule
+    volumes:
+      - "${ARIADNE_ERP_DATA:?Set storage under the box}/sites:/home/frappe/frappe-bench/sites"
+      - "${ARIADNE_ERP_DATA:?Set storage under the box}/logs:/home/frappe/frappe-bench/logs"
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+
+  websocket:
+    image: frappe/erpnext:v16.52.1@sha256:bc21532268c35cec5756c44a11fe510bfccbf23fb4ad651a38644d0c25b56299
+    networks:
+      - frappe_network
+    deploy:
+      restart_policy:
+        condition: on-failure
+    command:
+      - node
+      - /home/frappe/frappe-bench/apps/frappe/socketio.js
+    environment:
+      FRAPPE_REDIS_CACHE: redis://redis-cache:6379
+      FRAPPE_REDIS_QUEUE: redis://redis-queue:6379
+    volumes:
+      - "${ARIADNE_ERP_DATA:?Set storage under the box}/sites:/home/frappe/frappe-bench/sites"
+      - "${ARIADNE_ERP_DATA:?Set storage under the box}/logs:/home/frappe/frappe-bench/logs"
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+
+networks:
+  frappe_network:
+    driver: bridge
+

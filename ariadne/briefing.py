@@ -1,0 +1,890 @@
+"""Deterministic daily briefing, durable receipts and an isolated public-data collector.
+
+The application never weakens its offline socket policy. Only the explicitly
+enabled collector child can contact public HTTPS sources; reports consume its
+dated cache. No model is used and external text is never executable instruction.
+"""
+from __future__ import annotations
+
+import hashlib
+import html
+import http.client
+import ipaddress
+import json
+import math
+import os
+import re
+import socket
+import sqlite3
+import ssl
+import stat
+import subprocess
+import sys
+import threading
+import time
+import uuid
+import xml.etree.ElementTree as ET
+from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo
+
+from .config import _allowed_path
+from .internet import internet_enabled, SETTINGS_KEY
+from .locking import InstanceLock
+
+UTC = timezone.utc
+MAX_BYTES = 2_000_000
+MAX_ROWS = 1000
+MAX_HISTORY = 100_000
+_REQUEST = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}\Z")
+_RESOURCES = Path(__file__).parent / "resources" / "briefing"
+_DEFAULT = {"enabled": False, "paused": False, "timezone": "America/Chicago", "hour": 6,
+            "minute": 0, "region": None, "online_sources": False, "news_feeds": [],
+            "activation_at": None, "pause_reason": None, "revision": 0}
+_AGE_LIMITS = {"weather": 2*3600, "forecast": 6*3600, "alerts": 30*60, "earthquakes": 2*3600, "news": 24*3600}
+_NWS = "https://api.weather.gov"
+_QUAKES = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson"
+_DOCS = [{"title": "NWS public forecast and alerts API", "url": "https://www.weather.gov/documentation/services-web-api"},
+         {"title": "USGS GeoJSON feed specification", "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php"}]
+_RUN_LOCK = threading.RLock()
+
+
+def _json(value):
+    return (json.dumps(value, ensure_ascii=False, sort_keys=True, allow_nan=False, indent=2)+"\n").encode("utf-8")
+
+
+def _utc(value=None):
+    if value is None:
+        return datetime.now(UTC)
+    if not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError("Briefing timestamps must have an explicit time zone.")
+    return value.astimezone(UTC)
+
+
+def _stamp(value):
+    return _utc(value).isoformat()
+
+
+def _tz(name):
+    if name == "UTC":
+        return UTC
+    if name != "America/Chicago":
+        raise ValueError("Supported briefing time zones: America/Chicago and UTC.")
+    # Bundle the 1.7 KiB IANA 2026f record so Windows needs no system TZ database.
+    with (_RESOURCES / "America_Chicago.tzif").open("rb") as source:
+        return ZoneInfo.from_file(source, key="America/Chicago")
+
+
+def _text(value, maximum=2000):
+    if value is None:
+        return ""
+    return " ".join(str(value).replace("\x00", "").split())[:maximum]
+
+
+def _md(value):
+    return html.escape(_text(value, 8000), quote=False).replace("|", "\\|").replace("[", "\\[").replace("]", "\\]")
+
+
+def _source_url(value, *, official=False):
+    if type(value) is not str or len(value) > 2000:
+        raise ValueError("A source must have a bounded HTTPS URL.")
+    parsed = urlsplit(value)
+    host = parsed.hostname or ""
+    if (parsed.scheme != "https" or not host or parsed.username or parsed.password
+            or parsed.port not in (None, 443) or parsed.fragment
+            or not re.fullmatch(r"[a-zA-Z0-9.-]+", host)
+            or ".." in host or any(ord(c) <= 32 for c in value)):
+        raise ValueError("Source URLs require HTTPS port 443 without credentials or fragments.")
+    if official and not (host.lower().endswith(".gov") or host.lower() == "gov"):
+        raise ValueError("Owner news feeds currently support official .gov HTTPS sources.")
+    return value
+
+
+def _validate_config(value, previous, now):
+    keys = {"enabled", "paused", "timezone", "hour", "minute", "region", "online_sources", "news_feeds"}
+    if type(value) is not dict or set(value)-keys:
+        raise ValueError("Unsupported briefing settings.")
+    cfg = {**previous, **value}
+    for key in ("enabled", "paused", "online_sources"):
+        if type(cfg[key]) is not bool:
+            raise ValueError(key+" must be boolean.")
+    _tz(cfg["timezone"])
+    for key, upper in (("hour", 23), ("minute", 59)):
+        if type(cfg[key]) is not int or not 0 <= cfg[key] <= upper:
+            raise ValueError("Invalid daily briefing time.")
+    region = cfg["region"]
+    if region is not None:
+        if type(region) is not dict or set(region)-{"name", "latitude", "longitude", "country"}:
+            raise ValueError("Region requires name, latitude, longitude and country US.")
+        if not isinstance(region.get("name"), str) or not 1 <= len(region["name"].strip()) <= 120:
+            raise ValueError("Region needs a name of 1–120 characters.")
+        if region.get("country", "US") != "US":
+            raise ValueError("The bundled forecast collector currently covers US regions only.")
+        for key, low, high in (("latitude", -90, 90), ("longitude", -180, 180)):
+            if type(region.get(key)) not in (int, float) or not math.isfinite(region[key]) or not low <= region[key] <= high:
+                raise ValueError("Region needs valid numeric coordinates.")
+        cfg["region"] = {"name": region["name"].strip(), "latitude": round(region["latitude"], 4),
+                         "longitude": round(region["longitude"], 4), "country": "US"}
+    feeds = cfg["news_feeds"]
+    if type(feeds) is not list or len(feeds) > 5:
+        raise ValueError("At most five owner-configured official news feeds are supported.")
+    cleaned = []
+    for feed in feeds:
+        if type(feed) is not dict or set(feed)-{"title", "url", "region_terms"}:
+            raise ValueError("News feed fields: title, url, region_terms.")
+        title = feed.get("title")
+        terms = feed.get("region_terms", [])
+        if type(title) is not str or not 1 <= len(title) <= 120 or type(terms) is not list or len(terms) > 12 or any(type(term) is not str or not 1 <= len(term) <= 80 for term in terms):
+            raise ValueError("Use a bounded news title and up to twelve regional match terms.")
+        cleaned.append({"title": title, "url": _source_url(feed.get("url"), official=True), "region_terms": terms})
+    if len({row["url"] for row in cleaned}) != len(cleaned):
+        raise ValueError("Duplicate news feed URLs are not allowed.")
+    cfg["news_feeds"] = cleaned
+    if not previous["enabled"] and cfg["enabled"]:
+        cfg["activation_at"] = _stamp(now)
+    if "paused" in value and not value["paused"]:
+        cfg["pause_reason"] = None
+    cfg["revision"] = previous["revision"] + 1
+    return cfg
+
+
+def _region_digest(config):
+    return hashlib.sha256(_json({"region": config["region"], "news_feeds": config["news_feeds"]})).hexdigest()
+
+
+class BriefingConflict(ValueError):
+    def __init__(self, request_id, status, message):
+        self.request_id, self.status = request_id, status
+        super().__init__(message)
+
+
+class BriefingCollectionStopped(RuntimeError):
+    """Policy cancellation must escape source-level fetch error handling."""
+
+
+class BriefingService:
+    def __init__(self, settings, store, registry):
+        self.settings, self.store, self.registry = settings, store, registry
+        self.path = settings.data_dir / "briefing.sqlite3"
+        self.lock = threading.RLock()
+        self.stop_event = threading.Event()
+        self.collector_lock = threading.RLock()
+        self.collectors = set()
+        self.thread = None
+        if getattr(registry, "procedures", None) and registry.procedures.store is None:
+            registry.procedures.store = store
+
+    @contextmanager
+    def database(self):
+        with self.lock, self.registry._directory(self.path.parent, create=True):
+            path = _allowed_path(self.path)
+            for suffix in ("", "-journal", "-wal", "-shm"):
+                candidate = _allowed_path(str(path)+suffix)
+                if candidate.exists():
+                    info = candidate.stat()
+                    if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                        raise ValueError("Briefing database files must be regular files with one link.")
+            db = sqlite3.connect(path, timeout=10)
+            db.row_factory = sqlite3.Row
+            deadline = time.monotonic()+10
+            db.set_progress_handler(lambda: int(time.monotonic() > deadline), 10_000)
+            try:
+                db.execute("PRAGMA trusted_schema=OFF")
+                db.executescript("""
+                    CREATE TABLE IF NOT EXISTS briefing_settings(id INTEGER PRIMARY KEY CHECK(id=1), value TEXT NOT NULL);
+                    CREATE TABLE IF NOT EXISTS briefing_cache(id INTEGER PRIMARY KEY CHECK(id=1), digest TEXT NOT NULL, collected TEXT NOT NULL, value TEXT NOT NULL);
+                    CREATE TABLE IF NOT EXISTS briefing_runs(request_id TEXT PRIMARY KEY, day TEXT, status TEXT NOT NULL, created REAL NOT NULL, receipt TEXT NOT NULL);
+                    CREATE UNIQUE INDEX IF NOT EXISTS briefing_day ON briefing_runs(day) WHERE day IS NOT NULL;
+                """)
+                yield db
+                db.commit()
+            except BaseException:
+                db.rollback()
+                raise
+            finally:
+                db.close()
+
+    def config(self):
+        with self.database() as db:
+            row = db.execute("SELECT value FROM briefing_settings WHERE id=1").fetchone()
+        return {**_DEFAULT, **json.loads(row["value"])} if row else dict(_DEFAULT)
+
+    def configure(self, value, now=None):
+        now = _utc(now)
+        with self.database() as db:
+            db.execute("BEGIN IMMEDIATE")
+            old = db.execute("SELECT value FROM briefing_settings WHERE id=1").fetchone()
+            previous = {**_DEFAULT, **json.loads(old[0])} if old else dict(_DEFAULT)
+            cfg = _validate_config(value, previous, now)
+            db.execute("INSERT OR REPLACE INTO briefing_settings VALUES(1,?)", (_json(cfg).decode(),))
+        return self.status(now)
+
+    @staticmethod
+    def _slot(config, day):
+        return datetime(day.year, day.month, day.day, config["hour"], config["minute"], tzinfo=_tz(config["timezone"])).astimezone(UTC)
+
+    def next_due(self, now=None, config=None):
+        now, config = _utc(now), config or self.config()
+        if not config["enabled"] or config["paused"]:
+            return None
+        day = now.astimezone(_tz(config["timezone"])).date()
+        slot = self._slot(config, day)
+        if slot <= now:
+            slot = self._slot(config, day+timedelta(days=1))
+        return _stamp(slot)
+
+    def status(self, now=None):
+        now, cfg = _utc(now), self.config()
+        with self.database() as db:
+            rows = list(db.execute("SELECT receipt,status FROM briefing_runs ORDER BY created DESC LIMIT 1"))
+            cache = db.execute("SELECT collected,digest FROM briefing_cache WHERE id=1").fetchone()
+        last = {**json.loads(rows[0]["receipt"]), "status": rows[0]["status"]} if rows else None
+        today = now.astimezone(_tz(cfg["timezone"])).date().isoformat()
+        today_report = last if last and datetime.fromtimestamp(last["created_at"], UTC).astimezone(_tz(cfg["timezone"])).date().isoformat() == today else None
+        master_enabled = internet_enabled(self.store, default=True)
+        return {"config": cfg, "next_due_at": self.next_due(now, cfg), "last_report": last,
+                "today_report": today_report, "autonomy_paused": bool(self.store.setting("paused", False)),
+                "internet_enabled": master_enabled,
+                "collection_enabled": bool(master_enabled and cfg["online_sources"] and not cfg["paused"] and not self.store.setting("paused", False) and cfg["region"]),
+                "cache": {"collected_at": cache["collected"], "region_matches": cache["digest"] == _region_digest(cfg)} if cache else None,
+                "region_required": cfg["region"] is None, "model_calls": 0,
+                "daemon_running": bool(self.thread and self.thread.is_alive()),
+                "supported_timezones": ["America/Chicago", "UTC"], "source_docs": _DOCS,
+                "scope": "Ariadne activity and dated public sources only. Offline briefs mark unavailable or stale sources. This is not comprehensive regional news coverage.",
+                "wake_limit": "The app timer runs while Ariadne is running. OS wake-from-sleep requires the separately installed Windows task; powered-off PCs cannot wake through this timer."}
+
+    def history(self):
+        with self.database() as db:
+            rows = list(db.execute("SELECT receipt,status FROM briefing_runs ORDER BY created DESC LIMIT 100"))
+        return {"runs": [{**json.loads(row["receipt"]), "status": row["status"]} for row in rows]}
+
+    @contextmanager
+    def _execution(self, request_id):
+        # A Windows wake task and the web server can run in separate processes.
+        # Recovery must not adopt an actually live reporter as a crashed one.
+        owner = InstanceLock(self.settings.data_dir / "briefing.lock")
+        try:
+            owner.acquire()
+        except ValueError as error:
+            if str(error) != "Another Ariadne worker already owns this data directory":
+                raise
+            raise BriefingConflict(request_id, "running", "Another live briefing process owns execution; its report will not be duplicated or recovered.") from None
+        try:
+            yield
+        finally:
+            owner.release()
+
+    def cache(self, config=None, now=None):
+        cfg, now = config or self.config(), _utc(now)
+        with self.database() as db:
+            row = db.execute("SELECT * FROM briefing_cache WHERE id=1").fetchone()
+        if not row or row["digest"] != _region_digest(cfg):
+            return {"collected_at": None, "sources": [], "warnings": ["No cached public sources match the configured region and feeds."]}
+        result = json.loads(row["value"])
+        for source in result["sources"]:
+            try:
+                age = max(0, (now-datetime.fromisoformat(source["fetched_at"])).total_seconds())
+                source["age_seconds"] = round(age)
+                source["stale"] = age > _AGE_LIMITS[source["kind"]]
+                source["freshness_basis"] = "retrieval_age"
+                if source["kind"] in {"weather", "forecast"} and source.get("issued_at"):
+                    issued_age = max(0, (now-datetime.fromisoformat(source["issued_at"])).total_seconds())
+                    source["issued_age_seconds"] = round(issued_age)
+                    source["stale"] = source["stale"] or issued_age > _AGE_LIMITS[source["kind"]]
+                    source["freshness_basis"] = "retrieval_and_source_issue_age"
+                if source["kind"] == "alerts":
+                    for item in source.get("items", []):
+                        item["expired"] = bool(item.get("expires") and datetime.fromisoformat(item["expires"]) <= now)
+            except (KeyError, ValueError, TypeError):
+                source["stale"] = True
+        return result
+
+    def internet_revision(self):
+        """None is the legacy bare-service policy; real app settings have a revision."""
+        value = self.store.setting(SETTINGS_KEY, None)
+        if value is None:
+            return None
+        if type(value) is not dict or type(value.get("revision")) is not int or value["revision"] < 0:
+            raise BriefingCollectionStopped("Internet settings are invalid; collection was stopped.")
+        return value["revision"]
+
+    def _check_collection_master(self, internet_revision):
+        if self.stop_event.is_set():
+            raise BriefingCollectionStopped("Briefing service stopped; public collection was cancelled.")
+        if not internet_enabled(self.store, default=True):
+            raise BriefingCollectionStopped("Internet access is disabled; dated briefing cache is retained.")
+        if self.internet_revision() != internet_revision:
+            raise BriefingCollectionStopped("Internet settings changed during collection; its response was discarded.")
+        if self.store.setting("paused", False):
+            raise BriefingCollectionStopped("Autonomy is paused; public collection was cancelled.")
+
+    def check_collection(self, config, internet_revision):
+        self._check_collection_master(internet_revision)
+        current = self.config()
+        if (not current["online_sources"] or current["paused"] or not current["region"]
+                or current["revision"] != config["revision"]):
+            raise BriefingCollectionStopped("Briefing collection settings changed, are paused or await a region; dated cache is retained.")
+
+    @contextmanager
+    def _collection_publication_lease(self, collection_policy):
+        if collection_policy is None:
+            yield
+            return
+        # Match InternetService's lock order: canonical settings first, then
+        # the evidence cache. Hold its write lease through the cache commit so
+        # another process cannot revoke access between the check and publish.
+        with self.registry._directory(self.store.path.parent):
+            for suffix in ("", "-journal", "-wal", "-shm"):
+                candidate = _allowed_path(str(self.store.path)+suffix)
+                if candidate.exists():
+                    info = candidate.stat()
+                    if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                        raise ValueError("Internet settings database files must be regular files with one link.")
+            with self.store.connect() as settings_db:
+                settings_db.execute("PRAGMA trusted_schema=OFF")
+                settings_db.execute("BEGIN IMMEDIATE")
+                self._check_collection_master(collection_policy[1])
+                yield
+
+    def save_cache(self, value, expected_digest, *, collection_policy=None):
+        if collection_policy is not None:
+            self.check_collection(*collection_policy)
+        if type(value) is not dict or len(_json(value)) > MAX_BYTES or type(value.get("sources")) is not list or len(value["sources"]) > 9:
+            raise ValueError("Collector cache exceeds the bounded schema.")
+        datetime.fromisoformat(value["collected_at"])
+        for source in value["sources"]:
+            if source.get("kind") not in _AGE_LIMITS or type(source.get("items")) is not list or len(source["items"]) > 100:
+                raise ValueError("Invalid collector source schema.")
+            _source_url(source["url"])
+            fetched = datetime.fromisoformat(source["fetched_at"])
+            _utc(fetched)
+        with self._collection_publication_lease(collection_policy), self.database() as db:
+            db.execute("BEGIN IMMEDIATE")
+            current = db.execute("SELECT value FROM briefing_settings WHERE id=1").fetchone()
+            cfg = {**_DEFAULT, **json.loads(current[0])} if current else dict(_DEFAULT)
+            if collection_policy is not None:
+                self._check_collection_master(collection_policy[1])
+                if (cfg["revision"] != collection_policy[0]["revision"] or not cfg["online_sources"]
+                        or cfg["paused"] or not cfg["region"]):
+                    raise BriefingCollectionStopped("Briefing settings changed before cache publication; dated cache is retained.")
+            if _region_digest(cfg) != expected_digest:
+                raise ValueError("Region or feeds changed during collection; stale cache was not adopted.")
+            previous = db.execute("SELECT digest,value FROM briefing_cache WHERE id=1").fetchone()
+            if previous and previous["digest"] == expected_digest:
+                saved = {(row["kind"], row["url"]): row for row in json.loads(previous["value"])["sources"]}
+                for index, source in enumerate(value["sources"]):
+                    old = saved.get((source["kind"], source["url"]))
+                    if source["status"] == "unavailable" and old and old["status"] != "unavailable":
+                        # Failed WAN refreshes never erase the last usable offline snapshot.
+                        value["sources"][index] = {**old, "status": "cached_refresh_failed",
+                            "last_refresh_attempt_at": source["fetched_at"], "refresh_error": source["error"]}
+                if len(_json(value)) > MAX_BYTES:
+                    raise ValueError("Merged collector cache exceeds the bounded artifact size.")
+            if collection_policy is not None:
+                self._check_collection_master(collection_policy[1])
+            db.execute("INSERT OR REPLACE INTO briefing_cache VALUES(1,?,?,?)", (expected_digest, value["collected_at"], _json(value).decode()))
+
+    def collect(self):
+        cfg = self.config()
+        if not internet_enabled(self.store, default=True):
+            return {"collected": False, "reason": "Internet access is disabled; dated briefing cache is retained."}
+        if not cfg["online_sources"] or cfg["paused"] or self.store.setting("paused", False) or not cfg["region"]:
+            return {"collected": False, "reason": "Public-source collection is disabled, paused or awaiting the region."}
+        script = _allowed_path(Path(__file__).resolve().parent.parent / "scripts" / "briefing.py")
+        env = {key: os.environ[key] for key in ("SYSTEMROOT", "WINDIR", "COMSPEC", "PATH", "TEMP", "TMP", "USERPROFILE", "LOCALAPPDATA") if key in os.environ}
+        process = None
+        try:
+            revision = self.internet_revision()
+            self.check_collection(cfg, revision)
+            env.update(ARIADNE_BRIEFING_COLLECTOR="1", ARIADNE_OFFLINE="0", PYTHONDONTWRITEBYTECODE="1",
+                       ARIADNE_BRIEFING_INTERNET_REVISION=json.dumps(revision),
+                       ARIADNE_BRIEFING_CONFIG_REVISION=str(cfg["revision"]))
+            command = [sys.executable, "-I", "-B", str(script), "collect-worker", "--data-dir", str(self.settings.data_dir), "--workspace", str(self.settings.workspace)]
+            with self.collector_lock:
+                self.check_collection(cfg, revision)
+                process = subprocess.Popen(command, env=env, cwd=script.parent.parent,
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                self.collectors.add(process)
+            deadline = time.monotonic()+100
+            while process.poll() is None:
+                self.check_collection(cfg, revision)
+                remaining = deadline-time.monotonic()
+                if remaining <= 0:
+                    return {"collected": False, "reason": "Collector exceeded 100 seconds; dated cache is retained."}
+                try:
+                    process.wait(timeout=min(.1, remaining))
+                except subprocess.TimeoutExpired:
+                    continue
+            self.check_collection(cfg, revision)
+            if process.returncode:
+                return {"collected": False, "reason": "Collector failed; dated cache is retained.", "returncode": process.returncode}
+            return {"collected": True, "cache": self.cache(cfg)}
+        except BriefingCollectionStopped as error:
+            return {"collected": False, "reason": str(error)}
+        finally:
+            if process is not None:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=5)
+                with self.collector_lock:
+                    self.collectors.discard(process)
+
+    def _activity(self, start, end):
+        with self.store.connect() as db:
+            deadline = time.monotonic()+5
+            db.set_progress_handler(lambda: int(time.monotonic() > deadline), 10_000)
+            runs_count = db.execute("SELECT count(*) FROM runs WHERE created_at>=? AND created_at<=? OR updated_at>=? AND updated_at<=?", (start, end, start, end)).fetchone()[0]
+            runs = [dict(row) for row in db.execute("SELECT id,title,status,created_at,updated_at,step_count,verification_status,error FROM runs WHERE created_at>=? AND created_at<=? OR updated_at>=? AND updated_at<=? ORDER BY updated_at DESC LIMIT ?", (start, end, start, end, MAX_ROWS))]
+            event_count = db.execute("SELECT count(*) FROM events WHERE created_at>=? AND created_at<=?", (start, end)).fetchone()[0]
+            event_kinds = [dict(row) for row in db.execute("SELECT kind,count(*) AS count FROM events WHERE created_at>=? AND created_at<=? GROUP BY kind ORDER BY kind", (start, end))]
+            events = [dict(row) for row in db.execute("SELECT id,run_id,kind,data,created_at FROM events WHERE created_at>=? AND created_at<=? ORDER BY created_at DESC,id DESC LIMIT ?", (start, end, MAX_ROWS))]
+            approvals = [dict(row) for row in db.execute("SELECT id,run_id,tool,status,created_at FROM approvals WHERE status IN ('pending','executing','uncertain') ORDER BY created_at DESC LIMIT ?", (MAX_ROWS,))]
+            schedules = [dict(row) for row in db.execute("SELECT id,name,enabled,next_run,last_error FROM schedules ORDER BY next_run LIMIT 100")]
+            memories = db.execute("SELECT count(*) FROM memories WHERE created_at>=? AND created_at<=?", (start, end)).fetchone()[0]
+            documents = db.execute("SELECT count(*) FROM documents WHERE created_at>=? AND created_at<=?", (start, end)).fetchone()[0]
+        for event in events:
+            # Logs are local data. Keep bounded evidence without copying full tool outputs.
+            data = json.loads(event.pop("data"))
+            event["tool"] = _text(data.get("tool", ""), 160) if isinstance(data, dict) else ""
+            event["message"] = _text(data.get("message", ""), 400) if isinstance(data, dict) else ""
+        procedures = []
+        if getattr(self.registry, "procedures", None):
+            service = self.registry.procedures.service()
+            if service.path.exists():
+                with service.database() as db:
+                    procedures = [dict(row) for row in db.execute("SELECT request_id,procedure_id,status,created,completed FROM procedure_runs WHERE created>=? AND created<=? OR completed>=? AND completed<=? ORDER BY created DESC LIMIT ?", (start, end, start, end, MAX_ROWS))]
+        return {"window_start_utc": datetime.fromtimestamp(start, UTC).isoformat(), "window_end_utc": datetime.fromtimestamp(end, UTC).isoformat(),
+                "runs_count": runs_count, "runs": runs, "events_count": event_count, "event_kinds": event_kinds,
+                "events": events, "unresolved_approvals": approvals, "schedules": schedules, "new_memories": memories,
+                "new_documents": documents, "procedures": procedures, "detail_limit": MAX_ROWS,
+                "details_truncated": runs_count > len(runs) or event_count > len(events) or len(procedures) == MAX_ROWS,
+                "coverage": "Recorded Ariadne missions, events, fixed reports, approvals and imported metadata; not unlogged PC activity or other applications."}
+
+    def _render(self, report):
+        cfg, activity = report["config"], report["activity"]
+        lines = ["# Ariadne daily brief", "", "Generated: "+report["generated_at_utc"], "Local date: "+report["local_date"],
+                 "Region: "+_md((cfg["region"] or {}).get("name", "Not configured")), "Model calls: 0.", "",
+                 "## Recorded activity", "", "Window: "+activity["window_start_utc"]+" to "+activity["window_end_utc"], "",
+                 f"Missions touched: {activity['runs_count']}. Events: {activity['events_count']}. New memories: {activity['new_memories']}. New documents: {activity['new_documents']}.",
+                 "Unresolved approvals: "+str(len(activity["unresolved_approvals"]))+". Fixed local procedures: "+str(len(activity["procedures"]))+".", "",
+                 "| Mission | Status | Steps | Verification |", "|---|---|---|---|"]
+        lines.extend("| "+" | ".join(_md(row[key]) for key in ("title", "status", "step_count", "verification_status"))+" |" for row in activity["runs"])
+        lines += ["", "Activity coverage: "+activity["coverage"]]
+        if activity["details_truncated"]:
+            lines.append("Detail rows are truncated at 1,000. Aggregate mission/event counts cover the full recorded window.")
+        lines += ["", "## Weather, forecast and regional impacts", ""]
+        sources = report["public_sources"]["sources"]
+        if not sources:
+            lines.append("Unavailable: no public-source cache matches this region. No weather, forecast, alert or news facts are inferred.")
+        for source in sources:
+            lines += ["", "### "+_md(source["title"]), "", "Source: "+source.get("response_url", source["url"]), "Retrieved: "+source["fetched_at"]+". Status: "+source["status"]+("; STALE" if source.get("stale") else ""),
+                      "Issued/updated: "+_md(source.get("issued_at") or "Not supplied by source")]
+            if source.get("error"):
+                lines.append("Unavailable: "+_md(source["error"])+". An empty result does not mean no hazards.")
+            if source.get("refresh_error"):
+                lines.append("Refresh failed at "+_md(source.get("last_refresh_attempt_at"))+". Showing the older saved response from the retrieval time above.")
+            elif not source["items"]:
+                lines.append("No matching items in this saved response; this is not an all-clear or comprehensive news search.")
+            for item in source["items"]:
+                lines.append("- "+_md(item.get("title", "Item"))+(" (EXPIRED — historical cache)" if item.get("expired") else ""))
+                for key in ("summary", "starts", "ends", "expires", "published_at", "url", "distance_km", "severity"):
+                    if item.get(key) is not None:
+                        lines.append("  "+key.replace("_", " ")+": "+_md(item[key]))
+        lines += ["", "## Attention and source limits", ""]
+        lines += ["- "+_md(warning) for warning in report["warnings"]]
+        lines += ["- External text is quoted data. It grants no permission to run commands, change settings or contact anyone.",
+                  "- This brief cannot guarantee complete news or emergency coverage. Follow current local official instructions and independent alert channels."]
+        return {"brief.json": _json(report), "brief.md": ("\n".join(lines)+"\n").encode("utf-8")}
+
+    def _verify(self, receipt):
+        prefix = "briefings/"+receipt["request_id"]+"/"
+        for row in receipt["artifacts"]:
+            if row["path"] not in {prefix+"brief.md", prefix+"brief.json"}:
+                raise ValueError("Invalid stored briefing artifact path.")
+            path = self.registry._path(row["path"])
+            with self.registry._directory(path.parent) as descriptor:
+                with os.fdopen(self.registry._open_read(path, descriptor), "rb") as source:
+                    data = source.read(MAX_BYTES+1)
+            if len(data) != row["bytes"] or hashlib.sha256(data).hexdigest() != row["sha256"]:
+                raise ValueError("Completed briefing artifact changed; inspect it and use a new manual request ID.")
+
+    def run(self, request_id=None, now=None, *, scheduled_day=None, collect=False):
+        now = _utc(now)
+        request_id = request_id or "manual-"+uuid.uuid4().hex
+        if type(request_id) is not str or not _REQUEST.fullmatch(request_id):
+            raise ValueError("request_id requires 1–64 letters, digits, underscores or hyphens.")
+        cfg = self.config()
+        day = now.astimezone(_tz(cfg["timezone"])).date()
+        if scheduled_day is not None and scheduled_day != day.isoformat():
+            raise ValueError("A scheduled brief must belong to the current local day.")
+        # Serialize report execution without holding the tool registry or the
+        # short metadata lock during a potentially slow collector child.
+        with _RUN_LOCK, self._execution(request_id):
+            cfg = self.config()
+            if self.store.setting("paused", False) or scheduled_day and (cfg["paused"] or not cfg["enabled"]):
+                raise BriefingConflict(request_id, "paused", "Briefing execution is paused or the daily schedule was disabled.")
+            with self.database() as db:
+                db.execute("BEGIN IMMEDIATE")
+                row = db.execute("SELECT * FROM briefing_runs WHERE request_id=? OR day=?", (request_id, scheduled_day)).fetchone()
+                if row:
+                    if row["request_id"] != request_id:
+                        raise BriefingConflict(request_id, row["status"], "A brief already owns this scheduled local day.")
+                    if row["status"] != "completed":
+                        raise BriefingConflict(request_id, row["status"], "This brief previously started or failed; inspect history. It will not replay automatically.")
+                    receipt = json.loads(row["receipt"])
+                    self._verify(receipt)
+                    return {**receipt, "replayed": True}
+                if db.execute("SELECT count(*) FROM briefing_runs").fetchone()[0] >= MAX_HISTORY:
+                    raise ValueError("Briefing history is full; archive reviewed history before continuing.")
+                receipt = {"ok": False, "request_id": request_id, "day": scheduled_day, "status": "running", "created_at": now.timestamp(),
+                           "generated_at_utc": _stamp(now), "model_calls": 0, "artifacts": [], "replayed": False}
+                db.execute("INSERT INTO briefing_runs VALUES(?,?,?,?,?)", (request_id, scheduled_day, "running", now.timestamp(), _json(receipt).decode()))
+            started = time.monotonic()
+            try:
+                collection = None
+                if collect and not cfg["paused"]:
+                    try:
+                        collection = self.collect()
+                    except (OSError, subprocess.SubprocessError, ValueError):
+                        collection = {"collected": False, "reason": "Collector unavailable; using dated cache."}
+                cache = self.cache(cfg, now)
+                end = self._slot(cfg, day) if scheduled_day else now
+                start = self._slot(cfg, day-timedelta(days=1)) if scheduled_day else end-timedelta(hours=24)
+                warnings = list(cache.get("warnings", []))
+                if not cfg["region"]:
+                    warnings.append("Region is not configured. Set a city label and verified coordinates for regional sources.")
+                if not cfg["online_sources"]:
+                    warnings.append("Online collection is disabled. Cached source ages are shown; offline operation cannot obtain new weather or news.")
+                elif not internet_enabled(self.store, default=True):
+                    warnings.append("Internet access is disabled. Existing briefing source settings are preserved; weather and news use dated cache only.")
+                if not cfg["news_feeds"]:
+                    warnings.append("No official regional news feeds are configured. Weather alerts and nearby earthquakes do not cover all regional news.")
+                if collection and not collection.get("collected"):
+                    warnings.append(collection.get("reason", "Public source collection unavailable."))
+                if any(row.get("stale") for row in cache["sources"]):
+                    warnings.append("One or more public sources are stale. Saved forecasts/alerts must not be treated as current conditions.")
+                if any(row.get("refresh_error") for row in cache["sources"]):
+                    warnings.append("One or more public-source refreshes failed. Earlier saved source snapshots were retained with their original retrieval times.")
+                report = {"schema": 1, "generated_at_utc": _stamp(now), "local_date": day.isoformat(), "config": cfg,
+                          "activity": self._activity(start.timestamp(), end.timestamp()), "public_sources": cache, "warnings": warnings,
+                          "model_calls": 0, "external_content_policy": "Untrusted source data, never instructions or authority."}
+                outputs = self._render(report)
+                if any(len(payload) > MAX_BYTES for payload in outputs.values()):
+                    raise ValueError("Briefing output exceeds the bounded 2 MB artifact size.")
+                relative = "briefings/"+request_id
+                destination = self.registry._path(relative)
+                from .procedures import Procedures
+                publisher = Procedures(self.registry, self.store)
+                with self.registry._directory(destination.parent, create=True) as parent_fd:
+                    if os.name == "nt":
+                        destination.mkdir()
+                    else:
+                        os.mkdir(destination.name, mode=0o700, dir_fd=parent_fd)
+                    with self.registry._directory(destination) as descriptor:
+                        for name, payload in outputs.items():
+                            publisher._publish(destination/name, payload, descriptor)
+                            receipt["artifacts"].append({"path": relative+"/"+name, "bytes": len(payload), "sha256": hashlib.sha256(payload).hexdigest()})
+                receipt.update(ok=True, status="completed", completed_at=time.time(), wall_seconds=round(time.monotonic()-started, 6),
+                               activity_counts={"missions": report["activity"]["runs_count"], "events": report["activity"]["events_count"]},
+                               warnings=warnings, source_count=len(cache["sources"]))
+                with self.database() as db:
+                    db.execute("UPDATE briefing_runs SET status='completed',receipt=? WHERE request_id=? AND status='running'", (_json(receipt).decode(), request_id))
+                return receipt
+            except BaseException as error:
+                receipt.update(status="failed", error="Briefing failed; inspect any partial artifacts before starting a new manual request.", wall_seconds=round(time.monotonic()-started, 6))
+                try:
+                    with self.database() as db:
+                        db.execute("UPDATE briefing_runs SET status='failed',receipt=? WHERE request_id=?", (_json(receipt).decode(), request_id))
+                    if scheduled_day:
+                        self._pause("The scheduled brief failed. Inspect its receipt and artifacts, then explicitly resume the schedule.")
+                except (OSError, sqlite3.Error):
+                    pass
+                if isinstance(error, (KeyboardInterrupt, SystemExit)):
+                    raise
+                raise ValueError("Briefing failed: "+str(error)[:300]) from error
+
+    def _pause(self, reason):
+        with self.database() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT value FROM briefing_settings WHERE id=1").fetchone()
+            cfg = {**_DEFAULT, **json.loads(row[0])} if row else dict(_DEFAULT)
+            cfg.update(paused=True, pause_reason=reason, revision=cfg["revision"]+1)
+            db.execute("INSERT OR REPLACE INTO briefing_settings VALUES(1,?)", (_json(cfg).decode(),))
+
+    def run_due(self, now=None):
+        now, cfg = _utc(now), self.config()
+        if not cfg["enabled"] or cfg["paused"] or self.store.setting("paused", False):
+            return None
+        day = now.astimezone(_tz(cfg["timezone"])).date()
+        slot = self._slot(cfg, day)
+        activation = datetime.fromisoformat(cfg["activation_at"]) if cfg["activation_at"] else now
+        if now < slot or slot < activation:
+            return None
+        key = "daily-"+day.isoformat()
+        with self.database() as db:
+            old = db.execute("SELECT status FROM briefing_runs WHERE day=?", (day.isoformat(),)).fetchone()
+        if old:
+            if old["status"] in {"failed", "interrupted"}:
+                self._pause("Previous daily brief failed or was interrupted. Inspect history before explicitly resuming.")
+            return None
+        try:
+            return self.run(key, now, scheduled_day=day.isoformat(), collect=True)
+        except BriefingConflict:
+            return None  # Another process claimed this exact day.
+
+    def recover(self):
+        try:
+            with _RUN_LOCK, self._execution("recovery"):
+                with self.database() as db:
+                    # The execution lock proves no other reporter is live.
+                    count = db.execute("SELECT count(*) FROM briefing_runs WHERE status='running' AND day IS NOT NULL").fetchone()[0]
+                    db.execute("UPDATE briefing_runs SET status='interrupted' WHERE status='running'")
+                if count:
+                    self._pause("A scheduled brief was interrupted. Inspect its partial output before explicitly resuming.")
+            return True
+        except BriefingConflict:
+            return False
+
+    def _loop(self):
+        while not self.stop_event.is_set():
+            try:
+                self.run_due()
+            except Exception:
+                # Never loop over a substantive failure every minute.
+                try:
+                    self._pause("The daily briefing service stopped after an error. Review the saved configuration and history before resuming.")
+                except Exception:
+                    return
+            self.stop_event.wait(60)
+
+    def start(self):
+        with self.lock:
+            if self.thread and self.thread.is_alive():
+                return
+            self.recover()
+            self.stop_event.clear()
+            self.thread = threading.Thread(target=self._loop, name="ariadne-daily-brief", daemon=True)
+            self.thread.start()
+
+    def stop(self):
+        self.stop_event.set()
+        with self.collector_lock:
+            for process in tuple(self.collectors):
+                if process.poll() is None:
+                    process.kill()
+        if self.thread and self.thread is not threading.current_thread():
+            self.thread.join(timeout=2)
+
+
+def _public_https(url, timeout=8):
+    """Pinned public-address HTTPS, no redirects, proxies, cookies or credentials."""
+    _source_url(url, official=True)
+    parsed = urlsplit(url)
+    addresses = socket.getaddrinfo(parsed.hostname, 443, type=socket.SOCK_STREAM)
+    if not addresses or any(not ipaddress.ip_address(row[4][0]).is_global for row in addresses):
+        raise ValueError("Public sources must resolve exclusively to public network addresses.")
+    family, socktype, protocol, _, address = addresses[0]
+    raw = socket.socket(family, socktype, protocol)
+    raw.settimeout(timeout)
+    connection = None
+    try:
+        raw.connect(address)
+        wrapped = ssl.create_default_context().wrap_socket(raw, server_hostname=parsed.hostname)
+        connection = http.client.HTTPSConnection(parsed.hostname, timeout=timeout)
+        connection.sock = wrapped
+        path = parsed.path or "/"
+        if parsed.query:
+            path += "?"+parsed.query
+        connection.request("GET", path, headers={"User-Agent": "Ariadne-Local-Brief/0.6 (https://www.weather.gov/documentation/services-web-api)",
+                                                 "Accept": "application/geo+json,application/json,application/rss+xml,application/atom+xml;q=0.9",
+                                                 "Accept-Encoding": "identity", "Connection": "close"})
+        response = connection.getresponse()
+        if response.status != 200:
+            raise ValueError("Public source returned HTTP "+str(response.status)+"; redirects are not followed.")
+        if response.getheader("Content-Encoding", "identity").lower() != "identity":
+            raise ValueError("Compressed public-source responses are not accepted.")
+        length = response.getheader("Content-Length")
+        if length and int(length) > MAX_BYTES:
+            raise ValueError("Public source exceeds the 2 MB response limit.")
+        payload = response.read(MAX_BYTES+1)
+        if len(payload) > MAX_BYTES:
+            raise ValueError("Public source exceeds the 2 MB response limit.")
+        return payload
+    finally:
+        if connection:
+            connection.close()
+        raw.close()
+
+
+def _distance_km(lat1, lon1, lat2, lon2):
+    a1, a2 = math.radians(lat1), math.radians(lat2)
+    dlat, dlon = a2-a1, math.radians(lon2-lon1)
+    value = math.sin(dlat/2)**2+math.cos(a1)*math.cos(a2)*math.sin(dlon/2)**2
+    return 6371*2*math.asin(min(1, math.sqrt(value)))
+
+
+def _measurement(measure):
+    value, unit = measure.get("value"), measure.get("unitCode", "")
+    if type(value) not in (int, float) or not math.isfinite(value):
+        return None
+    if unit == "wmoUnit:degC":
+        return f"{value*9/5+32:g} °F ({value:g} °C)"
+    if unit in {"wmoUnit:percent", "wmoUnit:percentUnit"}:
+        return f"{value:g}%"
+    if unit == "wmoUnit:km_h-1":
+        return f"{value/1.609344:.1f} mph ({value:g} km/h)"
+    if unit == "wmoUnit:m_s-1":
+        return f"{value*2.2369362921:.1f} mph ({value:g} m/s)"
+    return str(value)+" "+_text(unit, 60)
+
+
+def _feed_items(payload, terms):
+    # Restrict feeds to UTF-8: UTF-16/32 must not evade the DTD/entity guard.
+    text = payload.decode("utf-8-sig")
+    if "\x00" in text or "<!DOCTYPE" in text.upper() or "<!ENTITY" in text.upper():
+        raise ValueError("DTD and entity declarations are forbidden in public feeds.")
+    declaration = re.match(r"\s*<\?xml[^>]*encoding\s*=\s*['\"]([^'\"]+)['\"]", text, re.I)
+    if declaration and declaration[1].casefold() not in {"utf-8", "utf8", "us-ascii"}:
+        raise ValueError("Public feeds must use UTF-8 or ASCII encoding.")
+    root = ET.fromstring(text)
+    if root.tag.rsplit("}", 1)[-1] not in {"rss", "feed", "RDF"}:
+        raise ValueError("Expected RSS or Atom feed.")
+    items = []
+    entries = [row for row in root.iter() if row.tag.rsplit("}", 1)[-1] in {"item", "entry"}]
+    for row in entries[:500]:
+        fields = {}
+        for child in row:
+            key = child.tag.rsplit("}", 1)[-1]
+            if key == "link":
+                fields[key] = child.get("href") or child.text or ""
+            else:
+                fields[key] = "".join(child.itertext())
+        title = _text(fields.get("title"), 500)
+        summary = _text(html.unescape(re.sub(r"<[^>]+>", " ", fields.get("description") or fields.get("summary") or fields.get("content", ""))), 1500)
+        if terms and not any(term.casefold() in (title+" "+summary).casefold() for term in terms):
+            continue
+        try:
+            url = _source_url(fields.get("link", ""))
+        except ValueError:
+            url = None
+        items.append({"title": title, "summary": summary, "url": url,
+                      "published_at": _text(fields.get("pubDate") or fields.get("published") or fields.get("updated"), 120) or None})
+        if len(items) == 50:
+            break
+    return items
+
+
+def collect_external(config, fetch=None, now=None, *, check=None):
+    """Fetch a bounded official-source snapshot. Called only in the collector child."""
+    collected_clock = (lambda: _utc(now)) if now is not None else _utc
+    now, request = _utc(now), fetch or _public_https
+    def guard():
+        if check is not None:
+            check()
+    def fetch(url):
+        guard()
+        payload = request(url)
+        guard()
+        return payload
+    guard()
+    region = config.get("region")
+    if not region:
+        raise ValueError("Configure a verified US region before collecting public sources.")
+    lat, lon = region["latitude"], region["longitude"]
+    point = f"{lat:.4f},{lon:.4f}"
+    sources = []
+    point_info = None
+    def source(kind, title, url, load):
+        guard()
+        row = {"kind": kind, "title": title, "url": url, "fetched_at": _stamp(now), "issued_at": None,
+               "status": "unavailable", "items": [], "stale": False}
+        try:
+            loaded = load()
+            data, issued, items = loaded[:3]
+            row.update(status="available", issued_at=_text(issued, 120) or None, items=items,
+                       response_sha256=hashlib.sha256(data).hexdigest())
+            if len(loaded) == 4:
+                row["response_url"] = _source_url(loaded[3], official=True)
+        except (ValueError, KeyError, TypeError, IndexError, OverflowError, OSError, ET.ParseError, http.client.HTTPException):
+            row["error"] = "The official source could not be fetched or parsed. No current facts are asserted."
+        # Stamp after the response arrives, independently for each source.
+        row["fetched_at"] = _stamp(collected_clock())
+        sources.append(row)
+    def forecast():
+        nonlocal point_info
+        point_info = json.loads(fetch(_NWS+"/points/"+point))
+        url = point_info["properties"]["forecast"]
+        if not re.fullmatch(r"https://api\.weather\.gov/gridpoints/[A-Z]{3}/[0-9]{1,4},[0-9]{1,4}/forecast", url):
+            raise ValueError("NWS returned an unexpected forecast endpoint.")
+        payload = fetch(url)
+        info = json.loads(payload)["properties"]
+        items = [{"title": _text(row.get("name"), 120), "summary": _text(row.get("detailedForecast"), 3000),
+                  "starts": _text(row.get("startTime"), 100), "ends": _text(row.get("endTime"), 100), "url": url}
+                 for row in info["periods"][:14]]
+        return payload, info.get("updated") or info.get("generatedAt"), items, url
+    source("forecast", "National Weather Service seven-day forecast", _NWS+"/points/"+point, forecast)
+    def weather():
+        nonlocal point_info
+        if point_info is None:
+            point_info = json.loads(fetch(_NWS+"/points/"+point))
+        stations = point_info["properties"]["observationStations"]
+        if not re.fullmatch(r"https://api\.weather\.gov/gridpoints/[A-Z]{3}/[0-9]{1,4},[0-9]{1,4}/stations", stations):
+            raise ValueError("NWS returned an unexpected station endpoint.")
+        features = json.loads(fetch(stations))["features"]
+        station = features[0]["properties"]["stationIdentifier"]
+        if type(station) is not str or not re.fullmatch(r"[A-Z0-9]{3,8}", station):
+            raise ValueError("NWS returned an invalid station identifier.")
+        url = _NWS+"/stations/"+station+"/observations/latest"
+        payload = fetch(url)
+        info = json.loads(payload)["properties"]
+        conditions = []
+        for key, label in (("temperature", "temperature"), ("relativeHumidity", "humidity"), ("windSpeed", "wind")):
+            measure = info.get(key) or {}
+            formatted = _measurement(measure)
+            if formatted is not None:
+                conditions.append(label+": "+formatted)
+        summary = _text(info.get("textDescription"), 300)+("; "+"; ".join(conditions) if conditions else "")
+        return payload, info.get("timestamp"), [{"title": "Latest reported station observation: "+station,
+                                               "summary": summary, "published_at": _text(info.get("timestamp"), 100), "url": url}], url
+    source("weather", "National Weather Service latest station observation", _NWS+"/points/"+point, weather)
+    alert_url = _NWS+"/alerts/active?point="+point
+    def alerts():
+        payload = fetch(alert_url)
+        info = json.loads(payload)
+        items = []
+        for feature in info["features"][:100]:
+            row = feature["properties"]
+            items.append({"title": _text(row.get("headline") or row.get("event"), 500),
+                          "summary": _text(row.get("description"), 4000), "severity": _text(row.get("severity"), 40),
+                          "expires": _text(row.get("expires"), 100) or None,
+                          "published_at": _text(row.get("sent"), 100) or None, "url": _text(feature.get("id"), 2000) or alert_url})
+        return payload, info.get("updated"), items
+    source("alerts", "National Weather Service point alerts", alert_url, alerts)
+    def quakes():
+        payload = fetch(_QUAKES)
+        info = json.loads(payload)
+        items = []
+        for feature in info["features"][:5000]:
+            coordinates, row = feature["geometry"]["coordinates"], feature["properties"]
+            distance = _distance_km(lat, lon, float(coordinates[1]), float(coordinates[0]))
+            if distance <= 500:
+                items.append({"title": _text(row.get("title") or row.get("place"), 500),
+                              "summary": "USGS M"+str(row.get("mag"))+"; location "+_text(row.get("place"), 200)+". Preliminary source data may be revised.",
+                              "distance_km": round(distance, 1), "published_at": datetime.fromtimestamp(row["time"]/1000, UTC).isoformat(),
+                              "url": _source_url(row["url"])})
+        items.sort(key=lambda row: row["distance_km"])
+        issued = datetime.fromtimestamp(info["metadata"]["generated"]/1000, UTC).isoformat()
+        return payload, issued, items[:100]
+    source("earthquakes", "USGS magnitude 2.5+ earthquakes within 500 km, past day", _QUAKES, quakes)
+    for feed in config.get("news_feeds", []):
+        url = _source_url(feed["url"], official=True)
+        def news(feed=feed, url=url):
+            payload = fetch(url)
+            return payload, None, _feed_items(payload, feed.get("region_terms", []))
+        source("news", feed["title"], url, news)
+    guard()
+    return {"schema": 1, "collected_at": _stamp(now), "region": region, "sources": sources,
+            "warnings": ["These are bounded official feeds, not a comprehensive regional news search. Source and retrieval times are distinct."]}

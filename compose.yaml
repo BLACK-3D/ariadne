@@ -1,0 +1,40 @@
+services:
+  ariadne:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      ARIADNE_OLLAMA_URL: http://ollama:11434
+      ARIADNE_MODEL: qwen3:4b
+      ARIADNE_MAX_STEPS: "12"
+      ARIADNE_ALLOWED_HOSTS: localhost,127.0.0.1
+    volumes:
+      - ariadne_data:/app/data
+    networks: [offline]
+    read_only: true
+    tmpfs: [/tmp:size=64m,noexec,nosuid]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    pids_limit: 64
+    depends_on: [ollama]
+  ollama:
+    image: ollama/ollama:0.40.12
+    restart: unless-stopped
+    environment:
+      OLLAMA_NO_CLOUD: "1"
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+    volumes:
+      - ollama_models:/root/.ollama
+    networks: [offline]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    pids_limit: 256
+networks:
+  offline:
+    internal: true
+volumes:
+  ariadne_data:
+  ollama_models:

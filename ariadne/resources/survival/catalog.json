@@ -1,0 +1,899 @@
+{
+  "schema": 1,
+  "checked_utc": "2026-10-28T20:02:54Z",
+  "checked_date": "2026-10-28",
+  "topics": [
+    {
+      "id": "water",
+      "title": "Water",
+      "description": "Plan stored supplies, access, containers and source-specific safety decisions."
+    },
+    {
+      "id": "food",
+      "title": "Food",
+      "description": "Inventory, rotate and plan safe storage and preparation without inventing preservation recipes."
+    },
+    {
+      "id": "shelter",
+      "title": "Shelter",
+      "description": "Document safe places, access needs, evacuation choices and essential supplies."
+    },
+    {
+      "id": "sanitation",
+      "title": "Sanitation",
+      "description": "Plan hygiene, waste separation and lawful disposal when normal services fail."
+    },
+    {
+      "id": "health",
+      "title": "Health",
+      "description": "Organize personal medical preparedness, contacts, training and continuity of care."
+    },
+    {
+      "id": "power",
+      "title": "Power",
+      "description": "Measure essential loads and plan safe backup power and equipment maintenance."
+    },
+    {
+      "id": "agriculture",
+      "title": "Agriculture",
+      "description": "Maintain a site-specific growing plan, observations, seed inventory and local expertise."
+    },
+    {
+      "id": "tools",
+      "title": "Tools",
+      "description": "Inventory maintainable hand tools, measuring equipment, manuals and training."
+    },
+    {
+      "id": "materials",
+      "title": "Materials",
+      "description": "Track safe material identification, compatibility, storage and traceable reuse."
+    },
+    {
+      "id": "communications",
+      "title": "Communications",
+      "description": "Maintain contacts, agreed messages, radio documentation and fallback methods."
+    },
+    {
+      "id": "navigation",
+      "title": "Navigation",
+      "description": "Prepare dated local maps, routes, place names and travel decisions."
+    },
+    {
+      "id": "construction",
+      "title": "Construction",
+      "description": "Document condition, requirements, approvals and professional review before work."
+    },
+    {
+      "id": "community",
+      "title": "Community",
+      "description": "Coordinate needs, accessible communication, roles and accountable decisions."
+    },
+    {
+      "id": "education",
+      "title": "Education",
+      "description": "Preserve skills, reference provenance and safe practical learning."
+    },
+    {
+      "id": "logistics",
+      "title": "Logistics",
+      "description": "Track quantities, dependencies, transport, responsibilities and replenishment."
+    },
+    {
+      "id": "digital",
+      "title": "Digital",
+      "description": "Keep the local assistant, records, backups and reference media usable offline."
+    }
+  ],
+  "resources": [
+    {
+      "id": "water-plan",
+      "title": "Household water continuity plan",
+      "topic": "water",
+      "summary": "Plan stored supplies, access, containers and source-specific safety decisions.",
+      "checklist": [
+        "Record household members, pets, accessibility needs, planned duration, and the source used for each supply assumption.",
+        "Inventory sealed drinking-water supplies by container, quantity, location, purchase date and rotation date.",
+        "List normal, backup and emergency collection sources; mark unverified sources as unverified.",
+        "Keep the original CDC water documents available offline and printed with the plan.",
+        "Record local water authority and health department contacts and a place to log advisories.",
+        "Keep chemical contamination questions separate from microbial treatment; do not let a generic treatment plan certify an unknown source.",
+        "List containers, labels, cleaning supplies, and who will inspect and rotate each stored supply.",
+        "Log measurements, observations and unresolved questions before making a source-specific decision."
+      ],
+      "sources": [
+        {
+          "title": "CDC: Use Safe Water During an Emergency",
+          "url": "https://www.cdc.gov/water-emergency/communication-resources/fact-sheet-use-safe-water-during-an-emergency.html",
+          "issued": "PDF undated; landing page reviewed 2024-08-28",
+          "checked": "2026-10-28"
+        },
+        {
+          "title": "CDC: How to Make Water Safe in an Emergency",
+          "url": "https://www.cdc.gov/water-emergency/about/index.html",
+          "issued": "Landing page dated 2024-09-19; bundled PDF undated",
+          "checked": "2026-10-28"
+        }
+      ],
+      "status": "bundled",
+      "path": "documents/water-plan.md",
+      "provenance": "Original Ariadne planning and record-keeping checklist authored for this pack. Sources are contextual references; this is not a transcription or chapter reconstruction of a commercial book.",
+      "rights": "Original planning text: MIT License, Copyright (c) 2026 Ariadne contributors; retain the root LICENSE. Cited source documents retain their separate rights.",
+      "bytes": 1921,
+      "sha256": "09f759c8e2911e8ffa110f43cc8ade25f2580d8e63b85c64de5e826cdc69a86c"
+    },
+    {
+      "id": "food-plan",
+      "title": "Food supply and cold-storage plan",
+      "topic": "food",
+      "summary": "Inventory, rotate and plan safe storage and preparation without inventing preservation recipes.",
+      "checklist": [
+        "Record food quantities, lot identifiers, expiry dates, storage locations and packaging condition.",
+        "Group foods by dietary needs, allergens, preparation requirements, and available cooking equipment.",
+        "Plan menus using foods the household already eats; record the assumptions behind any duration estimate.",
+        "Keep refrigerator and freezer temperature records and an outage start-time log.",
+        "Use the original FoodSafety.gov outage chart for item-specific decisions rather than a generated table.",
+        "Keep tested preservation instructions with their exact edition, ingredient quantities and equipment requirements.",
+        "Create rotation, pest inspection and replenishment tasks with named owners.",
+        "Keep infant feeding, medical diets and pet food requirements visible as separate inventory requirements."
+      ],
+      "sources": [
+        {
+          "title": "FoodSafety.gov: Food Safety During Power Outage",
+          "url": "https://www.foodsafety.gov/food-safety-charts/food-safety-during-power-outage",
+          "issued": "Last reviewed 2024-08-08",
+          "checked": "2026-10-28"
+        },
+        {
+          "title": "FEMA P-2064: Are You Ready?",
+          "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HS5_100-PURL-gpo159555/pdf/GOVPUB-HS5_100-PURL-gpo159555.pdf",
+          "issued": "2020-09",
+          "checked": "2026-10-28"
+        }
+      ],
+      "status": "bundled",
+      "path": "documents/food-plan.md",
+      "provenance": "Original Ariadne planning and record-keeping checklist authored for this pack. Sources are contextual references; this is not a transcription or chapter reconstruction of a commercial book.",
+      "rights": "Original planning text: MIT License, Copyright (c) 2026 Ariadne contributors; retain the root LICENSE. Cited source documents retain their separate rights.",
+      "bytes": 1843,
+      "sha256": "dcfb248fbab929617c2364f78e4018367df2c28d02c486dee35d6c15c737a5d1"
+    },
+    {
+      "id": "shelter-plan",
+      "title": "Shelter and evacuation planning card",
+      "topic": "shelter",
+      "summary": "Document safe places, access needs, evacuation choices and essential supplies.",
+      "checklist": [
+        "List home, nearby and out-of-area meeting places with addresses and contact information.",
+        "Record local evacuation and shelter information from the responsible authorities.",
+        "Identify transport, accessibility, mobility, language and pet needs for every household member.",
+        "Prepare a portable document list and weather-appropriate clothing and bedding inventory.",
+        "Identify hazards that require leaving rather than attempting a repair.",
+        "Arrange a way to confirm a destination is open before departure when communications allow.",
+        "Assign who carries supplies, checks on household members, and reports arrival.",
+        "Practice the route and record changes, obstacles and alternate meeting points."
+      ],
+      "sources": [
+        {
+          "title": "FEMA P-2064: Are You Ready?",
+          "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HS5_100-PURL-gpo159555/pdf/GOVPUB-HS5_100-PURL-gpo159555.pdf",
+          "issued": "2020-09",
+          "checked": "2026-10-28"
+        }
+      ],
+      "status": "bundled",
+      "path": "documents/shelter-plan.md",
+      "provenance": "Original Ariadne planning and record-keeping checklist authored for this pack. Sources are contextual references; this is not a transcription or chapter reconstruction of a commercial book.",
+      "rights": "Original planning text: MIT License, Copyright (c) 2026 Ariadne contributors; retain the root LICENSE. Cited source documents retain their separate rights.",
+      "bytes": 1546,
+      "sha256": "2dbd9c0f3a674ae5ad407fcefbf69ff55d91c978a855757caadb4785bcd5d58c"
+    },
+    {
+      "id": "sanitation-plan",
+      "title": "Hygiene and waste continuity plan",
+      "topic": "sanitation",
+      "summary": "Plan hygiene, waste separation and lawful disposal when normal services fail.",
+      "checklist": [
+        "Inventory handwashing, personal hygiene, cleaning and waste-storage supplies.",
+        "Separate drinking-water containers from cleaning, wastewater and waste containers.",
+        "Record household access needs and private facilities for children and dependent adults.",
+        "Record municipal or local health department instructions for interrupted sewage and waste collection.",
+        "List approved disposal arrangements and who is responsible for contacting service providers.",
+        "Keep manufacturer labels and original agency cleaning guidance with supplies.",
+        "Avoid mixing cleaning chemicals or treating a household plan as approval for an untested sewage system.",
+        "Schedule cleaning, supply checks and documentation of unresolved contamination concerns."
+      ],
+      "sources": [
+        {
+          "title": "CDC: Use Safe Water During an Emergency",
+          "url": "https://www.cdc.gov/water-emergency/communication-resources/fact-sheet-use-safe-water-during-an-emergency.html",
+          "issued": "PDF undated; landing page reviewed 2024-08-28",
+          "checked": "2026-10-28"
+        },
+        {
+          "title": "FEMA P-2064: Are You Ready?",
+          "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HS5_100-PURL-gpo159555/pdf/GOVPUB-HS5_100-PURL-gpo159555.pdf",
+          "issued": "2020-09",
+          "checked": "2026-10-28"
+        }
+      ],
+      "status": "bundled",
+      "path": "documents/sanitation-plan.md",
+      "provenance": "Original Ariadne planning and record-keeping checklist authored for this pack. Sources are contextual references; this is not a transcription or chapter reconstruction of a commercial book.",
+      "rights": "Original planning text: MIT License, Copyright (c) 2026 Ariadne contributors; retain the root LICENSE. Cited source documents retain their separate rights.",
+      "bytes": 1805,
+      "sha256": "7b3ee0eec7ca2068a67551388e4f48392f9dc3f5b4c097c32239f6379fec8263"
+    },
+    {
+      "id": "health-plan",
+      "title": "Health continuity and care coordination card",
+      "topic": "health",
+      "summary": "Organize personal medical preparedness, contacts, training and continuity of care.",
+      "checklist": [
+        "Keep an owner-controlled list of clinicians, emergency contacts, care providers and preferred facilities.",
+        "Record prescriptions, original labels and storage requirements as directed by the prescriber or manufacturer.",
+        "Ask the treating clinician about continuity plans for medicines, refrigeration and powered medical devices.",
+        "Inventory first-aid supplies and record expiry dates and completed hands-on training.",
+        "Document allergies, accessibility requirements and consent for sharing medical information.",
+        "Plan transport, caregiver backup and communication support.",
+        "Use qualified medical help for diagnosis, treatment and medication changes; this card contains no treatment protocol.",
+        "Keep private medical records out of shared exports and general public reference packs."
+      ],
+      "sources": [
+        {
+          "title": "FEMA P-2064: Are You Ready?",
+          "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HS5_100-PURL-gpo159555/pdf/GOVPUB-HS5_100-PURL-gpo159555.pdf",
+          "issued": "2020-09",
+          "checked": "2026-10-28"
+        },
+        {
+          "title": "CDC: Use Safe Water During an Emergency",
+          "url": "https://www.cdc.gov/water-emergency/communication-resources/fact-sheet-use-safe-water-during-an-emergency.html",
+          "issued": "PDF undated; landing page reviewed 2024-08-28",
+          "checked": "2026-10-28"
+        }
+      ],
+      "status": "bundled",
+      "path": "documents/health-plan.md",
+      "provenance": "Original Ariadne planning and record-keeping checklist authored for this pack. Sources are contextual references; this is not a transcription or chapter reconstruction of a commercial book.",
+      "rights": "Original planning text: MIT License, Copyright (c) 2026 Ariadne contributors; retain the root LICENSE. Cited source documents retain their separate rights.",
+      "bytes": 1873,
+      "sha256": "6c12afca11c06f3248063ed0d974e8c9e3f51b8e1a5f6730f8b2c2de327cb957"
+    },
+    {
+      "id": "power-plan",
+      "title": "Essential power and backup planning card",
+      "topic": "power",
+      "summary": "Measure essential loads and plan safe backup power and equipment maintenance.",
+      "checklist": [
+        "List essential devices, measured watts, expected daily run time, surge requirements and charging options.",
+        "Separate life-critical medical equipment plans from convenience loads and consult its provider.",
+        "Record battery capacity, charging losses and actual observed runtime instead of assuming a universal runtime.",
+        "Keep the generator manual and original CDC carbon-monoxide document with the power plan.",
+        "Arrange qualified review of transfer equipment, wiring, fuel storage and any fixed installation.",
+        "Inventory tested alarms, appropriate cables and manufacturer-required maintenance supplies.",
+        "Record fuel quantities, inspection dates, operating limits and responsible trained users.",
+        "Practice a controlled outage drill, document results and revise the load plan."
+      ],
+      "sources": [
+        {
+          "title": "CDC: Generator Safety Fact Sheet",
+          "url": "https://www.cdc.gov/carbon-monoxide/factsheets/generator-safety-fact-sheet.html",
+          "issued": "PDF undated; landing page reviewed 2026-08-21",
+          "checked": "2026-10-28"
+        },
+        {
+          "title": "FEMA P-2064: Are You Ready?",
+          "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HS5_100-PURL-gpo159555/pdf/GOVPUB-HS5_100-PURL-gpo159555.pdf",
+          "issued": "2020-09",
+          "checked": "2026-10-28"
+        }
+      ],
+      "status": "bundled",
+      "path": "documents/power-plan.md",
+      "provenance": "Original Ariadne planning and record-keeping checklist authored for this pack. Sources are contextual references; this is not a transcription or chapter reconstruction of a commercial book.",
+      "rights": "Original planning text: MIT License, Copyright (c) 2026 Ariadne contributors; retain the root LICENSE. Cited source documents retain their separate rights.",
+      "bytes": 1818,
+      "sha256": "981c248a67916575f99ba292eaa689b7d7d34b74890b902edf0bb6c2261bf3c6"
+    },
+    {
+      "id": "agriculture-plan",
+      "title": "Garden and growing-system planning card",
+      "topic": "agriculture",
+      "summary": "Maintain a site-specific growing plan, observations, seed inventory and local expertise.",
+      "checklist": [
+        "Record available space, sun exposure, water access, soil observations and local growing conditions.",
+        "Keep seed variety, source, lot, storage and planting records.",
+        "Consult local extension guidance for region-appropriate crops, planting periods and soil testing.",
+        "Start with a manageable trial and record yields, losses, labor, water and inputs.",
+        "Plan crop rotation, soil cover and pest monitoring using sources appropriate to the site.",
+        "Keep livestock welfare, veterinary needs and legal requirements in a separate plan if animals are involved.",
+        "Separate tested food-preservation procedures from garden-production notes.",
+        "Do not use historical farm literature as a substitute for current chemical labels or local food-safety guidance."
+      ],
+      "sources": [
+        {
+          "title": "USDA NRCS: Soil Health Educators Guide",
+          "url": "https://www.nrcs.usda.gov/conservation-basics/soil/soil-health/soil-health-educators-guide",
+          "issued": "Undated current landing page",
+          "checked": "2026-10-28"
+        }
+      ],
+      "status": "bundled",
+      "path": "documents/agriculture-plan.md",
+      "provenance": "Original Ariadne planning and record-keeping checklist authored for this pack. Sources are contextual references; this is not a transcription or chapter reconstruction of a commercial book.",
+      "rights": "Original planning text: MIT License, Copyright (c) 2026 Ariadne contributors; retain the root LICENSE. Cited source documents retain their separate rights.",
+      "bytes": 1630,
+      "sha256": "70747473a5a6ad3102f705bbfe7f333e14002d5fb7d14b35e9962a4649ec9005"
+    },
+    {
+      "id": "tools-plan",
+      "title": "Workshop tools and maintenance register",
+      "topic": "tools",
+      "summary": "Inventory maintainable hand tools, measuring equipment, manuals and training.",
+      "checklist": [
+        "Inventory tools, consumables, spare parts, compatible fasteners and storage locations.",
+        "Keep manufacturer manuals, inspection requirements and safe operating limits with each tool.",
+        "Record who has practical training and which tasks require a qualified specialist.",
+        "Check measuring instruments against a suitable reference and record units explicitly.",
+        "Separate damaged or unverified equipment from serviceable equipment.",
+        "Plan maintenance intervals and replacement parts from actual use and manufacturer guidance.",
+        "Record the power, ventilation, guarding and protective equipment needed for each work area.",
+        "Use drawings and prototypes for review before committing materials to an unfamiliar build."
+      ],
+      "sources": [
+        {
+          "title": "NIST: SI Units",
+          "url": "https://www.nist.gov/pml/owm/metric-si/si-units",
+          "issued": "Undated current landing page",
+          "checked": "2026-10-28"
+        },
+        {
+          "title": "FEMA P-2064: Are You Ready?",
+          "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HS5_100-PURL-gpo159555/pdf/GOVPUB-HS5_100-PURL-gpo159555.pdf",
+          "issued": "2020-09",
+          "checked": "2026-10-28"
+        }
+      ],
+      "status": "bundled",
+      "path": "documents/tools-plan.md",
+      "provenance": "Original Ariadne planning and record-keeping checklist authored for this pack. Sources are contextual references; this is not a transcription or chapter reconstruction of a commercial book.",
+      "rights": "Original planning text: MIT License, Copyright (c) 2026 Ariadne contributors; retain the root LICENSE. Cited source documents retain their separate rights.",
+      "bytes": 1683,
+      "sha256": "ac168304c1387033e4b61c46bd5c7d9bdec59a52ea500979f6bca9506998ba87"
+    },
+    {
+      "id": "materials-plan",
+      "title": "Materials inventory and reuse assessment",
+      "topic": "materials",
+      "summary": "Track safe material identification, compatibility, storage and traceable reuse.",
+      "checklist": [
+        "Record material type, quantity, dimensions, condition, source and any known specification.",
+        "Keep labels and safety data sheets with chemicals and commercial materials.",
+        "Mark unidentified, contaminated, damaged or degraded materials as unsuitable until assessed.",
+        "Separate incompatible storage categories according to verified labels and professional guidance.",
+        "Record whether a proposed reuse is decorative, temporary or load-bearing.",
+        "Use qualified review for structural, pressure, electrical, potable-water and food-contact uses.",
+        "Log test methods, measurements and uncertainty instead of treating appearance as proof of suitability.",
+        "Keep a replenishment and disposal plan with local legal and environmental requirements."
+      ],
+      "sources": [
+        {
+          "title": "NIST: SI Units",
+          "url": "https://www.nist.gov/pml/owm/metric-si/si-units",
+          "issued": "Undated current landing page",
+          "checked": "2026-10-28"
+        }
+      ],
+      "status": "bundled",
+      "path": "documents/materials-plan.md",
+      "provenance": "Original Ariadne planning and record-keeping checklist authored for this pack. Sources are contextual references; this is not a transcription or chapter reconstruction of a commercial book.",
+      "rights": "Original planning text: MIT License, Copyright (c) 2026 Ariadne contributors; retain the root LICENSE. Cited source documents retain their separate rights.",
+      "bytes": 1545,
+      "sha256": "1532000d7d37a00485ebb0c931d28afc80125772c114d84fd519b7c7601d9a0d"
+    },
+    {
+      "id": "communications-plan",
+      "title": "Household and community communication plan",
+      "topic": "communications",
+      "summary": "Maintain contacts, agreed messages, radio documentation and fallback methods.",
+      "checklist": [
+        "Keep printed local and out-of-area contact lists and meeting-place details.",
+        "Choose check-in times, a primary contact and a backup contact.",
+        "Prepare a short message format for identity, location, needs and next check-in time.",
+        "Inventory radios, chargers, batteries, cables and written operating instructions.",
+        "Record lawful frequencies, licensing requirements and trained operators for transmitting equipment.",
+        "Plan an accessible communication method for people who cannot use the primary method.",
+        "Maintain a paper message log with time, sender, recipient and confirmation status.",
+        "Test the plan periodically and distinguish confirmed information from rumors."
+      ],
+      "sources": [
+        {
+          "title": "FEMA P-2064: Are You Ready?",
+          "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HS5_100-PURL-gpo159555/pdf/GOVPUB-HS5_100-PURL-gpo159555.pdf",
+          "issued": "2020-09",
+          "checked": "2026-10-28"
+        }
+      ],
+      "status": "bundled",
+      "path": "documents/communications-plan.md",
+      "provenance": "Original Ariadne planning and record-keeping checklist authored for this pack. Sources are contextual references; this is not a transcription or chapter reconstruction of a commercial book.",
+      "rights": "Original planning text: MIT License, Copyright (c) 2026 Ariadne contributors; retain the root LICENSE. Cited source documents retain their separate rights.",
+      "bytes": 1528,
+      "sha256": "7124f33700d6e537703ad78dd4a66ef038fbb443162898c15cd85977695f6d9b"
+    },
+    {
+      "id": "navigation-plan",
+      "title": "Local map and route planning card",
+      "topic": "navigation",
+      "summary": "Prepare dated local maps, routes, place names and travel decisions.",
+      "checklist": [
+        "Select maps for the actual area of interest and record source, scale, datum and publication date.",
+        "Keep printed route maps and an offline copy that opens without a network connection.",
+        "Mark meeting places, known shelters and essential services only from verified information.",
+        "Plan alternatives for blocked roads, flood areas, accessibility needs and transport limitations.",
+        "Record how coordinates are formatted and check them against recognizable landmarks.",
+        "Practice using map and compass with competent instruction before relying on them.",
+        "Treat bridge status, road access and weather as changing information that an old map cannot verify.",
+        "Carry a travel and check-in plan appropriate to the household and local advice."
+      ],
+      "sources": [
+        {
+          "title": "USGS: Topographic Maps",
+          "url": "https://www.usgs.gov/programs/national-geospatial-program/topographic-maps",
+          "issued": "Undated current landing page",
+          "checked": "2026-10-28"
+        },
+        {
+          "title": "FEMA P-2064: Are You Ready?",
+          "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HS5_100-PURL-gpo159555/pdf/GOVPUB-HS5_100-PURL-gpo159555.pdf",
+          "issued": "2020-09",
+          "checked": "2026-10-28"
+        }
+      ],
+      "status": "bundled",
+      "path": "documents/navigation-plan.md",
+      "provenance": "Original Ariadne planning and record-keeping checklist authored for this pack. Sources are contextual references; this is not a transcription or chapter reconstruction of a commercial book.",
+      "rights": "Original planning text: MIT License, Copyright (c) 2026 Ariadne contributors; retain the root LICENSE. Cited source documents retain their separate rights.",
+      "bytes": 1727,
+      "sha256": "60e7060953c070e2d5decdf2c2b785f96a96655bcb4ce5883de67bdc522e8191"
+    },
+    {
+      "id": "construction-plan",
+      "title": "Repair and construction readiness checklist",
+      "topic": "construction",
+      "summary": "Document condition, requirements, approvals and professional review before work.",
+      "checklist": [
+        "Record the problem, photographs, measurements, location and immediate access restrictions.",
+        "Separate temporary shelter needs from permanent repair or rebuilding work.",
+        "Identify utilities, permits, building-code requirements and responsible authorities.",
+        "Arrange qualified inspection for structural damage, foundations, wiring, gas, pressure or fire systems.",
+        "List verified materials, tools, costs, dependencies and required skills.",
+        "Keep design drawings, assumptions, revisions and inspection outcomes together.",
+        "Do not treat a generated CAD drawing or quantity estimate as engineering certification.",
+        "Record acceptance criteria and obtain required inspections before putting the work into service."
+      ],
+      "sources": [
+        {
+          "title": "FEMA P-2064: Are You Ready?",
+          "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HS5_100-PURL-gpo159555/pdf/GOVPUB-HS5_100-PURL-gpo159555.pdf",
+          "issued": "2020-09",
+          "checked": "2026-10-28"
+        },
+        {
+          "title": "NIST: SI Units",
+          "url": "https://www.nist.gov/pml/owm/metric-si/si-units",
+          "issued": "Undated current landing page",
+          "checked": "2026-10-28"
+        }
+      ],
+      "status": "bundled",
+      "path": "documents/construction-plan.md",
+      "provenance": "Original Ariadne planning and record-keeping checklist authored for this pack. Sources are contextual references; this is not a transcription or chapter reconstruction of a commercial book.",
+      "rights": "Original planning text: MIT License, Copyright (c) 2026 Ariadne contributors; retain the root LICENSE. Cited source documents retain their separate rights.",
+      "bytes": 1690,
+      "sha256": "eb03d31276fce9b3e32cd57d0951904deb4790908153a4d33ac6233f243a9af7"
+    },
+    {
+      "id": "community-plan",
+      "title": "Mutual aid and community coordination card",
+      "topic": "community",
+      "summary": "Coordinate needs, accessible communication, roles and accountable decisions.",
+      "checklist": [
+        "Ask participants what support they need and what they can safely offer.",
+        "Document consent, accessibility, privacy and safeguarding expectations.",
+        "Assign clear roles for coordination, supplies, communication and record keeping.",
+        "Maintain a current resource directory with responsible contacts and verification dates.",
+        "Agree how requests are prioritized, confirmed, handed over and closed.",
+        "Use existing local emergency coordination arrangements where available.",
+        "Keep records of decisions, commitments, donated goods and unresolved needs.",
+        "Review the plan with participants and avoid presenting an informal group as a public authority."
+      ],
+      "sources": [
+        {
+          "title": "FEMA P-2064: Are You Ready?",
+          "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HS5_100-PURL-gpo159555/pdf/GOVPUB-HS5_100-PURL-gpo159555.pdf",
+          "issued": "2020-09",
+          "checked": "2026-10-28"
+        }
+      ],
+      "status": "bundled",
+      "path": "documents/community-plan.md",
+      "provenance": "Original Ariadne planning and record-keeping checklist authored for this pack. Sources are contextual references; this is not a transcription or chapter reconstruction of a commercial book.",
+      "rights": "Original planning text: MIT License, Copyright (c) 2026 Ariadne contributors; retain the root LICENSE. Cited source documents retain their separate rights.",
+      "bytes": 1502,
+      "sha256": "0a2bb592e0392633acf7364ade25d7c53b1970da8714c7c8af5af9c154bc3d55"
+    },
+    {
+      "id": "education-plan",
+      "title": "Skills and reference preservation plan",
+      "topic": "education",
+      "summary": "Preserve skills, reference provenance and safe practical learning.",
+      "checklist": [
+        "Inventory practical skills, available instructors, training records and learning priorities.",
+        "Keep offline references with title, author, edition, source URL and rights information.",
+        "Prepare printed quick-reference indexes for essential material.",
+        "Record observations, hypotheses, methods and results for safe, appropriately supervised experiments.",
+        "Distinguish historical descriptions from current tested procedures.",
+        "Match learning activities to equipment, supervision and participant ability.",
+        "Practice teach-back and record questions that require expert review.",
+        "Keep original source documents available so a generated explanation can be checked."
+      ],
+      "sources": [
+        {
+          "title": "FEMA P-2064: Are You Ready?",
+          "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HS5_100-PURL-gpo159555/pdf/GOVPUB-HS5_100-PURL-gpo159555.pdf",
+          "issued": "2020-09",
+          "checked": "2026-10-28"
+        },
+        {
+          "title": "Appropedia documentation licenses",
+          "url": "https://www.appropedia.org/Appropedia:Intellectual_property/Documentation_licenses",
+          "issued": "Current policy checked 2026-10-28",
+          "checked": "2026-10-28"
+        }
+      ],
+      "status": "bundled",
+      "path": "documents/education-plan.md",
+      "provenance": "Original Ariadne planning and record-keeping checklist authored for this pack. Sources are contextual references; this is not a transcription or chapter reconstruction of a commercial book.",
+      "rights": "Original planning text: MIT License, Copyright (c) 2026 Ariadne contributors; retain the root LICENSE. Cited source documents retain their separate rights.",
+      "bytes": 1682,
+      "sha256": "403205bec8275467d39cdab874a975a52ce60dba99bd60483942b791d89fe6a3"
+    },
+    {
+      "id": "logistics-plan",
+      "title": "Supplies, transport and replenishment register",
+      "topic": "logistics",
+      "summary": "Track quantities, dependencies, transport, responsibilities and replenishment.",
+      "checklist": [
+        "Create an inventory with item, unit, quantity, location, owner and last verification date.",
+        "Separate minimum requirements, preferences and assumptions in each plan.",
+        "Use explicit units and measured consumption when estimating how long supplies last.",
+        "Record suppliers, alternates, lead times, transport needs and access constraints.",
+        "Assign inspection, rotation, maintenance and replenishment tasks.",
+        "Track shared resources, commitments, receipts and handovers without exposing private credentials.",
+        "Run a small exercise and compare predicted needs with actual use.",
+        "Revise the plan after household changes, expired supplies or failed assumptions."
+      ],
+      "sources": [
+        {
+          "title": "FEMA P-2064: Are You Ready?",
+          "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HS5_100-PURL-gpo159555/pdf/GOVPUB-HS5_100-PURL-gpo159555.pdf",
+          "issued": "2020-09",
+          "checked": "2026-10-28"
+        },
+        {
+          "title": "NIST: SI Units",
+          "url": "https://www.nist.gov/pml/owm/metric-si/si-units",
+          "issued": "Undated current landing page",
+          "checked": "2026-10-28"
+        }
+      ],
+      "status": "bundled",
+      "path": "documents/logistics-plan.md",
+      "provenance": "Original Ariadne planning and record-keeping checklist authored for this pack. Sources are contextual references; this is not a transcription or chapter reconstruction of a commercial book.",
+      "rights": "Original planning text: MIT License, Copyright (c) 2026 Ariadne contributors; retain the root LICENSE. Cited source documents retain their separate rights.",
+      "bytes": 1640,
+      "sha256": "3e4f32a0fab0b98e54b0b4ab25ca826163b71a47156c3fb3cd96ea27a01424e7"
+    },
+    {
+      "id": "digital-plan",
+      "title": "Offline knowledge and digital continuity plan",
+      "topic": "digital",
+      "summary": "Keep the local assistant, records, backups and reference media usable offline.",
+      "checklist": [
+        "Keep the full Ariadne folder together with the intended local model and reference assets.",
+        "Record startup instructions and where the owner pairing key is stored securely.",
+        "Verify backup hashes and practice restoring a separate test copy without replacing live owner state.",
+        "Keep a printed index of essential contacts and documents for times when the computer cannot run.",
+        "Use a measured power budget, suitable backup hardware and manufacturer shutdown instructions.",
+        "Keep private databases, books, medical records, keys and credentials out of public distribution packs.",
+        "Record software versions, model provenance and document review dates.",
+        "Test local search and document access without depending on a hosted service; record the scope and limits of the test."
+      ],
+      "sources": [
+        {
+          "title": "FEMA P-2064: Are You Ready?",
+          "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HS5_100-PURL-gpo159555/pdf/GOVPUB-HS5_100-PURL-gpo159555.pdf",
+          "issued": "2020-09",
+          "checked": "2026-10-28"
+        }
+      ],
+      "status": "bundled",
+      "path": "documents/digital-plan.md",
+      "provenance": "Original Ariadne planning and record-keeping checklist authored for this pack. Sources are contextual references; this is not a transcription or chapter reconstruction of a commercial book.",
+      "rights": "Original planning text: MIT License, Copyright (c) 2026 Ariadne contributors; retain the root LICENSE. Cited source documents retain their separate rights.",
+      "bytes": 1632,
+      "sha256": "698e553d03c143a52b62263076772a06eae6e246910f61cbb5b5b1a47e55a7dc"
+    },
+    {
+      "id": "fema-ready-2020",
+      "title": "Are You Ready? An In-Depth Guide to Citizen Preparedness (FEMA P-2064)",
+      "topic": "community",
+      "summary": "Unchanged September 2020 FEMA preparedness guide, preserved through the official U.S. Government Publishing Office repository.",
+      "path": "documents/fema-p2064-2020.pdf",
+      "sources": [
+        {
+          "title": "FEMA P-2064: Are You Ready?",
+          "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HS5_100-PURL-gpo159555/pdf/GOVPUB-HS5_100-PURL-gpo159555.pdf",
+          "issued": "2020-09",
+          "checked": "2026-10-28"
+        }
+      ],
+      "rights": "U.S. federal agency publication: U.S.-government-work basis under 17 U.S.C. 105, subject to any third-party rights. Preserve the original file, source identification and notices; no FEMA, DHS or U.S. Government endorsement is claimed.",
+      "checklist": [
+        "Open and read the complete original document before applying it.",
+        "Check its issue/review date and local instructions; preserve the cited source rather than silently combining differing guidance."
+      ],
+      "status": "bundled",
+      "provenance": "Downloaded directly from the cited official HTTPS agency/repository URL on 2026-10-28, checked as a PDF, and retained byte for byte. SHA-256 and byte count identify this offline snapshot.",
+      "bytes": 4878661,
+      "sha256": "145939febe7908045c7d6299781f51c1b7a52ae7ff18c8d68ff9316ac03e04b2"
+    },
+    {
+      "id": "cdc-safe-water",
+      "title": "CDC: Use Safe Water During an Emergency",
+      "topic": "water",
+      "summary": "Original one-page agency water-use reference; consult its source and local advisories for the situation.",
+      "path": "documents/cdc-use-safe-water.pdf",
+      "sources": [
+        {
+          "title": "CDC: Use Safe Water During an Emergency",
+          "url": "https://www.cdc.gov/water-emergency/communication-resources/fact-sheet-use-safe-water-during-an-emergency.html",
+          "issued": "PDF undated; landing page reviewed 2024-08-28",
+          "checked": "2026-10-28"
+        },
+        {
+          "title": "Official CDC PDF",
+          "url": "https://www.cdc.gov/water-emergency/media/pdfs/334749-B_UseSafeWater-OnePager-508.pdf",
+          "issued": "Undated PDF",
+          "checked": "2026-10-28"
+        }
+      ],
+      "rights": "Unchanged official CDC PDF, available free on the agency website. Reuse follows https://www.cdc.gov/other/agencymaterials.html: credit CDC/HHS, retain substantive content, state free agency availability, and prominently disclaim endorsement. Agency marks inside the original PDF identify its source, not Ariadne sponsorship. Check third-party exceptions and non-U.S. rights before separate reuse.",
+      "checklist": [
+        "Open and read the complete original document before applying it.",
+        "Check its issue/review date and local instructions; preserve the cited source rather than silently combining differing guidance."
+      ],
+      "status": "bundled",
+      "provenance": "Downloaded directly from the cited official HTTPS agency/repository URL on 2026-10-28, checked as a PDF, and retained byte for byte. SHA-256 and byte count identify this offline snapshot.",
+      "bytes": 141092,
+      "sha256": "f7bda1f9e7827ee74278d408001e9cdf4529924fa70144e0696ee0fd4ee39bad"
+    },
+    {
+      "id": "cdc-water-treatment",
+      "title": "CDC: Make Water Safe During an Emergency",
+      "topic": "water",
+      "summary": "Original CDC treatment reference. It does not certify chemically contaminated or otherwise unknown water as safe.",
+      "path": "documents/cdc-make-water-safe.pdf",
+      "sources": [
+        {
+          "title": "CDC: How to Make Water Safe in an Emergency",
+          "url": "https://www.cdc.gov/water-emergency/about/index.html",
+          "issued": "Landing page dated 2024-09-19; bundled PDF undated",
+          "checked": "2026-10-28"
+        },
+        {
+          "title": "Official CDC PDF",
+          "url": "https://www.cdc.gov/natural-disasters/media/pdfs/2025/02/make-water-safe-during-emergency-p.pdf",
+          "issued": "Undated PDF; URL folder is 2025-02, not an asserted issue date",
+          "checked": "2026-10-28"
+        }
+      ],
+      "rights": "Unchanged official CDC PDF, available free on the agency website. Reuse follows https://www.cdc.gov/other/agencymaterials.html: credit CDC/HHS, retain substantive content, state free agency availability, and prominently disclaim endorsement. Agency marks inside the original PDF identify its source, not Ariadne sponsorship. Check third-party exceptions and non-U.S. rights before separate reuse.",
+      "checklist": [
+        "Open and read the complete original document before applying it.",
+        "Check its issue/review date and local instructions; preserve the cited source rather than silently combining differing guidance."
+      ],
+      "status": "bundled",
+      "provenance": "Downloaded directly from the cited official HTTPS agency/repository URL on 2026-10-28, checked as a PDF, and retained byte for byte. SHA-256 and byte count identify this offline snapshot.",
+      "bytes": 730926,
+      "sha256": "c39b55b4d8f3dd40ecd2b13175f7661b52dfc6e73e4a24ef189de64fb9d513b1"
+    },
+    {
+      "id": "cdc-generator-safety",
+      "title": "CDC: Generator Safety Fact Sheet",
+      "topic": "power",
+      "summary": "Original CDC carbon-monoxide prevention reference for portable generators. Review the complete source and equipment instructions.",
+      "path": "documents/cdc-generator-safety.pdf",
+      "sources": [
+        {
+          "title": "CDC: Generator Safety Fact Sheet",
+          "url": "https://www.cdc.gov/carbon-monoxide/factsheets/generator-safety-fact-sheet.html",
+          "issued": "PDF undated; landing page reviewed 2026-08-21",
+          "checked": "2026-10-28"
+        },
+        {
+          "title": "Official CDC PDF",
+          "url": "https://www.cdc.gov/carbon-monoxide/media/pdfs/Generators_1.pdf",
+          "issued": "Undated PDF",
+          "checked": "2026-10-28"
+        }
+      ],
+      "rights": "Unchanged official CDC PDF, available free on the agency website. Reuse follows https://www.cdc.gov/other/agencymaterials.html: credit CDC/HHS, retain substantive content, state free agency availability, and prominently disclaim endorsement. Agency marks inside the original PDF identify its source, not Ariadne sponsorship. Check third-party exceptions and non-U.S. rights before separate reuse.",
+      "checklist": [
+        "Open and read the complete original document before applying it.",
+        "Check its issue/review date and local instructions; preserve the cited source rather than silently combining differing guidance."
+      ],
+      "status": "bundled",
+      "provenance": "Downloaded directly from the cited official HTTPS agency/repository URL on 2026-10-28, checked as a PDF, and retained byte for byte. SHA-256 and byte count identify this offline snapshot.",
+      "bytes": 650333,
+      "sha256": "da6ebede8bf93a6a4461c34c5ebcb134bb5cbe807a65d34820b0e8ba5a5eefbe"
+    },
+    {
+      "id": "food-outage-chart",
+      "title": "FoodSafety.gov: Food Safety During Power Outage",
+      "topic": "food",
+      "summary": "Unchanged four-page agency printable chart containing refrigerated and frozen food guidance, last reviewed August 8, 2024.",
+      "path": "documents/foodsafety-outage.pdf",
+      "sources": [
+        {
+          "title": "FoodSafety.gov: Food Safety During Power Outage",
+          "url": "https://www.foodsafety.gov/food-safety-charts/food-safety-during-power-outage",
+          "issued": "Last reviewed 2024-08-08",
+          "checked": "2026-10-28"
+        },
+        {
+          "title": "Official FoodSafety.gov printable PDF",
+          "url": "https://www.foodsafety.gov/print/pdf/node/16?id=refrigerated-food",
+          "issued": "Last reviewed 2024-08-08; snapshot fetched 2026-10-28",
+          "checked": "2026-10-28"
+        }
+      ],
+      "rights": "Federal HHS/USDA food-safety guidance: U.S.-government-work basis under 17 U.S.C. 105, subject to third-party rights. Original agency PDF retained unchanged and freely available on FoodSafety.gov. Attribution and notices retained; no agency endorsement claimed.",
+      "checklist": [
+        "Open and read the complete original document before applying it.",
+        "Check its issue/review date and local instructions; preserve the cited source rather than silently combining differing guidance."
+      ],
+      "status": "bundled",
+      "provenance": "Downloaded directly from the cited official HTTPS agency/repository URL on 2026-10-28, checked as a PDF, and retained byte for byte. SHA-256 and byte count identify this offline snapshot.",
+      "bytes": 16155,
+      "sha256": "d788a7daf7c6fbcb5dcf25978d8a5690287b1b18ec3758e6673a349ce4e6f296"
+    },
+    {
+      "id": "ready-kit-checklist",
+      "title": "Ready.gov emergency supply checklist",
+      "topic": "logistics",
+      "summary": "Official kit checklist reference; official host returned HTTP 403 during this build, so no mirror or unverified copy is bundled.",
+      "checklist": [
+        "Select the appropriate original resource and inspect its date, scope and rights before adding a local copy."
+      ],
+      "sources": [
+        {
+          "title": "Ready.gov emergency supply checklist",
+          "url": "https://www.ready.gov/sites/default/files/2024-05/ready_supply-kit-checklist.pdf",
+          "issued": "URL folder 2024-05; document issue date not independently verified",
+          "checked": "2026-10-28"
+        }
+      ],
+      "status": "reference_only",
+      "provenance": "Official publisher/agency landing pages or document URLs checked on 2026-10-28. No document bytes included for this entry; the Ready.gov host returned 403.",
+      "rights": "Reference link only; no local copy. Check current official download and document-specific reuse terms."
+    },
+    {
+      "id": "usda-canning",
+      "title": "USDA Complete Guide to Home Canning, 2015 revision",
+      "topic": "food",
+      "summary": "Official USDA/NCHFP entry point and tested preservation reference. Its complete recipes and tables must be used as issued, with appropriate equipment and conditions.",
+      "checklist": [
+        "Select the appropriate original resource and inspect its date, scope and rights before adding a local copy."
+      ],
+      "sources": [
+        {
+          "title": "USDA/NCHFP guide collection",
+          "url": "https://nchfp.uga.edu/resources/category/usda-guide",
+          "issued": "2015 revision",
+          "checked": "2026-10-28"
+        },
+        {
+          "title": "Official Introduction PDF",
+          "url": "https://nchfp.uga.edu/papers/guide/INTRO_HomeCanrev0715.pdf",
+          "issued": "2015 revision",
+          "checked": "2026-10-28"
+        },
+        {
+          "title": "Official Principles of Home Canning PDF",
+          "url": "https://nchfp.uga.edu/papers/guide/GUIDE01_HomeCan_rev0715.pdf",
+          "issued": "2015 revision",
+          "checked": "2026-10-28"
+        }
+      ],
+      "status": "reference_only",
+      "provenance": "Official publisher/agency landing pages and linked document URLs checked on 2026-10-28. Reference link only; no document bytes included in this entry.",
+      "rights": "Reference only. Federal publication provenance verified; complete redistribution rights for all contributor material were not separately cleared in this pack."
+    },
+    {
+      "id": "nrcs-soil-resources",
+      "title": "USDA NRCS soil health references",
+      "topic": "agriculture",
+      "summary": "Authoritative soil assessment and educator references; adapt planning to actual site observations and qualified local advice.",
+      "checklist": [
+        "Select the appropriate original resource and inspect its date, scope and rights before adding a local copy."
+      ],
+      "sources": [
+        {
+          "title": "USDA NRCS: Soil Health Educators Guide",
+          "url": "https://www.nrcs.usda.gov/conservation-basics/soil/soil-health/soil-health-educators-guide",
+          "issued": "Undated current landing page",
+          "checked": "2026-10-28"
+        },
+        {
+          "title": "Cropland In-Field Soil Health Assessment Guide",
+          "url": "https://www.nrcs.usda.gov/sites/default/files/2022-10/Cropland_InField_Soil_Health_Assessment_Guide.pdf",
+          "issued": "2021-01",
+          "checked": "2026-10-28"
+        }
+      ],
+      "status": "reference_only",
+      "provenance": "Official publisher/agency landing pages and linked document URLs checked on 2026-10-28. Reference link only; no document bytes included in this entry.",
+      "rights": "Reference only. The assessment PDF credits non-federal photos, including LandPKS, private contributors and European Commission sources. No blanket public-domain claim or local redistribution."
+    },
+    {
+      "id": "appropedia-open-reference",
+      "title": "Appropedia open appropriate-technology references",
+      "topic": "education",
+      "summary": "A separately curated appropriate-technology reference option with documented open-content terms; no external page bodies or media bundled here.",
+      "checklist": [
+        "Select the appropriate original resource and inspect its date, scope and rights before adding a local copy."
+      ],
+      "sources": [
+        {
+          "title": "Appropedia documentation licenses",
+          "url": "https://www.appropedia.org/Appropedia:Intellectual_property/Documentation_licenses",
+          "issued": "Current policy checked 2026-10-28",
+          "checked": "2026-10-28"
+        }
+      ],
+      "status": "reference_only",
+      "provenance": "Official publisher/agency landing pages and linked document URLs checked on 2026-10-28. Reference link only; no document bytes included in this entry.",
+      "rights": "Reference only. Site documentation defaults to CC BY-SA 4.0 with attribution/share-alike; individual exceptions and embedded third-party media need separate review."
+    },
+    {
+      "id": "usgs-local-maps",
+      "title": "USGS topographic map selection",
+      "topic": "navigation",
+      "summary": "Official entry point for selecting dated offline maps for the owner's actual area; no entire-country map download is assumed.",
+      "checklist": [
+        "Select the appropriate original resource and inspect its date, scope and rights before adding a local copy."
+      ],
+      "sources": [
+        {
+          "title": "USGS: Topographic Maps",
+          "url": "https://www.usgs.gov/programs/national-geospatial-program/topographic-maps",
+          "issued": "Undated current landing page",
+          "checked": "2026-10-28"
+        }
+      ],
+      "status": "reference_only",
+      "provenance": "Official publisher/agency landing pages and linked document URLs checked on 2026-10-28. Reference link only; no document bytes included in this entry.",
+      "rights": "Reference only. Review the individual map's metadata and credited third-party data before redistribution."
+    }
+  ],
+  "book": {
+    "title": "The Knowledge: How to Rebuild Our World from Scratch",
+    "author": "Lewis Dartnell",
+    "publisher": "Penguin Random House (Bodley Head / Vintage / Penguin editions)",
+    "url": "https://the-knowledge.org/en-gb/the-book/",
+    "status": "owner_copy_required",
+    "notice": "User clarified Lewis Dartnell. A lawful owner-supplied copy of the exact edition is required for private book-specific import and page mapping. No commercial book text, chapter reconstruction or illustrations are included in this independent preparedness pack."
+  }
+}
