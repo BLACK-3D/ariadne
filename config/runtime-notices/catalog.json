@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "scope": "Exact upstream notices for provisioned runtimes, not a new binary signature or exhaustive dependency legal certification.",
+  "assets": [
+    {
+      "path": "ollama/LICENSE",
+      "url": "https://raw.githubusercontent.com/ollama/ollama/f067033f9126993b6172bdfffa71a74ad693fda4/LICENSE",
+      "sha256": "5934ed2ce0d15154bcdb9c85203210abac0da4314af34081e36df4599f90b226",
+      "bytes": 1058,
+      "license": "MIT",
+      "revision": "v0.40.12"
+    },
+    {
+      "path": "whisper/LICENSE.whisper.cpp",
+      "url": "https://raw.githubusercontent.com/ggml-org/whisper.cpp/d1be6fde11ac6e0407606b4e42fe72d34add8037/LICENSE",
+      "sha256": "94f29bbed6a22c35b992c5c6ebf0e7c92f13b836b90f36f461c9cf2f0f1d010d",
+      "bytes": 1078,
+      "license": "MIT",
+      "revision": "b5454; includes vendored ggml authors"
+    },
+    {
+      "path": "whisper/LICENSE.llama.cpp",
+      "url": "https://raw.githubusercontent.com/ggml-org/llama.cpp/d81235049384534c167caea52b85a694f6103d14/LICENSE",
+      "sha256": "94f29bbed6a22c35b992c5c6ebf0e7c92f13b836b90f36f461c9cf2f0f1d010d",
+      "bytes": 1078,
+      "license": "MIT",
+      "revision": "v0.6.0 pinned by whisper build"
+    },
+    {
+      "path": "whisper/LICENSE.SDL2",
+      "url": "https://raw.githubusercontent.com/libsdl-org/SDL/15ead9a40d09a1eb9972215cceac2bf29c9b77f6/LICENSE.txt",
+      "sha256": "9928507f684c1965d07f2b6ef4b4723d5efc2f6b4ab731f743a413c51c319927",
+      "bytes": 884,
+      "license": "Zlib",
+      "revision": "release-2.28.5; bundled PE ProductVersion2.28.5"
+    },
+    {
+      "path": "whisper/LICENSE.Whisper-model",
+      "url": "https://raw.githubusercontent.com/openai/whisper/31243bad24cc746f07d4c8bfdd2d974872cb1803/LICENSE",
+      "sha256": "b5d65a59060e68c4ff940e1eddfa6f94b2d68fdf58ed7f4dd57721c997e35e9d",
+      "bytes": 1063,
+      "license": "MIT",
+      "revision": "OpenAI model license; v20250625 notice snapshot"
+    },
+    {
+      "path": "whisper/WHISPER_MODEL_CARD.md",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/raw/5359861c739e955e79d9a303bcbc70fb988958b1/README.md",
+      "sha256": "21fd967098804f33fc84e803fb0e5ab7666d71801f4027cf28a65e7af09c1758",
+      "bytes": 3196,
+      "license": "MIT",
+      "revision": "exact converted weight repository revision"
+    }
+  ]
+}

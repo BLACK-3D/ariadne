@@ -397,6 +397,24 @@ body.command-console:not(.command-motion-visible) .presence-orbit,body.command-c
 .routine-run-steps small { display:block; margin-top:5px; color:var(--muted); font:10px var(--mono); overflow-wrap:anywhere; }
 .routine-receipt .operation-actions { margin-top:16px; }
 .schedule-workflow-snapshot { font-size:12px!important; color:var(--muted); line-height:1.7; }
+.workflow-filter { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin:18px 0 24px; }
+.workflow-filter label { font-size:12px; color:var(--muted); }
+.workflow-filter select { max-width:310px; min-height:40px; font-size:12px; }
+.workflow-card .resource-card-header { flex-wrap:wrap; gap:8px; }
+.editor-checkbox-field { display:grid; grid-template-columns:20px minmax(0,1fr); gap:8px 10px; align-items:start; }
+.editor-checkbox-field>input { width:16px; height:16px; margin-top:2px; }
+.editor-checkbox-field>label { font-size:13px; margin:0; line-height:1.6; }
+.editor-checkbox-field>.field-help { grid-column:2; margin:0; }
+.routine-comparison { border:1px solid var(--line); background:var(--well); padding:18px; margin:18px 0; border-radius:5px; }
+.routine-comparison h4 { font-size:15px; margin:0 0 12px; }
+.routine-comparison-identity { font:10px/1.8 var(--mono); overflow-wrap:anywhere; color:var(--text-secondary); margin:4px 0; }
+.routine-comparison-note { color:var(--muted); font-size:12px; line-height:1.7; }
+.routine-comparison-step { margin-top:18px; font-size:13px; }
+.routine-change { margin:12px 0; padding-top:12px; border-top:1px solid var(--line-soft); }
+.routine-change-heading { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:start; gap:8px; }
+.routine-change-heading>code { overflow-wrap:anywhere; font-size:11px; }
+.routine-change-heading .tag { font-size:9px; }
+.routine-change>pre { margin:8px 0 0; color:var(--text-secondary); background:transparent; white-space:pre-wrap; overflow-wrap:anywhere; font:11px/1.7 var(--mono); }
 @media(max-width:700px) {
   .routine-grid { grid-template-columns:1fr; }
   .routine-toolbar { width:100%; }

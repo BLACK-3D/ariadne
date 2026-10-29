@@ -20,6 +20,8 @@ The MIT license in this repository applies to the original application code. It 
 
 - Whisper: https://github.com/openai/whisper — review the model/code licensing and model card along with the distributed weights.
 
+The 0.10 appliance retains exact pinned Ollama and whisper.cpp notices, the linked llama.cpp and SDL2 notices, and the Whisper model license/card under `config/runtime-notices/` and the corresponding `runtime/ollama/` or `runtime/whisper/` directories. `config/runtime-notices/catalog.json` records immutable upstream URLs, SHA-256 values and revision context. These notice snapshots do not establish a new upstream binary signature or certify every dependency's redistribution obligations.
+
 - Windows SAPI/System.Speech: supplied by Windows, not redistributed by this project.
 
 - Optional Piper: https://github.com/OHF-Voice/piper1-gpl — GPL-3.0 runtime and separately licensed voices. It is not bundled in this installation.
@@ -65,6 +67,8 @@ verified upstream wheel. This application does not relicense those assets.
 The full offline package preserves the installed package licenses, original locked wheels, native notices and model-card/license snapshots. Exact versions, immutable asset URLs and SHA-256 values are recorded in the requirement locks and `config/*assets.json`; the export manifest hashes the distributed bytes. Runtime extraction does not change upstream licensing. Redistributing the appliance requires honoring every included component's terms, including copyleft and separate model/native dependencies.
 
 - Qwen3.5:9b: Qwen publisher model, Apache-2.0; Ollama license blobs are retained with the cached model manifests.
+
+The factory export includes only the three public Qwen tags and exact manifest, metadata and referenced blob pins in `config/public-models.json`. Unknown/custom owner models and unreferenced blobs are excluded. During export, each selected blob must match its pinned SHA-256 before the archive is published.
 - FLUX.2-klein-4B: https://huggingface.co/black-forest-labs/FLUX.2-klein-4B — publisher card, Apache-2.0 license and immutable revision are retained with the model assets.
 - Kokoro ONNX, Sherpa-ONNX, Silero VAD and the selected speaker segmentation/embedding assets: publisher model cards, licenses and exact hashes are retained under `runtime/media/notices` and the media asset locks. eSpeak's GPL notices remain separate from model licensing.
 - PyTorch, Diffusers, Transformers, ONNX Runtime and their dependencies retain their own wheel/native-library notices. NVIDIA CUDA dependencies carry separate redistribution terms.

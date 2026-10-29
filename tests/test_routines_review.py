@@ -332,6 +332,8 @@ class RoutineReviewTests(unittest.TestCase):
             destination = factory / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_bytes(value)
+        from tests.test_box_profiles import public_export_fixture
+        public_export_fixture(factory)
         source = Path(__file__).resolve().parent.parent / "scripts/export_offline.py"
         spec = importlib.util.spec_from_file_location("independent_factory_export", source)
         module = importlib.util.module_from_spec(spec)
@@ -342,7 +344,7 @@ class RoutineReviewTests(unittest.TestCase):
         self.assertIn("ariadne/routines.py", inventory)
         self.assertIn("ariadne/static/routines.js", inventory)
         self.assertIn("docs/OFFLINE_ROUTINES_0_9.md", inventory)
-        self.assertFalse(any(name.startswith("data/") for name in inventory))
+        self.assertFalse(any(name.startswith("data/") and not name.startswith("data/models/") for name in inventory))
 
     @staticmethod
     def worst_model_receipt(selection, controls=False):

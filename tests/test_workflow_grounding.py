@@ -7,7 +7,8 @@ from pathlib import Path
 from ariadne.config import Settings
 from ariadne.engine import Engine
 from ariadne.store import Store
-from ariadne.capabilities import seed_workflows, SURVIVAL_STARTERS
+from ariadne.capabilities import seed_workflows, SURVIVAL_STARTERS, OFFLINE_STARTERS
+from ariadne.verification import validate_checks
 
 
 class ClockModel:
@@ -49,3 +50,26 @@ class WorkflowGroundingTests(unittest.TestCase):
             self.assertEqual(len(store.workflows()),before)
             self.assertEqual(store.workflow(workflow["id"])["prompt"],"Owner custom instructions")
             self.assertEqual(len(SURVIVAL_STARTERS),3)
+
+    def test_offline_starters_enqueue_checked_paths_with_their_intended_local_scope(self):
+        with tempfile.TemporaryDirectory(dir=Path.cwd(), prefix=".offline-starters-") as directory:
+            settings = Settings(data_dir=Path(directory), api_token="starter-fixture")
+            store = Store(settings.data_dir / "ariadne.sqlite3")
+            engine = Engine(settings, store, ClockModel())
+            seed_workflows(store)
+            for item in OFFLINE_STARTERS:
+                workflow = next(row for row in store.workflows() if row["name"] == item["name"])
+                self.assertTrue(workflow["isolated_outputs"])
+                self.assertTrue(engine.agents.profile(workflow["agent_id"]).offline)
+                self.assertEqual(validate_checks(workflow["checks"], engine.tools), workflow["checks"])
+                first, second = store.workflow_run(workflow["id"]), store.workflow_run(workflow["id"])
+                self.assertEqual(first["agent_id"], item["agent_id"])
+                self.assertNotEqual(first["output_prefix"], second["output_prefix"])
+                self.assertTrue(all(check["path"].startswith(first["output_prefix"]+"/") for check in first["checks"]))
+                self.assertNotIn("{{run_dir}}", first["prompt"])
+                self.assertIn("{{run_dir}}", store.workflow(workflow["id"])["prompt"])
+            edited = next(row for row in store.workflows() if row["name"] == OFFLINE_STARTERS[0]["name"])
+            store.workflow_save(edited["name"], "Owner notes {{run_dir}}/handoff.md", edited["checks"], edited["id"])
+            seed_workflows(store)
+            self.assertTrue(store.workflow(edited["id"])["isolated_outputs"])
+            self.assertEqual(store.workflow(edited["id"])["prompt"], "Owner notes {{run_dir}}/handoff.md")

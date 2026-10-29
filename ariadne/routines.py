@@ -254,6 +254,15 @@ class Routines:
         with self.database() as db:
             return self._run(db.execute("SELECT * FROM routine_runs WHERE id=?", (request_id,)).fetchone())
 
+    def latest_completed_id(self):
+        with self.database() as db:
+            row = db.execute("SELECT id FROM routine_runs WHERE status='completed' ORDER BY created_at DESC,id LIMIT 1").fetchone()
+        return row["id"] if row else None
+
+    def compare(self, current_id, previous_id=None):
+        from .routine_changes import compare_routines
+        return compare_routines(self, current_id, previous_id)
+
     def _update(self, db, run):
         run["updated_at"] = time.time()
         db.execute("UPDATE routine_runs SET status=?,completed_at=?,updated_at=?,steps=?,artifacts=?,warnings=?,error=?,cancel_requested=?,reserved_bytes=? WHERE id=?",

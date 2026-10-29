@@ -13,6 +13,38 @@ from ariadne.store import Store
 from scripts.export_offline import export, inventory, plan, write_template
 
 
+def public_export_fixture(root):
+    """Three tiny public-tag fixtures, plus exact source/runtime notices."""
+    models = []
+    for tag in ("qwen3.5:9b", "qwen3:8b", "qwen3:4b"):
+        raw = ("public fixture " + tag).encode()
+        digest = hashlib.sha256(raw).hexdigest()
+        blob = root / ("data/models/blobs/sha256-" + digest)
+        blob.parent.mkdir(parents=True, exist_ok=True)
+        blob.write_bytes(raw)
+        descriptor = {"digest": "sha256:" + digest, "size": len(raw)}
+        manifest = json.dumps({"schemaVersion": 2, "config": descriptor, "layers": [descriptor]}).encode()
+        path = "data/models/manifests/registry.ollama.ai/library/" + tag.replace(":", "/")
+        target = root / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(manifest)
+        models.append({"tag": tag, "source_url": "https://ollama.com/library/" + tag,
+            "manifest": {"path": path, "sha256": hashlib.sha256(manifest).hexdigest(), "bytes": len(manifest)},
+            "metadata": [], "blobs": [{"sha256": digest, "bytes": len(raw)}]})
+    (root / "config").mkdir(exist_ok=True)
+    (root / "config/public-models.json").write_text(json.dumps({"schema": 1, "default_model": "qwen3.5:9b", "models": models}), encoding="utf-8")
+    source = Path(__file__).resolve().parents[1] / "config/runtime-notices"
+    shutil.copytree(source, root / "config/runtime-notices")
+    catalog = json.loads((source / "catalog.json").read_text(encoding="utf-8"))
+    for asset in catalog["assets"]:
+        target = root / "runtime" / asset["path"]
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source / asset["path"], target)
+    for scope in ("ollama", "whisper"):
+        (root / "runtime" / scope / "NOTICE-PROVENANCE.json").write_text(json.dumps({"schema": 1,
+            "assets": [asset for asset in catalog["assets"] if asset["path"].startswith(scope + "/")]}), encoding="utf-8")
+
+
 class BoxProfileTests(unittest.TestCase):
     def setUp(self):
         base = Path(__file__).resolve().parents[1] / "runtime/tmp"
@@ -25,7 +57,7 @@ class BoxProfileTests(unittest.TestCase):
         (self.root / "ariadne").mkdir()
         (self.root / "scripts").mkdir()
         for name in ("runtime/python/python.exe", "runtime/python/PORTABLE-MANIFEST.json", "runtime/ollama/ollama.exe",
-                     "runtime/whisper/whisper.exe", "data/voice/ggml-base.en.bin", "data/models/blobs/sha256-example"):
+                     "runtime/whisper/whisper.exe", "data/voice/ggml-base.en.bin"):
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(b"fixture " + name.encode())
@@ -34,6 +66,7 @@ class BoxProfileTests(unittest.TestCase):
         voice = {"whisper_bin": str(self.root / "runtime/whisper/whisper.exe"), "whisper_model": str(self.root / "data/voice/ggml-base.en.bin")}
         (self.root / "data/voice-config.json").write_text(json.dumps(voice), encoding="utf-8")
         (self.root / "README.md").write_text("Portable appliance fixture", encoding="utf-8")
+        public_export_fixture(self.root)
 
     def test_relocated_profiles_use_new_root_and_new_database_only(self):
         template = write_template(self.root)
@@ -101,7 +134,7 @@ class BoxProfileTests(unittest.TestCase):
         self.assertEqual(receipt["sha256"], hashlib.sha256(output.read_bytes()).hexdigest())
         with zipfile.ZipFile(output) as archive:
             self.assertIn("runtime/python/python.exe", archive.namelist())
-            self.assertIn("data/models/blobs/sha256-example", archive.namelist())
+            self.assertEqual(sum(name.startswith("data/models/blobs/") for name in archive.namelist()), 3)
             self.assertIn("scripts/media-license-assets.json", archive.namelist())
             self.assertFalse(any("PRIVATE_SENTINEL" in archive.read(name).decode("utf-8", errors="ignore") for name in archive.namelist()))
             manifest = json.loads(archive.read("BOX-MANIFEST.json"))

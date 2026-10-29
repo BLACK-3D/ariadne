@@ -1,5 +1,7 @@
 # Ariadne — local AI in a box
 
+Version 0.10 adds **three local-only specialist agents**, six checked offline workflows with a new output folder per run, and verified structural comparisons between saved routine reports. The full portable exporter pins public model assets and excludes private model metadata. See [offline autonomy and portable operation](docs/OFFLINE_AUTONOMY_0_10.md).
+
 Version 0.9 adds **offline routines**: saved sequences of fixed reports, opt-in recurrence, durable step receipts and explicit artifact verification, with no model calls inside a routine. AI workflows can retain their selected specialist, and workflow schedules freeze instructions, output checks and specialist selection. See [offline routines and checked schedules](docs/OFFLINE_ROUTINES_0_9.md).
 
 A local assistant with a browser console, autonomous tool loops, durable memory, searchable knowledge, recurring missions, offline voice, and operator-defined HTTP integrations. Models, conversations and files stay on your server when using the bundled local configuration. No paid API is required.
@@ -10,7 +12,7 @@ Version 0.7 added **Internet controls and public web tools**: on-demand search, 
 
 Version 0.6 introduced **16 specialist agents**, deterministic dispatch with enforced tool scopes, an opt-in offline **“Ariadne” PC wake listener**, spoken responses, and a **6 AM daily brief** with durable reports and dated weather/alert/regional-source caches. Listening uses local ASR with zero idle language-model calls. Fixed briefing reports use zero language-model calls. See [agent operating details](docs/AGENTS_0_6.md), [voice setup](docs/WAKE_VOICE.md) and [daily briefing setup](docs/DAILY-BRIEFING.md). New weather and news require connectivity to refresh; the report itself still works offline.
 
-Version 0.5 adds a **Survival** workspace with supply rotation, exact reserve/energy estimates, rebuilding project dependencies, dated offline references and private PDF/EPUB books. **Workflows** includes fixed local report procedures that make zero model calls, alongside optional AI workflows. See [survival setup](docs/SURVIVAL_0_5.md), [reference provenance](docs/SURVIVAL-SOURCES.md) and [workflow research](docs/WORKFLOWS_0_5.md). The immutable complete 0.4 offline archive remains in `dist`; later development source is versioned separately.
+Version 0.5 adds a **Survival** workspace with supply rotation, exact reserve/energy estimates, rebuilding project dependencies, dated offline references and private PDF/EPUB books. **Workflows** includes fixed local report procedures that make zero model calls, alongside optional AI workflows. See [survival setup](docs/SURVIVAL_0_5.md), [reference provenance](docs/SURVIVAL-SOURCES.md) and [workflow research](docs/WORKFLOWS_0_5.md). Historical release archives remain in `dist`; the current full portable export is built separately from GitHub source.
 
 This is an implemented assistant runtime, not movie-level general intelligence. It can create business plans, code, operating procedures and other artifacts, and interact with systems you explicitly connect. It does not independently establish legal entities, acquire accounts, spend money, publish services, contact people or control arbitrary hardware. Its quality depends on the selected model, tools and instructions. Review consequential outputs.
 
@@ -74,7 +76,7 @@ The field-console update is documented in [UI verification](docs/UI_0_2_1.md). T
 
 ## Checked workflows and exact totals
 
-Review the three starter workflows, edit their instructions/checks or create your own. Running a workflow freezes its instructions and checks for that run. **Execution finished** and **Expected outputs verified** are distinct outcomes. A model's success claim cannot satisfy a file check. On failed checks, the worker receives one repair opportunity within the original step budget. Remaining failures stay visible and stop an associated recurring mission.
+Review the starter workflows, edit their instructions/checks or create your own. Running a workflow freezes its instructions and checks for that run. **Execution finished** and **Expected outputs verified** are distinct outcomes. A model's success claim cannot satisfy a file check. On failed checks, the worker receives one repair opportunity within the original step budget. Remaining failures stay visible and stop an associated recurring mission.
 
 Checks support `file_exists`, `file_contains` (literal text), `json_valid` (no duplicate keys/nonfinite numbers), `csv_columns`, and exact `json_number` predicates. For example:
 
@@ -97,7 +99,7 @@ Tables are bounded to 100,000 source characters, 2,000 rows and 100 columns. Num
 
 ## Portable deployment
 
-The full **0.4 Windows x64 offline ZIP** includes Python, installed engines, models, notices and offline repair wheels. Extract it into an allowed folder and double-click **Start Ariadne.cmd**. A new box creates its own pairing key and private state; it does not copy the original owner's conversations, files or credentials. See [portable package instructions](docs/PORTABLE_0_4.md).
+The full **0.10 Windows x64 offline ZIP** includes current source, Python, installed engines, pinned public models, notices and offline repair wheels. Extract it into an allowed folder and double-click **Start Ariadne.cmd**. A new box creates its own pairing key and private state; it does not copy the original owner's conversations, files or credentials. See [current offline and portable operation](docs/OFFLINE_AUTONOMY_0_10.md) and [baseline portable instructions](docs/PORTABLE_0_4.md).
 
 The source-only distribution requires Python **3.11+** for the core. This checkout runs without a package installation:
 

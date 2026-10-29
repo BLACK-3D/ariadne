@@ -75,14 +75,16 @@ class InternetAgentTests(unittest.TestCase):
         self.assertFalse(self.engine.internet_available())
         self.provider.assert_not_called()
 
-    def test_every_specialist_has_public_read_only_tools_when_enabled(self):
+    def test_owner_policy_specialists_have_public_tools_and_local_only_specialists_do_not(self):
         self.connect()
         for profile in PROFILES:
             with self.subTest(profile=profile.id):
-                self.assertTrue(self.engine.agents.allows(profile.id, "web_search"))
-                self.assertTrue(self.engine.agents.allows(profile.id, "web_fetch"))
+                self.assertEqual(self.engine.agents.allows(profile.id, "web_search"), not profile.offline)
+                self.assertEqual(self.engine.agents.allows(profile.id, "web_fetch"), not profile.offline)
                 catalog = next(a for a in self.engine.agents.catalog()["agents"] if a["id"] == profile.id)
-                self.assertTrue({"web_search", "web_fetch"} <= set(catalog["tools"]))
+                self.assertEqual({"web_search", "web_fetch"} <= set(catalog["tools"]), not profile.offline)
+                if profile.offline:
+                    self.assertFalse({"web_search", "web_fetch"} & set(catalog["tools"]))
         self.enabled = False
         for profile in self.engine.agents.catalog()["agents"]:
             self.assertFalse({"web_search", "web_fetch"} & set(profile["tools"]))

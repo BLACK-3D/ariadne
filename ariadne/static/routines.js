@@ -7,7 +7,7 @@
   const pendingKey = "ariadne.routine.pending";
   let app, generation = 0, loading = false, busy = false, loaded = false, lastMarker = null;
   let data = {templates:[], procedures:[], routines:[], runs:[]}, editor = null, review = null, pending = null;
-  const verification = new Map();
+  const verification = new Map(), comparisons = new Map();
   const $ = id => document.getElementById(id);
   const visible = () => app?.state.authenticated && app.state.view === "workflows" && app.state.workflowTab === "routines" && !document.hidden;
   const current = token => token === generation && app.state.authenticated;
@@ -139,6 +139,62 @@
     } catch (failure) { if (current(token)) error(`${failure.message} Read this run's receipt before repeating the action.`); }
     finally { if (token === generation) { busy = false; controls(); } }
   }
+  async function compareRun(run) {
+    const identifier = idOf(run);
+    if (!app.state.authenticated || comparisons.get(identifier)?.loading) return;
+    const token = generation, entry = {loading:true, result:null, error:null};
+    comparisons.set(identifier, entry); renderRuns(); controls();
+    try {
+      const result = await app.api(`/routines/runs/${encodeURIComponent(identifier)}/changes`);
+      if (!current(token) || comparisons.get(identifier) !== entry) return;
+      if (!result || typeof result.state !== "string" || result.current_id !== identifier) throw new Error("The comparison did not identify this exact current request.");
+      entry.result = result;
+    } catch (failure) {
+      if (current(token) && comparisons.get(identifier) === entry) entry.error = failure.message;
+    } finally {
+      if (current(token) && comparisons.get(identifier) === entry) { entry.loading = false; renderRuns(); controls(); }
+    }
+  }
+  function renderComparison(run, card) {
+    const entry = comparisons.get(idOf(run));
+    if (!entry) return;
+    const box = app.node("section", "routine-comparison");
+    if (entry.loading) box.append(app.node("p", "operation-status", "Comparing verified local report snapshots…"));
+    if (entry.error) box.append(app.node("p", "inline-error", `${entry.error} No comparison is asserted. You may explicitly request it again.`));
+    const result = entry.result;
+    if (result) {
+      const labels = {first_run:"No prior baseline identified", current_unavailable:"Current run unavailable for comparison", incomparable:"Runs are not comparable", partial:"Partial comparison", compared:result.metadata_only ? "Only metadata changes found" : "Reports compared"};
+      box.append(app.node("h4", "", labels[result.state] || app.humanize(result.state)),
+        app.node("p", "routine-comparison-identity", `Current request: ${result.current_id}`),
+        app.node("p", "routine-comparison-identity", `Baseline request: ${result.baseline_id || "None returned"}`));
+      if (["first_run", "current_unavailable", "incomparable"].includes(result.state)) box.append(app.node("p", "routine-comparison-note", "The returned state does not establish that the underlying records are unchanged."));
+      if (result.state === "partial") box.append(app.node("p", "procedure-receipt-warning", "This comparison is incomplete. Returned differences and counts may be lower bounds; inspect the service limits and truncation details."));
+      let shown = 0, returned = 0;
+      for (const step of Array.isArray(result.steps) ? result.steps : []) {
+        const changes = Array.isArray(step.changes) ? step.changes : [];
+        returned += changes.length;
+        const section = app.node("div", "routine-comparison-step");
+        section.append(app.node("strong", "", `${nameOf(step.procedure_id)} · ${app.humanize(step.state || result.state)}`));
+        if (typeof step.observed_differences === "number") section.append(app.node("p", "routine-comparison-note", `${step.observed_differences} observed differences${step.truncated ? " · bounded result" : ""}`));
+        for (const change of changes) {
+          if (shown >= 12) break;
+          shown += 1;
+          const row = app.node("div", "routine-change"), heading = app.node("div", "routine-change-heading");
+          heading.append(app.node("code", "", change.pointer || change.path || "/"), app.node("span", "tag", `${app.humanize(change.kind)} · ${change.metadata === true ? "Metadata" : "Substantive"}`)); row.append(heading);
+          for (const key of ["before", "after"]) {
+            const value = Object.hasOwn(change, key) ? typeof change[key] === "string" ? change[key] : JSON.stringify(change[key]) : "Not present";
+            const preview = String(value);
+            row.append(app.node("pre", "", `${key === "before" ? "Before" : "After"}: ${preview.slice(0,180)}${preview.length > 180 ? "… [display clipped]" : ""}`));
+          }
+          section.append(row);
+        }
+        box.append(section);
+      }
+      if (returned > shown) box.append(app.node("p", "routine-comparison-note", `Showing ${shown} of ${returned} returned differences. The complete bounded response is below.`));
+      const detail = app.node("details", "tool-details"); detail.append(app.node("summary", "", "Comparison sources, hashes, limits and complete response"), app.node("pre", "", JSON.stringify(result,null,2))); box.append(detail);
+    }
+    card.append(box);
+  }
   function renderRuns() {
     const list = $("routine-runs"); list.replaceChildren();
     if (!data.runs.length) list.append(app.node("p", "procedure-empty", "No routine runs recorded. New requests receive their own immutable request ID."));
@@ -169,7 +225,13 @@
       const actions = app.node("div", "operation-actions");
       if (active(run)) actions.append(app.button("Cancel remaining steps", "button-secondary routine-mutation", () => runAction(run, "cancel"), "stop"));
       if (run.status === "completed" && run.artifacts?.length) actions.append(app.button("Verify files", "button-secondary routine-mutation", () => runAction(run, "verify"), "check"));
+      if (run.status === "completed") {
+        const compare = app.button(comparisons.get(idOf(run))?.loading ? "Comparing…" : "Compare prior run", "button-secondary", () => compareRun(run), "workflow");
+        compare.disabled = !app.state.authenticated || comparisons.get(idOf(run))?.loading === true;
+        actions.append(compare);
+      }
       card.append(actions);
+      renderComparison(run, card);
       const savedVerification = verification.get(idOf(run)) || run.verification;
       if (savedVerification) { const details = app.node("details", "tool-details"); details.append(app.node("summary", "", "Recorded file-verification result"), app.node("pre", "", JSON.stringify(savedVerification, null, 2))); card.append(details); }
       const details = app.node("details", "tool-details"); details.append(app.node("summary", "", "Complete receipt and frozen plan"), app.node("pre", "", JSON.stringify(run, null, 2))); card.append(details);
@@ -258,7 +320,7 @@
     } finally { if (token === generation) { busy = false; controls(); } }
   }
   function locked() {
-    generation += 1; loading = false; busy = false; loaded = false; lastMarker = null; editor = null; review = null; verification.clear();
+    generation += 1; loading = false; busy = false; loaded = false; lastMarker = null; editor = null; review = null; verification.clear(); comparisons.clear();
     data = {templates:[], procedures:[], routines:[], runs:[]};
     for (const id of ["routine-editor-dialog", "routine-review-dialog"]) if ($(id)?.open) $(id).close();
     for (const id of ["routine-name", "routine-interval"]) $(id).value = "";

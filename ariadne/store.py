@@ -20,6 +20,22 @@ def now() -> float:
     return time.time()
 
 
+def _isolated_outputs(prompt, checks, enabled):
+    if type(enabled) is not bool:
+        raise ValueError("isolated_outputs must be a boolean")
+    if enabled:
+        if "{{run_dir}}" not in prompt or not isinstance(checks, list) or not 1 <= len(checks) <= 10:
+            raise ValueError("Isolated workflows require {{run_dir}} in their instructions and 1–10 output checks.")
+        for check in checks:
+            path = check.get("path") if isinstance(check, dict) else None
+            if not isinstance(path, str) or not path.startswith("{{run_dir}}/"):
+                raise ValueError("Every isolated output check must start with {{run_dir}}/.")
+            tail = path[len("{{run_dir}}/"):].replace("\\", "/")
+            if any(part in {"", ".", ".."} for part in tail.split("/")) or "{{run_dir}}" in tail or ":" in tail or "\x00" in tail:
+                raise ValueError("Isolated output paths require ordinary child names without traversal or repeated placeholders.")
+    return enabled
+
+
 class Store:
     def __init__(self, path: Path):
         path = _allowed_path(path)
@@ -63,10 +79,10 @@ class Store:
                 CREATE TABLE IF NOT EXISTS document_versions (id TEXT PRIMARY KEY, document_id TEXT NOT NULL, sha256 TEXT NOT NULL, version INTEGER NOT NULL, created_at REAL NOT NULL);
             """)
             additions = {
-                "runs": {"checks": "TEXT NOT NULL DEFAULT '[]'", "verification": "TEXT NOT NULL DEFAULT '{}'", "verification_status": "TEXT NOT NULL DEFAULT 'not_requested'", "verification_attempts": "INTEGER NOT NULL DEFAULT 0", "workflow_id": "TEXT", "agent_id": "TEXT NOT NULL DEFAULT 'general'"},
+                "runs": {"checks": "TEXT NOT NULL DEFAULT '[]'", "verification": "TEXT NOT NULL DEFAULT '{}'", "verification_status": "TEXT NOT NULL DEFAULT 'not_requested'", "verification_attempts": "INTEGER NOT NULL DEFAULT 0", "workflow_id": "TEXT", "agent_id": "TEXT NOT NULL DEFAULT 'general'", "isolated_outputs": "INTEGER NOT NULL DEFAULT 0", "output_prefix": "TEXT"},
                 "approvals": {"capability_fingerprint": "TEXT NOT NULL DEFAULT ''", "capability": "TEXT NOT NULL DEFAULT '{}'"},
-                "schedules": {"last_error": "TEXT", "workflow_id": "TEXT", "checks": "TEXT NOT NULL DEFAULT '[]'", "agent_id": "TEXT NOT NULL DEFAULT 'general'"},
-                "workflows": {"agent_id": "TEXT NOT NULL DEFAULT 'general'"},
+                "schedules": {"last_error": "TEXT", "workflow_id": "TEXT", "checks": "TEXT NOT NULL DEFAULT '[]'", "agent_id": "TEXT NOT NULL DEFAULT 'general'", "isolated_outputs": "INTEGER NOT NULL DEFAULT 0"},
+                "workflows": {"agent_id": "TEXT NOT NULL DEFAULT 'general'", "isolated_outputs": "INTEGER NOT NULL DEFAULT 0"},
                 "document_versions": {"processor": "TEXT NOT NULL DEFAULT '{}'", "content_sha256": "TEXT"},
                 "documents": {"source_id": "TEXT", "source_name": "TEXT", "source_path": "TEXT", "sha256": "TEXT", "format": "TEXT", "byte_size": "INTEGER", "version": "INTEGER NOT NULL DEFAULT 1", "updated_at": "REAL", "warnings": "TEXT NOT NULL DEFAULT '[]'", "processor": "TEXT NOT NULL DEFAULT '{}'", "content_sha256": "TEXT"},
             }
@@ -113,18 +129,25 @@ class Store:
         for key in ("context", "pending", "args", "data", "checks", "verification", "warnings", "capability", "processor"):
             if key in out:
                 out[key] = json.loads(out[key])
+        if "isolated_outputs" in out:
+            out["isolated_outputs"] = bool(out["isolated_outputs"])
         return out
 
-    def new_run(self, prompt, session_id=None, checks=None, workflow_id=None, agent_id=None):
+    def new_run(self, prompt, session_id=None, checks=None, workflow_id=None, agent_id=None, isolated_outputs=False):
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
-            run_id = self._insert_run(db, prompt, session_id, checks, workflow_id, agent_id)
+            run_id = self._insert_run(db, prompt, session_id, checks, workflow_id, agent_id, isolated_outputs)
         return self.run(run_id)
 
-    def _insert_run(self, db, prompt, session_id=None, checks=None, workflow_id=None, agent_id=None):
+    def _insert_run(self, db, prompt, session_id=None, checks=None, workflow_id=None, agent_id=None, isolated_outputs=False):
         from .agents import resolve_agent
         agent_id = resolve_agent(prompt, agent_id)
         run_id, session_id = ident(), session_id or ident()
+        _isolated_outputs(prompt, checks, isolated_outputs)
+        output_prefix = "missions/" + run_id if isolated_outputs else None
+        if isolated_outputs:
+            prompt = prompt.replace("{{run_dir}}", output_prefix)
+            checks = [{**check, "path": check["path"].replace("{{run_dir}}", output_prefix)} for check in checks]
         context = []
         rows = db.execute("SELECT prompt,context FROM runs WHERE session_id=? AND status='completed' ORDER BY created_at DESC LIMIT 4", (session_id,)).fetchall()
         for row in reversed(rows):
@@ -140,7 +163,7 @@ class Store:
         db.execute("INSERT INTO runs(id,session_id,title,prompt,status,created_at,updated_at,context,agent_id) VALUES (?,?,?,?,?,?,?,?,?)",
                    (run_id, session_id, prompt[:90], prompt, "queued", stamp, stamp, json.dumps(context), agent_id))
         db.execute("INSERT INTO events(run_id,kind,data,created_at) VALUES (?,?,?,?)", (run_id, "queued", json.dumps({"message": "Mission queued for local execution.", "agent_id": agent_id}), stamp))
-        db.execute("UPDATE runs SET checks=?,verification_status=?,workflow_id=? WHERE id=?", (json.dumps(checks or []), "pending" if checks else "not_requested", workflow_id, run_id))
+        db.execute("UPDATE runs SET checks=?,verification_status=?,workflow_id=?,isolated_outputs=?,output_prefix=? WHERE id=?", (json.dumps(checks or []), "pending" if checks else "not_requested", workflow_id, int(isolated_outputs), output_prefix, run_id))
         return run_id
 
     def run(self, run_id):
@@ -342,11 +365,11 @@ class Store:
         with self.connect() as db:
             return self.decode(db.execute("SELECT * FROM workflows WHERE id=?", (workflow_id,)).fetchone())
 
-    def workflow_save(self, name, prompt, checks, workflow_id=None, agent_id=None):
+    def workflow_save(self, name, prompt, checks, workflow_id=None, agent_id=None, isolated_outputs=None):
         from .agents import resolve_agent
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
-            existing = db.execute("SELECT agent_id FROM workflows WHERE id=?", (workflow_id,)).fetchone() if workflow_id else None
+            existing = db.execute("SELECT agent_id,isolated_outputs FROM workflows WHERE id=?", (workflow_id,)).fetchone() if workflow_id else None
             if workflow_id and not existing:
                 raise KeyError("Workflow not found")
             if not workflow_id and db.execute("SELECT count(*) FROM workflows").fetchone()[0] >= 100:
@@ -355,7 +378,9 @@ class Store:
             selected = existing["agent_id"] if agent_id is None and existing else "general" if agent_id is None else agent_id
             if selected != "auto":
                 selected = resolve_agent(prompt, selected)
-            db.execute("INSERT INTO workflows(id,name,prompt,checks,created_at,agent_id) VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,prompt=excluded.prompt,checks=excluded.checks,agent_id=excluded.agent_id", (workflow_id, name, prompt, json.dumps(checks), now(), selected))
+            isolation = bool(existing["isolated_outputs"]) if isolated_outputs is None and existing else False if isolated_outputs is None else isolated_outputs
+            _isolated_outputs(prompt, checks, isolation)
+            db.execute("INSERT INTO workflows(id,name,prompt,checks,created_at,agent_id,isolated_outputs) VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,prompt=excluded.prompt,checks=excluded.checks,agent_id=excluded.agent_id,isolated_outputs=excluded.isolated_outputs", (workflow_id, name, prompt, json.dumps(checks), now(), selected, int(isolation)))
             return self.decode(db.execute("SELECT * FROM workflows WHERE id=?", (workflow_id,)).fetchone())
 
     def workflow_delete(self, workflow_id):
@@ -368,14 +393,14 @@ class Store:
             workflow = self.decode(db.execute("SELECT * FROM workflows WHERE id=?", (workflow_id,)).fetchone())
             if not workflow:
                 raise KeyError("Workflow not found")
-            run_id = self._insert_run(db, workflow["prompt"], checks=workflow["checks"], workflow_id=workflow_id, agent_id=workflow["agent_id"])
+            run_id = self._insert_run(db, workflow["prompt"], checks=workflow["checks"], workflow_id=workflow_id, agent_id=workflow["agent_id"], isolated_outputs=workflow["isolated_outputs"])
         return self.run(run_id)
 
     def schedules(self):
         with self.connect() as db:
             return [self.decode(r) for r in db.execute("SELECT * FROM schedules ORDER BY next_run")]
 
-    def schedule_add(self, name, prompt, interval, workflow_id=None, agent_id=None, checks=None):
+    def schedule_add(self, name, prompt, interval, workflow_id=None, agent_id=None, checks=None, isolated_outputs=False):
         from .agents import resolve_agent
         if type(interval) is not int or not 5 <= interval <= 525600:
             raise ValueError("interval_minutes must be an integer between 5 and 525600")
@@ -391,11 +416,13 @@ class Store:
                 if not workflow:
                     raise KeyError("Workflow not found")
                 prompt, checks, agent_id = workflow["prompt"], workflow["checks"], workflow["agent_id"]
+                isolated_outputs = workflow["isolated_outputs"]
             if not isinstance(prompt, str) or not prompt.strip() or len(prompt) > 16000:
                 raise ValueError("A schedule requires mission instructions of at most 16000 characters")
             # Resolve automatic routing once into this immutable schedule snapshot.
             selected = resolve_agent(prompt, agent_id)
-            db.execute("INSERT INTO schedules(id,name,prompt,interval_minutes,enabled,next_run,last_run_id,workflow_id,checks,agent_id) VALUES (?,?,?,?,?,?,NULL,?,?,?)", (schedule_id, name, prompt, interval, 1, now() + interval * 60, workflow_id, json.dumps(checks or []), selected))
+            _isolated_outputs(prompt, checks, isolated_outputs)
+            db.execute("INSERT INTO schedules(id,name,prompt,interval_minutes,enabled,next_run,last_run_id,workflow_id,checks,agent_id,isolated_outputs) VALUES (?,?,?,?,?,?,NULL,?,?,?,?)", (schedule_id, name, prompt, interval, 1, now() + interval * 60, workflow_id, json.dumps(checks or []), selected, int(isolated_outputs)))
         return {"id": schedule_id}
 
     def schedule_update(self, schedule_id, enabled):
@@ -420,7 +447,7 @@ class Store:
                     db.execute("UPDATE schedules SET enabled=0,last_error='Previous mission stopped or failed its expected output checks. Review and explicitly re-enable.' WHERE id=?", (schedule["id"],))
                     continue
                 try:
-                    run_id = self._insert_run(db, schedule["prompt"], checks=json.loads(schedule["checks"]), workflow_id=schedule["workflow_id"], agent_id=schedule["agent_id"])
+                    run_id = self._insert_run(db, schedule["prompt"], checks=json.loads(schedule["checks"]), workflow_id=schedule["workflow_id"], agent_id=schedule["agent_id"], isolated_outputs=bool(schedule["isolated_outputs"]))
                 except ValueError:
                     break
                 db.execute("UPDATE schedules SET next_run=?,last_run_id=? WHERE id=?", (now() + schedule["interval_minutes"] * 60, run_id, schedule["id"]))

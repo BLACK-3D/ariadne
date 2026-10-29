@@ -606,6 +606,11 @@ class Application:
             self.engine.wake.set()
         elif len(parts) == 3 and parts[:2] == ["routines", "runs"] and method == "GET":
             result = {"run": self.routines.detail(parts[2])}
+        elif len(parts) == 4 and parts[:2] == ["routines", "runs"] and parts[3] == "changes" and method == "GET":
+            query = parse_qs(env.get("QUERY_STRING", ""), keep_blank_values=True)
+            if set(query) - {"baseline"} or "baseline" in query and (len(query["baseline"]) != 1 or not query["baseline"][0]):
+                raise ValueError("Use at most one nonempty baseline invocation ID")
+            result = self.routines.compare(parts[2], query.get("baseline", [None])[0])
         elif len(parts) == 4 and parts[:2] == ["routines", "runs"] and parts[3] in {"cancel", "verify"} and method == "POST":
             data = self.body(env)
             from .tools import _object
@@ -620,10 +625,14 @@ class Application:
             result = {"workflows": self.store.workflows()}
         elif parts == ["workflows"] and method == "POST":
             data = self.body(env)
-            result, status = {"workflow": self.store.workflow_save(text_field(data, "name", 120), text_field(data, "prompt", 16000), validate_checks(data.get("checks", []), self.engine.tools), agent_id=data.get("agent_id"))}, 201
+            if "isolated_outputs" in data and type(data["isolated_outputs"]) is not bool:
+                raise ValueError("isolated_outputs must be a boolean")
+            result, status = {"workflow": self.store.workflow_save(text_field(data, "name", 120), text_field(data, "prompt", 16000), validate_checks(data.get("checks", []), self.engine.tools), agent_id=data.get("agent_id"), isolated_outputs=data.get("isolated_outputs"))}, 201
         elif len(parts) == 2 and parts[0] == "workflows" and method == "PUT":
             data = self.body(env)
-            result = {"workflow": self.store.workflow_save(text_field(data, "name", 120), text_field(data, "prompt", 16000), validate_checks(data.get("checks", []), self.engine.tools), parts[1], agent_id=data.get("agent_id"))}
+            if "isolated_outputs" in data and type(data["isolated_outputs"]) is not bool:
+                raise ValueError("isolated_outputs must be a boolean")
+            result = {"workflow": self.store.workflow_save(text_field(data, "name", 120), text_field(data, "prompt", 16000), validate_checks(data.get("checks", []), self.engine.tools), parts[1], agent_id=data.get("agent_id"), isolated_outputs=data.get("isolated_outputs"))}
         elif len(parts) == 2 and parts[0] == "workflows" and method == "DELETE":
             self.store.workflow_delete(parts[1])
             result = {"ok": True}
@@ -643,7 +652,7 @@ class Application:
                 _object(data, {"name", "workflow_id", "interval_minutes"}, {"name", "workflow_id", "interval_minutes"})
                 result, status = self.store.schedule_add(text_field(data, "name", 120), None, interval, workflow_id=data["workflow_id"]), 201
             else:
-                result, status = self.store.schedule_add(text_field(data, "name", 120), text_field(data, "prompt", 16000), interval, agent_id=data.get("agent_id"), checks=validate_checks(data.get("checks", []), self.engine.tools)), 201
+                result, status = self.store.schedule_add(text_field(data, "name", 120), text_field(data, "prompt", 16000), interval, agent_id=data.get("agent_id"), checks=validate_checks(data.get("checks", []), self.engine.tools), isolated_outputs=data.get("isolated_outputs", False)), 201
         elif len(parts) == 2 and parts[0] == "schedules" and method in {"POST", "DELETE"}:
             if method == "DELETE":
                 self.store.schedule_delete(parts[1])

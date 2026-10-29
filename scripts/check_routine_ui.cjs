@@ -14,6 +14,7 @@ if (args.length && (args.length !== 2 || args[0] !== "--receipt" || !args[1])) {
 }
 const receiptPath = args.length ? path.resolve(args[1]) : null;
 const source = fs.readFileSync(path.join(root, "ariadne/static/routines.js"), "utf8");
+const appSource = fs.readFileSync(path.join(root, "ariadne/static/app.js"), "utf8");
 const html = fs.readFileSync(path.join(root, "ariadne/static/index.html"), "utf8");
 const checks = [];
 function deferred() { let resolve, reject; const promise = new Promise((a,b) => {resolve=a;reject=b;}); return {promise,resolve,reject}; }
@@ -122,9 +123,70 @@ async function runChecks(){
     const data=catalog();data.routines[0].name="<img src=x onerror=steal()>";const f=fixture({handler:()=>clone(data)});await f.module.load();
     assert(f.element("routine-list").textContent.includes(data.routines[0].name));checks.push("owner/server names remain literal text and no innerHTML sink is used");
   }
+  for(const state of ["first_run","incomparable","current_unavailable","partial","compared"]){
+    const data=catalog();data.runs=[{id:"current-fixture",routine_id:"definition-1",name:"Completed fixture",status:"completed",steps:[],artifacts:[],model_calls:0}];
+    const result={state,current_id:"current-fixture",baseline_id:state==="first_run"?null:"baseline-fixture",steps:[],metadata_only:state==="compared",limits:{changes:100},truncation:{lower_bound:state==="partial"}};
+    let comparisons=0;const f=fixture({handler:route=>route.endsWith("/changes")?(comparisons++,clone(result)):clone(data)});
+    await f.module.load();assert.equal(comparisons,0);f.module.status(f.state.status);await Promise.resolve();assert.equal(comparisons,0);
+    await f.find("routine-runs","Compare prior run").fire("click");assert.equal(comparisons,1);
+    assert.equal(f.requests.at(-1).route,"/routines/runs/current-fixture/changes");assert.equal(f.requests.at(-1).options.method,undefined);
+    const text=f.element("routine-runs").textContent;assert(text.includes("Current request: current-fixture"));
+    assert(text.includes(`Baseline request: ${result.baseline_id||"None returned"}`));
+    if(state==="partial")assert.match(text,/incomplete.*lower bounds/s);
+    if(state==="compared")assert.match(text,/Only metadata changes found/);
+    if(["first_run","incomparable","current_unavailable"].includes(state))assert.match(text,/does not establish.*unchanged/);
+    checks.push(`manual comparison reports ${state} and exact baseline without background retrieval`);
+  }
+  {
+    const data=catalog();data.runs=[{id:"current-fixture",routine_id:"definition-1",status:"completed",steps:[],artifacts:[],model_calls:0}];
+    const changes=Array.from({length:20},(_,index)=>({pointer:`/rows/${index}`,kind:"changed",before:"<script>untrusted()</script>",after:"new",metadata:index%2===0}));
+    const result={state:"partial",current_id:"current-fixture",baseline_id:"baseline-fixture",steps:[{procedure_id:"readiness_report",state:"partial",observed_differences:20,truncated:true,changes}],metadata_only:false,limits:{changes:100},truncation:{lower_bound:true}};
+    const f=fixture({handler:route=>route.endsWith("/changes")?clone(result):clone(data)});await f.module.load();await f.find("routine-runs","Compare prior run").fire("click");
+    const text=f.element("routine-runs").textContent;assert.equal((text.match(/Before:/g)||[]).length,12);assert.match(text,/Showing 12 of 20 returned differences/);
+    assert(text.includes("<script>untrusted()</script>"));assert(text.includes('"lower_bound": true'));
+    checks.push("comparison display caps twelve literal previews and preserves bounded metadata response");
+  }
+  {
+    const data=catalog();data.runs=[{id:"current-fixture",routine_id:"definition-1",status:"completed",steps:[],artifacts:[],model_calls:0}];
+    const wait=deferred();const f=fixture({handler:route=>route.endsWith("/changes")?wait.promise:clone(data)});await f.module.load();
+    const request=f.find("routine-runs","Compare prior run").fire("click");f.state.authenticated=false;f.module.locked();
+    wait.resolve({state:"compared",current_id:"current-fixture",baseline_id:"PRIVATE-BASELINE",steps:[],metadata_only:true});await request;
+    assert(!f.element("routine-runs").textContent.includes("PRIVATE-BASELINE"));
+    checks.push("late comparison cannot repopulate private results after locking");
+  }
+  {
+    const data=catalog();data.runs=[{id:"current-fixture",routine_id:"definition-1",status:"completed",steps:[],artifacts:[],model_calls:0}];
+    const f=fixture({handler:route=>route.endsWith("/changes")?{state:"compared",current_id:"wrong-id",baseline_id:"WRONG-BASELINE",steps:[]}:clone(data)});
+    await f.module.load();await f.find("routine-runs","Compare prior run").fire("click");
+    const text=f.element("routine-runs").textContent;assert.match(text,/No comparison is asserted/);assert(!text.includes("WRONG-BASELINE"));
+    checks.push("comparison for a different request ID is rejected rather than displayed");
+  }
+  await checkWorkflowOutputContracts();
+}
+function section(name){const start=appSource.indexOf(`function ${name}(`);assert(start>=0,name);const next=appSource.slice(start+9).search(/\n(?:async )?function /);return next<0?appSource.slice(start):appSource.slice(start,start+9+next);}
+async function checkWorkflowOutputContracts(){
+  let captured;const prefix="missions/abc123",state={detail:{run:{title:"Snapshot fixture",agent_id:"offline_operations",isolated_outputs:true,output_prefix:prefix,
+    checks:[{kind:"file_contains",path:`${prefix}/report.md`,text:`${prefix}/literal-evidence`},{kind:"file_exists",path:"other/report.md"}]},
+    messages:[{role:"user",content:`Write ${prefix}/report.md. Preserve sibling ${prefix}-other/file.md.`}]}};
+  const sandbox={state,checkDefinitions:items=>clone(items),openEditor:(kind,options)=>{captured={kind,...options};}};
+  vm.runInNewContext(section("saveRunWorkflow"),sandbox);sandbox.saveRunWorkflow();
+  assert.equal(captured.values.isolated_outputs,true);assert.equal(captured.values.agent_id,"offline_operations");
+  assert.match(captured.values.prompt,/\{\{run_dir\}\}\/report.md/);assert(captured.values.prompt.includes(`${prefix}-other/file.md`));
+  const saved=JSON.parse(captured.values.checks);assert.equal(saved[0].path,"{{run_dir}}/report.md");assert.equal(saved[0].text,`${prefix}/literal-evidence`);assert.equal(saved[1].path,"other/report.md");
+  checks.push("save from isolated run reverses only its known output prefix in prompt/check paths");
+  vm.runInNewContext(section("editWorkflow"),sandbox);sandbox.editWorkflow({id:"workflow-1",name:"Draft",agent_id:"offline_research",isolated_outputs:true,prompt:"Local",checks:[]},true);
+  assert.equal(captured.values.isolated_outputs,true);assert.equal(captured.values.agent_id,"offline_research");assert.equal(captured.editId,null);
+  checks.push("copy workflow preserves local specialist and checked-output isolation flag");
+  for(const checked of [false,true]){
+    const elements=new Map([["save-editor",{}],["editor-error",{}],["editor-dialog",{close(){}}],["editor-input-name",{value:"Fixture"}],["editor-input-checks",{value:"[]"}],["editor-input-isolated_outputs",{checked,value:"on"}]]);
+    let body;const editor={state:{editor:{endpoint:"workflows",fields:[{name:"name"},{name:"checks"},{name:"isolated_outputs",type:"checkbox"}],extra:{}}},
+      $:selector=>elements.get(selector.slice(1)),parseChecks:JSON.parse,api:async(route,options)=>{body=options.body;return {};},toast(){},loadView:async()=>{}};
+    vm.runInNewContext("async "+section("saveEditor"),editor);await editor.saveEditor({preventDefault(){}});assert.equal(body.isolated_outputs,checked);
+  }
+  checks.push("workflow editor sends true and false checkbox values as booleans without requiring checked");
 }
 runChecks().then(()=>{
-  const receipt={created_at_utc:new Date().toISOString(),source:"ariadne/static/routines.js",source_sha256:crypto.createHash("sha256").update(source).digest("hex"),checks,passed:checks.length,failures:0,scope:"Minimal DOM VM only; no live keyboard/layout/screen-reader/browser certification."};
+  const receipt={created_at_utc:new Date().toISOString(),source:"ariadne/static/routines.js",source_sha256:crypto.createHash("sha256").update(source).digest("hex"),app_sha256:crypto.createHash("sha256").update(appSource).digest("hex"),checks,passed:checks.length,failures:0,scope:"Minimal DOM VM only; no live keyboard/layout/screen-reader/browser certification."};
   if (receiptPath) { fs.mkdirSync(path.dirname(receiptPath),{recursive:true}); fs.writeFileSync(receiptPath,JSON.stringify(receipt,null,2)+"\n"); }
   console.log(JSON.stringify(receipt,null,2));
 }).catch(error=>{console.error(error.stack);process.exitCode=1;});

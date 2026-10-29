@@ -44,8 +44,8 @@ class AgentTests(unittest.TestCase):
 
     def test_concrete_profiles_cover_every_installed_tool_without_extra_model_calls(self):
         catalog = self.registry.catalog()
-        self.assertEqual(len(catalog["agents"]), 16)
-        self.assertEqual(len({p.id for p in PROFILES}), 16)
+        self.assertEqual(len(catalog["agents"]), 19)
+        self.assertEqual(len({p.id for p in PROFILES}), 19)
         installed = {s["function"]["name"] for s in self.engine.tools.schemas()}
         general = next(item for item in catalog["agents"] if item["id"] == "general")
         self.assertTrue(installed <= set(general["tools"]))
@@ -238,12 +238,12 @@ class AgentTests(unittest.TestCase):
         self.assertFalse(result["online_sources"])
         self.assertEqual(self.model.calls, [])
 
-    def test_briefing_reader_remains_scoped_to_general_briefing_operations(self):
+    def test_briefing_reader_remains_scoped_to_general_briefing_operations_and_offline_operations(self):
         provider = Mock(return_value={"cached": True})
         self.engine.briefing_provider = provider
         for profile in PROFILES:
             self.assertEqual(self.registry.allows(profile.id, "briefing_read"),
-                             profile.id in {"general", "briefing", "operations"})
+                             profile.id in {"general", "briefing", "operations", "offline_operations"})
         self.model.replies = [tool_call("briefing_read", {"action": "latest"})]
         run = self.store.new_run("Research a source", agent_id="research")
         self.process(run)

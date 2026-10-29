@@ -122,6 +122,7 @@ const state = {
   catalog: null, knowledgeTab: "documents", sources: [], sourceId: null,
   sourceDirectory: ".", sourceRequest: 0, sourcePreviewRequest: 0, preview: null,
   workflows: [], workflowToRun: null, workflowLaunching: false, uploading: false, uploadFile: null,
+  workflowAgentFilter: "",
   workflowTab: "ai", procedures: [], procedureRuns: [], procedureRequest: 0, procedureRunsRequest: 0, procedureReview: null, procedureRunBusy: false, procedureUncertain: null,
   capabilityTab: "catalog", mcp: null, mcpBusy: false, mcpRequest: 0, mcpReview: null, previewPath: null,
   survival: null, survivalTab: "overview", survivalBusy: false, survivalRequest: 0, survivalLibraryRequest: 0, survivalEditor: null,
@@ -760,7 +761,7 @@ async function loadSchedules() {
       const symbol = node("span", "schedule-icon"); symbol.append(icon("clock"));
       const body = node("div", "schedule-body");
       body.append(node("h2", "", schedule.name), node("p", "", schedule.prompt));
-      if (schedule.workflow_id) body.append(node("p", "schedule-workflow-snapshot", `Saved workflow snapshot · ${workflowAgentLabel(schedule.agent_id)} · ${(schedule.checks || []).length} output checks. Later workflow edits do not change these instructions.`));
+      if (schedule.workflow_id) body.append(node("p", "schedule-workflow-snapshot", `Saved workflow snapshot · ${workflowAgentLabel(schedule.agent_id)} · ${(schedule.checks || []).length} output checks · ${schedule.isolated_outputs === true ? "new checked-output folder per run" : "fixed checked-output paths"}. Later workflow edits do not change these instructions.`));
       if (schedule.last_error) body.append(node("p", "schedule-last-error", `Schedule held · ${schedule.last_error}`));
       const meta = node("div", "schedule-meta");
       const interval = node("span"); interval.append(icon("clock"), document.createTextNode(intervalLabel(schedule.interval_minutes)));
@@ -812,6 +813,7 @@ const editorDefinitions = {
   schedule:{title:"Create a schedule", eyebrow:"RECURRING LOCAL WORK", endpoint:"schedules", fields:[{name:"name", label:"Schedule name", max:120, placeholder:"For example: Daily workspace review"}, {name:"prompt", label:"Mission instructions", textarea:true, max:16000, placeholder:"Describe the work, its expected output, and any limits…", help:"The same tool permissions and approval policies apply."}, {name:"interval_minutes", label:"Repeat every (minutes)", type:"number", min:5, max:525600, value:1440, help:"Minimum 5 minutes. Runs while the server is powered on; missed intervals are not replayed."}]},
 };
 editorDefinitions.workflow.fields.splice(1, 0, {name:"agent_id", label:"Assigned agent", type:"agent", value:"general", help:"Choose a specialist or automatic routing. Saved workflow missions keep the existing approval and step limits."});
+editorDefinitions.workflow.fields.push({name:"isolated_outputs", label:"New checked-output folder on each run", type:"checkbox", value:false, help:"Use the literal {{run_dir}} in the instructions and at the start of every expected output path, for example {{run_dir}}/report.md. The server expands it to a new missions/<run ID> folder when queued. This isolates checked-output locations only; it is not an OS sandbox or a restriction on all file writes."});
 function populateWorkflowAgent(select, chosen = "general") {
   select.replaceChildren();
   const auto = node("option", "", "Auto · route this workflow"); auto.value = "auto"; select.append(auto);
@@ -843,15 +845,20 @@ function openEditor(type, options = {}) {
     const wrapper = node("div", "editor-field");
     const label = node("label", "", field.label); label.htmlFor = `editor-input-${field.name}`;
     const input = node(field.type === "agent" ? "select" : field.textarea ? "textarea" : "input");
-    input.id = `editor-input-${field.name}`; input.name = field.name; input.required = true;
+    input.id = `editor-input-${field.name}`; input.name = field.name; input.required = field.type !== "checkbox";
     if (field.placeholder) input.placeholder = field.placeholder;
     if (field.textarea || !field.type) input.maxLength = field.max;
     if (field.type === "agent") populateWorkflowAgent(input, options.values?.[field.name] || field.value || "general");
+    else if (field.type === "checkbox") input.type = "checkbox";
     else if (field.type) { input.type = field.type; input.min = String(field.min); input.max = String(field.max); input.step = "1"; }
-    if (field.value !== undefined) input.value = String(field.value);
-    if (options.values?.[field.name] !== undefined) input.value = String(options.values[field.name]);
+    if (field.type === "checkbox") input.checked = (options.values?.[field.name] ?? field.value) === true;
+    else {
+      if (field.value !== undefined) input.value = String(field.value);
+      if (options.values?.[field.name] !== undefined) input.value = String(options.values[field.name]);
+    }
     if (field.code) { input.classList.add("code-input"); input.spellcheck = false; }
-    wrapper.append(label, input);
+    if (field.type === "checkbox") { wrapper.classList.add("editor-checkbox-field"); wrapper.append(input, label); }
+    else wrapper.append(label, input);
     if (field.help) { const help = node("p", "field-help", field.help); help.id = `help-${field.name}`; input.setAttribute("aria-describedby", help.id); wrapper.append(help); }
     if (field.name === "checks") wrapper.append(checkTemplateControls(input));
     fields.append(wrapper);
@@ -867,6 +874,7 @@ async function saveEditor(event) {
   const definition = state.editor;
   const body = {...(definition.extra || {})};
   for (const field of definition.fields) {
+    if (field.type === "checkbox") { body[field.name] = $(`#editor-input-${field.name}`).checked; continue; }
     const value = $(`#editor-input-${field.name}`).value.trim();
     body[field.name] = field.type === "number" ? Number(value) : value;
     if (!value) { $("#editor-error").textContent = "Fill in all fields with nonempty content."; $("#editor-error").hidden = false; save.disabled = false; return; }
@@ -1522,14 +1530,32 @@ async function loadWorkflows() {
 async function loadAIWorkflows() {
   const container = $("#workflow-list");
   await resourceLoad(container, () => api("/workflows"), data => {
-    state.workflows = data.workflows || []; clear(container);
-    if (!state.workflows.length) { container.append(emptyState("workflow", "Make useful work repeatable.", "Save a mission with clear instructions and expected output files.", {label:"Create a workflow", fn:() => openEditor("workflow")})); return; }
-    for (const workflow of state.workflows) {
+    state.workflows = data.workflows || []; renderWorkflowFilter(); renderAIWorkflows();
+  });
+}
+function renderWorkflowFilter() {
+  const select = $("#workflow-agent-filter"); select.replaceChildren();
+  const all = node("option", "", "All agents"); all.value = ""; select.append(all);
+  const auto = node("option", "", "Auto routing"); auto.value = "auto"; select.append(auto);
+  const available = new Map(agentCatalog.map(agent => [agent.id, agent.name]));
+  for (const workflow of state.workflows) if (!available.has(workflow.agent_id || "general")) available.set(workflow.agent_id || "general", workflowAgentLabel(workflow.agent_id));
+  for (const [id, name] of available) { if (id === "auto") continue; const option = node("option", "", name); option.value = id; select.append(option); }
+  if (![...select.options].some(option => option.value === state.workflowAgentFilter)) state.workflowAgentFilter = "";
+  select.value = state.workflowAgentFilter;
+}
+function renderAIWorkflows() {
+    const container = $("#workflow-list"); clear(container);
+    const workflows = state.workflows.filter(workflow => !state.workflowAgentFilter || (workflow.agent_id || "general") === state.workflowAgentFilter);
+    $("#workflow-filter-count").textContent = `${workflows.length} ${workflows.length === 1 ? "workflow" : "workflows"}`;
+    if (!workflows.length) { container.append(emptyState("workflow", state.workflowAgentFilter ? "No workflows assigned to this agent." : "Make useful work repeatable.", "Save a mission with clear instructions and expected output files.", {label:"Create a workflow", fn:() => openEditor("workflow", {values:{agent_id:state.workflowAgentFilter || "general"}})})); return; }
+    for (const workflow of workflows) {
       const card = node("article", "resource-card workflow-card");
       const header = node("div", "resource-card-header");
       const symbol = node("div", "card-icon"); symbol.append(icon("workflow")); header.append(symbol);
       if (workflow.builtin) header.append(node("span", "tag", "Starter workflow"));
       header.append(node("span", "tag", workflowAgentLabel(workflow.agent_id)));
+      if (agentCatalog.find(agent => agent.id === workflow.agent_id)?.connectivity === "local_only") header.append(node("span", "tag", "Local only"));
+      if (workflow.isolated_outputs === true) header.append(node("span", "tag", "New checked-output folder"));
       card.append(header, node("h2", "", workflow.name), node("p", "workflow-excerpt", workflow.prompt));
       const checks = workflow.checks || [];
       const list = node("div", "workflow-check-preview");
@@ -1544,23 +1570,29 @@ async function loadAIWorkflows() {
       tools.append(iconButton("settings", "Edit workflow", () => editWorkflow(workflow)), iconButton("copy", "Copy workflow", () => editWorkflow(workflow, true)), iconButton("trash", "Remove workflow", () => removeResource("workflows", workflow.id, "Remove this workflow?", `“${workflow.name}” will be removed from your workflow library. Existing missions keep their recorded instructions and results.`)));
       actions.append(tools); card.append(actions); container.append(card);
     }
-  });
 }
 function editWorkflow(workflow, copy = false) {
-  openEditor("workflow", {editId:copy ? null : workflow.id, values:{name:`${workflow.name}${copy ? " copy" : ""}`.slice(0, 120), agent_id:workflow.agent_id || "general", prompt:workflow.prompt, checks:JSON.stringify(workflow.checks || [], null, 2)}});
+  openEditor("workflow", {editId:copy ? null : workflow.id, values:{name:`${workflow.name}${copy ? " copy" : ""}`.slice(0, 120), agent_id:workflow.agent_id || "general", isolated_outputs:workflow.isolated_outputs === true, prompt:workflow.prompt, checks:JSON.stringify(workflow.checks || [], null, 2)}});
 }
 function saveRunWorkflow() {
   const detail = state.detail;
   if (!detail) return;
-  const prompt = [...(detail.messages || [])].reverse().find(message => message.role === "user" && typeof message.content === "string")?.content || "";
-  const checks = checkDefinitions(detail.run?.checks || detail.verification?.checks);
-  openEditor("workflow", {values:{name:String(detail.run?.title || "New workflow").slice(0, 120), agent_id:detail.run?.agent_id || "general", prompt, checks:JSON.stringify(checks, null, 2)}});
+  let prompt = [...(detail.messages || [])].reverse().find(message => message.role === "user" && typeof message.content === "string")?.content || "";
+  let checks = checkDefinitions(detail.run?.checks || detail.verification?.checks);
+  const isolated = detail.run?.isolated_outputs === true, prefix = detail.run?.output_prefix;
+  if (isolated && typeof prefix === "string" && prefix) {
+    const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    prompt = prompt.replace(new RegExp(escaped+"(?=/|[^A-Za-z0-9_-]|$)", "g"), "{{run_dir}}");
+    checks = checks.map(check => typeof check.path === "string" && check.path.startsWith(prefix+"/") ? {...check, path:"{{run_dir}}"+check.path.slice(prefix.length)} : check);
+  }
+  openEditor("workflow", {values:{name:String(detail.run?.title || "New workflow").slice(0, 120), agent_id:detail.run?.agent_id || "general", isolated_outputs:isolated, prompt, checks:JSON.stringify(checks, null, 2)}});
 }
 function reviewWorkflow(workflow) {
   state.workflowToRun = workflow;
   $("#workflow-review-title").textContent = workflow.name;
   $("#workflow-review-prompt").textContent = workflow.prompt;
   $("#workflow-review-agent").textContent = workflowAgentLabel(workflow.agent_id);
+  $("#workflow-review-output-mode").textContent = workflow.isolated_outputs === true ? "New checked-output folder per run. {{run_dir}} expands when queued; existing tool permissions remain active." : "Fixed expected output paths. Review these paths before repeating the workflow.";
   $("#workflow-review-error").hidden = true;
   const checks = $("#workflow-review-checks"); clear(checks);
   for (const check of workflow.checks || []) {
@@ -2315,13 +2347,16 @@ async function loadAgents({quiet = false} = {}) {
     for (const agent of agentCatalog) { const option = node("option", "", agent.name); option.value = agent.id; select.append(option); }
     select.value = [...select.options].some(option => option.value === selected) ? selected : "auto";
     $("#agent-count").textContent = `${agentCatalog.length} specialists`;
+    renderWorkflowFilter(); if (state.workflows.length) renderAIWorkflows();
     facts($("#agent-autonomy-facts"), [["Worker concurrency", String(data.worker_concurrency || 1)], ["Idle model calls", String(data.idle_model_calls ?? 0)], ["Mission step limit", String(state.status?.max_steps || "—")], ["Dispatch", "Deterministic · no extra model call"]]);
     const container = $("#agent-list"); clear(container);
     for (const agent of agentCatalog) {
       const card = node("article", "agent-card");
       card.append(node("span", "eyebrow", agent.id), node("h2", "", agent.name), node("p", "", agent.description));
+      if (agent.connectivity === "local_only") card.append(node("span", "tag", "Local only"));
       card.append(node("div", "agent-tools", `${agent.tool_count} exposed tools · ${agent.max_steps} steps maximum · existing approvals`));
       card.append(button("Give this agent a mission", "button-secondary", () => { newMission(); select.value = agent.id; $("#mission-prompt").focus(); }, "arrow-up-right"));
+      card.append(button("Browse assigned workflows", "button-secondary", () => { state.workflowAgentFilter = agent.id; setWorkflowTab("ai"); showView("workflows"); }, "workflow"));
       container.append(card);
     }
     renderWakeStatus(state.status?.wake);
@@ -2517,6 +2552,7 @@ $$('[data-knowledge-tab]').forEach(tab => {
   tab.addEventListener("keydown", event => { if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) { event.preventDefault(); const name = event.key === "Home" ? "documents" : event.key === "End" ? "sources" : state.knowledgeTab === "documents" ? "sources" : "documents"; setKnowledgeTab(name); $(`[data-knowledge-tab="${name}"]`).focus(); } });
 });
 $("#add-workflow").addEventListener("click", () => { setWorkflowTab("ai"); openEditor("workflow"); });
+$("#workflow-agent-filter").addEventListener("change", event => { state.workflowAgentFilter = event.target.value; renderAIWorkflows(); });
 $$('[data-workflow-tab]').forEach(tab => {
   tab.addEventListener("click", () => setWorkflowTab(tab.dataset.workflowTab));
   tab.addEventListener("keydown", event => {

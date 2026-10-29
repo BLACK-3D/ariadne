@@ -118,6 +118,7 @@ The unit tests may skip absent optional assets. The interface contract check nee
 node --check ariadne/static/app.js
 node --check ariadne/static/command.js
 node scripts/check_command_snapshot.cjs
+node scripts/check_routine_ui.cjs
 ```
 
 Node.js is not required to run the core application. `provision_all.py` only checks the installed asset/configuration set and exits nonzero while any of its checked optional packs are missing. It is **not** a complete online installer or proof that every native operation works. Its `--install-cached` mode repairs selected packs from retained caches; run it only after preparing those caches. Exercise the actual capabilities you plan to depend on, including microphone recognition in your room.
@@ -131,6 +132,7 @@ The relocatable Python builder requires the base Python 3.13 installation and ca
 ```powershell
 .\.venv\Scripts\python.exe scripts/provision_python.py
 .\runtime\python\python.exe -I -B scripts/provision_ocr.py
+.\runtime\python\python.exe -I -B scripts/stage_runtime_notices.py
 .\runtime\python\python.exe -I -B scripts/export_offline.py --plan
 ```
 
@@ -140,6 +142,6 @@ Inspect the plan, qualify the intended capabilities, then choose a new output na
 .\runtime\python\python.exe -I -B scripts/export_offline.py --output dist/ariadne-offline-local.zip
 ```
 
-The exporter writes a ZIP64 appliance with payload hashes and a whole-archive checksum, excluding owner records and credentials. It requires substantial additional disk space for the archive and a fresh extraction. It packages the installed allowlisted assets; it does not download missing capabilities or certify their behavior. Retain applicable third-party licenses and notices when distributing native engines or models.
+The exporter writes a ZIP64 appliance with payload hashes and a whole-archive checksum, excluding owner records and credentials. The 0.10 exporter requires the three exact public Qwen tags/manifests in config/public-models.json and their referenced blobs; unknown/private model tags and metadata are excluded. The notice staging command copies only the accepted tiny source notice snapshots, performs no download, and refuses differing existing files. It requires substantial additional disk space for the archive and a fresh extraction. It packages the installed allowlisted assets; it does not download missing capabilities or certify their behavior. Retain applicable third-party licenses and notices when distributing native engines or models.
 
 Test the actual one-click launcher from a new folder on the intended Windows machine with the network disconnected. A source-export smoke test using an existing interpreter is a different check. `scripts/export_source.py` creates only the small source ZIP and cannot produce a complete outage appliance. See [portable operation](PORTABLE_0_4.md) for bootstrap and recovery behavior.
