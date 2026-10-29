@@ -73,16 +73,20 @@ def prepare():
     return node, red, data, token
 
 
-def start():
+def start(on_process=None, require_new=False, create_process=None):
     node, red, data, token = prepare()
     with socket.socket() as probe:
         if probe.connect_ex(("127.0.0.1", 1880)) == 0:
+            if require_new:
+                raise ValueError("Port 1880 is occupied. Stop the previous flow service before independent-host startup.")
             print("Port 1880 is occupied. No process was changed; inspect existing flow service.")
             return
     env = {key: os.environ[key] for key in ("SystemRoot", "WINDIR", "COMSPEC", "LANG") if key in os.environ}
     env.update({"ARIADNE_FLOW_TOKEN": token, "PATH": str(node.parent), "HOME": str(data), "USERPROFILE": str(data), "APPDATA": str(data), "LOCALAPPDATA": str(data), "TEMP": str(data), "TMP": str(data), "NO_UPDATE_NOTIFIER": "1"})
     with (data / "service.log").open("ab") as log:
-        child = subprocess.Popen([str(node), str(red), "--userDir", str(data), "--settings", str(data / "settings.js"), "flows.json"], cwd=data, env=env, stdout=log, stderr=log, stdin=subprocess.DEVNULL, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        child = (create_process or subprocess.Popen)([str(node), str(red), "--userDir", str(data), "--settings", str(data / "settings.js"), "flows.json"], cwd=data, env=env, stdout=log, stderr=log, stdin=subprocess.DEVNULL, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    if on_process:
+        on_process(child)
     for _ in range(60):
         if child.poll() is not None:
             raise ValueError("Local flow runtime exited; inspect data/flows/service.log.")

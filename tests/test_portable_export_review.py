@@ -76,6 +76,31 @@ class PortableExportReviewTests(unittest.TestCase):
                 self.assertEqual(archive.read(name), payload)
             self.assertFalse(any(b"PRIVATE_LOCAL_BUILD_PATH_SENTINEL" in archive.read(name) for name in archive.namelist()))
 
+    def test_independent_host_controls_and_design_docs_survive_factory_export_without_host_state(self):
+        public = {
+            "Start Ariadne.cmd": b"@echo off\r\nrem synthetic start\r\n",
+            "Stop Ariadne.cmd": b"@echo off\r\nrem synthetic stop\r\n",
+            "scripts/host.py": b"# fixed background host\n",
+            "scripts/windows_host.py": b"# local process identity and detach\n",
+            "scripts/stop_host.ps1": b"# explicit local shutdown\n",
+            "docs/INDEPENDENT_HOST_0_12.md": b"Background start and stop instructions.",
+            "docs/SIGNAL_ROOM_0_12.md": b"Offline interface design decisions.",
+            "docs/DAILY_SIGNAL_0_12.md": b"One-page local briefing instructions.",
+        }
+        for name, payload in public.items():
+            target = self.root / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(payload)
+        private = self.root / "data/host/status.json"
+        private.parent.mkdir(parents=True)
+        private.write_bytes(b"PRIVATE_HOST_CONTROL_EVENT_AND_PROCESS_STATE")
+        export(self.output, self.root)
+        with zipfile.ZipFile(self.output) as archive:
+            for name, payload in public.items():
+                self.assertEqual(archive.read(name), payload)
+            self.assertFalse(any(name.startswith("data/host/") for name in archive.namelist()))
+            self.assertFalse(any(b"PRIVATE_HOST_CONTROL_EVENT_AND_PROCESS_STATE" in archive.read(name) for name in archive.namelist()))
+
     def test_changed_reviewed_public_manifest_refuses_before_archive_publication(self):
         path = self.root / self.catalog()["models"][0]["manifest"]["path"]
         original = path.read_bytes()

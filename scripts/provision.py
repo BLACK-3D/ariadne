@@ -111,14 +111,16 @@ def owned_model_server(executable):
         return False
 
 
-def start_model_server(executable, env, allow_owned=False):
+def start_model_server(executable, env, allow_owned=False, on_process=None, create_process=None):
     try:
         api("/api/version")
     except Exception:
         log = _allowed_path(ROOT / "data" / "ollama.log")
         with log.open("ab") as output:
-            process = subprocess.Popen([str(executable), "serve"], env=env, cwd=ROOT, stdout=output, stderr=output,
-                                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            process = (create_process or subprocess.Popen)([str(executable), "serve"], env=env, cwd=ROOT, stdout=output, stderr=output,
+                                                          creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        if on_process:
+            on_process(process)
         for _ in range(60):
             try:
                 api("/api/version")

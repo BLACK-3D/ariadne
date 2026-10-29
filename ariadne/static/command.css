@@ -1,368 +1,458 @@
-/* Ariadne command deck. All assets and typefaces are local. */
+/* Signal Room. Local CSS and SVG; visual activity follows confirmed app state. */
 body.command-console {
-  --bg:#0b0e0b; --sidebar:#101510; --panel:#111711; --surface:#172017;
-  --surface-hover:#1d291c; --well:#0c110c; --line:#303c30; --line-soft:#253025;
-  --text:#edf0e5; --text-secondary:#cbd4c4; --muted:#a8b5a1; --faint:#7f9278;
-  --accent:#c0e79c; --accent-strong:#a6ce7d; --amber:#e0c78d;
-  font-size:14px; overflow:hidden;
+  --bg:#080d12; --sidebar:#0c131b; --panel:#101923; --surface:#17232f;
+  --surface-hover:#1b2d3a; --well:#0a1119; --line:#30424e; --line-soft:#22313e;
+  --text:#ecf3f6; --text-secondary:#c3d0d7; --muted:#a0b3c0; --faint:#8b9fac;
+  --accent:#94e5ef; --accent-strong:#b4f0f5; --amber:#f0c18a; --danger:#f4ac9b;
+  --font:"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+  --display:"Bahnschrift","Segoe UI Variable Display","Segoe UI",sans-serif;
+  font-size:14px; overflow:hidden; background:var(--bg);
 }
-.command-console .app-shell { display:flex; height:100dvh; border-top:0; }
-.command-console .main-shell { width:100%; height:100%; overflow:hidden; }
-.command-console .topbar { height:68px; flex:0 0 68px; padding:0 clamp(20px,3vw,52px); border-bottom:1px solid var(--line-soft); background:#0d120d; gap:24px; }
-.command-console .brand { margin:0; gap:12px; font:500 20px/1 var(--display); letter-spacing:3px; flex-shrink:0; }
-.command-console .brand-mark { width:30px; height:36px; }
-.command-console .brand-mark svg { width:29px; height:29px; }
-.command-console .brand small { font:8px/1 var(--mono); letter-spacing:1.7px; color:var(--faint); margin-top:8px; }
-.instance-mark { display:flex; align-items:center; gap:9px; margin-right:auto; color:var(--faint); font:9px var(--mono); letter-spacing:1.3px; }
-.instance-mark>span { width:4px; height:4px; background:var(--accent); border-radius:50%; }
-.command-console .topbar-actions { gap:19px; }
-.command-console .topbar-actions .quiet-button { font:10px var(--mono); letter-spacing:0; padding:10px 0; min-height:36px; }
-.command-console .wake-indicator { border:0; background:transparent; }
-.command-console .wake-indicator.active { color:var(--accent); background:transparent; border:0; }
-.command-console .connection-badge { font:10px var(--mono); color:var(--text-secondary); }
-.command-console .topbar .icon-button { width:34px; height:36px; }
-.workspace-navigation { height:47px; flex:0 0 47px; padding:0 clamp(20px,3vw,52px); display:flex; justify-content:space-between; gap:20px; align-items:stretch; background:#0d120d; border-bottom:1px solid var(--line); }
-.command-navigation { display:flex; gap:28px; min-width:0; }
-.command-tab { position:relative; padding:0 1px; background:transparent; color:var(--muted); white-space:nowrap; font-size:12px; }
-.command-tab:hover { color:var(--text); }
-.command-tab.active { color:var(--text); }
-.command-tab.active:after { position:absolute; content:""; height:2px; background:var(--accent); bottom:-1px; left:0; right:0; }
-.navigation-context { display:flex; align-items:stretch; gap:16px; }
-.directory-toggle { display:flex; align-items:center; gap:10px; background:transparent; color:var(--text-secondary); padding:0 1px; font-size:12px; white-space:nowrap; }
-.directory-toggle svg { width:15px; height:15px; }
-.directory-toggle[aria-expanded=true] { color:var(--accent); }
-.command-console main { overflow:auto; overscroll-behavior:contain; scrollbar-gutter:stable; }
-.command-console .view { height:auto; min-height:100%; }
-.command-console .content-view { overflow:visible; padding:36px clamp(20px,3vw,52px) 50px; background:transparent; }
-.command-console .content-view>.page-heading { max-width:none; }
-.command-console .content-view .page-heading h1 { font:400 34px/1.2 var(--font); letter-spacing:-1.4px; }
-.command-console .page-heading p,.command-console .settings-card>p { font-size:13px; }
-.command-console .settings-card,.command-console .resource-card,.command-console .survival-panel,.command-console .internet-source { border-color:var(--line-soft); border-radius:5px; background:var(--panel); }
-.command-console .button { border-radius:3px; font-family:var(--font); font-size:12px; letter-spacing:0; text-transform:none; min-height:38px; }
-.command-console .button-primary { background:var(--accent); color:#15200d; }
-.command-console .eyebrow { font:9px/1.5 var(--mono); letter-spacing:1.6px; }
-.command-console input,.command-console select,.command-console textarea { border-radius:3px; }
-.command-console .text-button { font-size:11px; }
-.command-console .global-banner { padding-left:clamp(20px,3vw,52px); padding-right:clamp(20px,3vw,52px); font-size:12px; }
+.command-console .app-shell {display:flex;height:100dvh;border:0;background:radial-gradient(ellipse at 63% 15%,#17313e38,transparent 56%),var(--bg)}
+.command-console .main-shell {position:relative;width:100%;height:100%;overflow:hidden}
+.command-console .topbar {height:86px;flex:0 0 86px;padding:0 34px;border-bottom:1px solid var(--line-soft);background:#080d12e8;gap:26px}
+.command-console .brand {margin:0;gap:13px;font:500 23px/1 var(--display);letter-spacing:4px;flex-shrink:0}
+.command-console .brand-mark {width:29px;height:38px;color:var(--accent)}
+.command-console .brand-mark svg {width:29px;height:29px}
+.command-console .brand small {font:8px/1 var(--mono);letter-spacing:2px;color:var(--muted);margin-top:9px}
+.instance-mark {display:flex;align-items:center;gap:10px;margin-right:auto;color:var(--faint);font:9px var(--mono);letter-spacing:1.3px}
+.instance-mark>span {width:5px;height:5px;background:var(--accent);transform:rotate(45deg)}
+.command-console .topbar-actions {gap:18px}
+.command-console .topbar-actions .quiet-button {font:10px var(--mono);letter-spacing:0;padding:10px 0;min-height:44px}
+.command-console .wake-indicator,.command-console .wake-indicator.active {border:0;background:transparent}
+.command-console .wake-indicator.active {color:var(--amber)}
+.command-console .connection-badge {font:10px var(--mono);color:var(--text-secondary)}
+.command-console .topbar .icon-button {width:40px;height:44px}
 
-/* An on-demand directory replaces the persistent conversation sidebar. */
-.command-console .system-directory { position:fixed; z-index:110; top:127px; right:clamp(16px,3vw,52px); left:auto; width:min(750px,calc(100vw - 32px)); height:auto; max-height:calc(100dvh - 143px); padding:25px; background:#121a12; border:1px solid #41533a; border-radius:6px; box-shadow:0 24px 100px #0009; transform:none; overflow:auto; }
-.command-console .system-directory:not(.open) { display:none; }
-.command-console .system-directory.open { display:flex; }
-.directory-heading { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; gap:18px; }
-.directory-heading h2 { font:400 24px/1.3 var(--font); letter-spacing:-.7px; margin:6px 0 0; }
-.command-console .system-directory .new-mission-button { width:100%; margin:0 0 16px; padding:12px 15px; background:#26371f; border-color:#4c663d; border-radius:3px; }
-.command-console .system-directory .navigation { display:grid; grid-template-columns:1fr 1fr; gap:5px; }
-.command-console .system-directory .nav-item { padding:13px 12px; border:1px solid transparent; border-radius:3px; min-height:60px; gap:13px; }
-.command-console .system-directory .nav-item.active { border:1px solid #405538; background:#1c2b18; }
-.command-console .system-directory .nav-item>span:not([data-icon]):not(.nav-count) { font:500 13px/1.4 var(--font); color:var(--text-secondary); }
-.command-console .system-directory .nav-item small { display:block; margin-top:5px; color:var(--muted); font:11px/1.5 var(--font); }
-.command-console .system-directory .nav-item svg { color:#a0bf89; width:19px; height:19px; }
-.command-console .system-directory .local-card { margin:18px 0 0; border-top:1px solid var(--line); padding:17px 7px 0; background:transparent; }
-.command-console .sidebar-scrim { position:fixed; inset:115px 0 0; background:#0008; z-index:100; backdrop-filter:blur(4px); }
+/* The navigation is an instrument rail, leaving the environment in view. */
+.workspace-navigation {position:absolute;left:20px;top:111px;bottom:26px;width:88px;display:flex;flex-direction:column;align-items:stretch;justify-content:space-between;gap:22px;border:1px solid var(--line-soft);border-radius:20px;background:#0c141cdd;padding:11px 7px;z-index:4}
+.command-navigation {display:flex;flex-direction:column;gap:6px;min-width:0}
+.command-tab {position:relative;min-height:70px;padding:11px 5px;background:transparent;color:var(--muted);font:11px var(--font);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;border-radius:12px;border:1px solid transparent}
+.rail-index {font:10px var(--mono);letter-spacing:1px;color:var(--faint)}
+.command-tab:hover {color:var(--text);background:var(--surface)}
+.command-tab.active {color:var(--accent);background:#142932;border-color:#315361}
+.command-tab.active .rail-index {color:var(--accent)}
+.command-tab.active:after {position:absolute;content:"";width:3px;height:18px;left:-8px;top:calc(50% - 9px);background:var(--accent);border-radius:2px}
+.navigation-context {display:flex;flex-direction:column;gap:8px;align-items:center;margin-top:auto}
+.directory-toggle {display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;background:transparent;color:var(--text-secondary);padding:12px 3px;min-height:60px;font-size:10px;line-height:1.4}
+.directory-toggle svg {width:19px;height:19px}
+.directory-toggle[aria-expanded=true] {color:var(--accent)}
+.navigation-context>span {display:none}
+.command-console main {overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding-left:128px}
+.command-console .view {height:auto;min-height:100%}
+.command-console .content-view {overflow:visible;padding:36px clamp(24px,3vw,56px) 60px 22px;background:transparent;max-width:1750px;margin:0 auto}
+.command-console .content-view>.page-heading {max-width:none}
+.command-console .content-view .page-heading h1 {font:400 42px/1.15 var(--display);letter-spacing:-1.8px}
+.command-console .page-heading p,.command-console .settings-card>p {font-size:13px;line-height:1.8}
+.command-console .settings-card,.command-console .resource-card,.command-console .survival-panel,.command-console .internet-source {border-color:var(--line-soft);border-radius:10px;background:linear-gradient(135deg,#13202a80,#0e172180)}
+.command-console .button {border-radius:6px;font-family:var(--font);font-size:12px;letter-spacing:0;text-transform:none;min-height:42px}
+.command-console .button-primary {background:var(--accent);color:#09212a}
+.command-console .button-primary:hover {background:#c0f6f9}
+.command-console .eyebrow {font:9px/1.5 var(--mono);letter-spacing:1.8px;color:var(--muted)}
+.command-console input,.command-console select,.command-console textarea {border-radius:6px}
+.command-console .text-button {font-size:11px}
+.command-console .global-banner {padding-left:150px;padding-right:36px;font-size:12px}
+.command-console button:focus-visible,.command-console a:focus-visible,.command-console input:focus-visible,.command-console textarea:focus-visible,.command-console select:focus-visible,.command-console summary:focus-visible {outline:2px solid var(--accent);outline-offset:4px}
 
-/* The presence is a view over actual state, rather than simulated cognition. */
-.command-view { display:grid; grid-template-columns:minmax(0,1.65fr) minmax(290px,1fr); align-content:start; gap:23px; padding:22px clamp(20px,3vw,52px) 42px; max-width:1740px; margin:auto; }
-.command-overview { grid-column:1/-1; min-width:0; }
-.command-overline { display:flex; justify-content:space-between; align-items:center; gap:18px; color:var(--faint); }
-.command-overline>div { display:flex; align-items:center; gap:11px; }
-#command-sync { font:9px var(--mono); color:var(--faint); white-space:nowrap; }
-.command-overline .icon-button { width:26px; height:26px; }
-.command-overline .icon-button svg { width:13px; height:13px; }
-.presence-deck { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(340px,1fr); align-items:center; min-height:228px; gap:20px; }
-.presence-copy { padding:15px 0 24px; min-width:0; }
-.presence-kicker { display:flex; align-items:center; gap:8px; font:9px var(--mono); letter-spacing:1.8px; color:var(--accent); }
-.presence-kicker i { width:5px; height:5px; border-radius:50%; background:var(--accent); }
-.presence-copy h1 { font:400 clamp(32px,3.4vw,51px)/1.12 var(--font); letter-spacing:-2.1px; margin:15px 0 16px; max-width:740px; text-wrap:balance; }
-.presence-copy>p { max-width:570px; font-size:14px; line-height:1.75; color:var(--muted); margin:0; overflow-wrap:anywhere; }
-.presence-principle { display:flex; align-items:center; gap:7px; margin-top:20px; color:var(--faint); font:10px var(--mono); }
-.presence-principle svg { width:12px; height:12px; }
-.command-presence { position:relative; align-self:stretch; display:flex; align-items:center; justify-content:center; min-height:220px; isolation:isolate; }
-.presence-geometry { width:min(100%,440px); height:250px; stroke-width:.8px; }
-.presence-label { position:absolute; z-index:1; color:#a6b79b; display:flex; align-items:center; gap:7px; font:9px var(--mono); max-width:58%; background:var(--bg); padding:5px 0; }
-.presence-label i { width:4px; height:4px; background:#839e6b; border-radius:50%; flex:none; }
-.presence-label-mic { left:0; top:29px; }
-.presence-label-network { right:0; bottom:28px; text-align:right; }
-.presence-base { position:absolute; bottom:12px; left:50%; transform:translateX(-50%); white-space:nowrap; color:#687c60; font:8px var(--mono); letter-spacing:1.8px; }
-.presence-orbit { transform-origin:220px 125px; }
-.command-presence:is([data-state=executing],[data-state=transcribing]) .presence-orbit { animation:command-orbit 25s linear infinite; }
-.command-presence:is([data-state=executing],[data-state=speaking],[data-state=recording]) .presence-core { animation:command-core 2.3s ease-in-out infinite; }
-.command-presence:is([data-state=paused],[data-state=review]) { filter:sepia(.6); }
-.command-presence:is([data-state=locked],[data-state=unreachable],[data-state=unavailable]) .presence-geometry { opacity:.45; }
-@keyframes command-orbit { to { transform:rotate(360deg); } }
-@keyframes command-core { 50% { opacity:.55; } }
-.command-metrics { display:grid; grid-template-columns:.85fr .95fr 1.4fr 1.2fr; border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
-.command-metric { min-width:0; text-align:left; color:var(--text); background:transparent; border-right:1px solid var(--line-soft); padding:17px 23px; display:flex; flex-direction:column; justify-content:center; gap:10px; }
-.command-metric:first-child { padding-left:0; }
-.command-metric:last-child { border-right:0; padding-right:0; }
-button.command-metric:hover { background:#151f12; }
-button.command-metric:disabled { opacity:1; cursor:default; }
-.metric-label { color:var(--faint); font:8px var(--mono); letter-spacing:1.4px; white-space:nowrap; }
-.command-metric>div { display:flex; align-items:baseline; gap:10px; min-width:0; }
-.command-metric strong { font:400 25px/1 var(--font); letter-spacing:-.8px; }
-.command-metric>div>span:not([data-icon]) { color:var(--muted); font-size:10px; line-height:1.6; }
-.command-metric [data-icon] { margin-left:auto; color:var(--faint); align-self:center; flex:none; }
-.command-metric svg { width:13px; height:13px; }
-#command-brief-note { display:block; max-width:220px; overflow-wrap:anywhere; white-space:pre-line; font-size:11px; line-height:1.55; }
-.metric-model strong { font:400 16px/1.25 var(--mono); letter-spacing:-.4px; overflow-wrap:anywhere; }
-.metric-model #command-model-note { color:var(--muted); font-size:10px; line-height:1.5; }
+/* Directory opens only on request; its existing inert/focus contract is retained. */
+.command-console .system-directory {position:fixed;z-index:110;top:106px;left:128px;right:auto;width:min(740px,calc(100vw - 160px));height:auto;max-height:calc(100dvh - 130px);padding:28px;background:#101b25f5;border:1px solid #45616e;border-radius:16px;box-shadow:0 25px 100px #0009;transform:none;overflow:auto}
+.command-console .system-directory:not(.open) {display:none}
+.command-console .system-directory.open {display:flex}
+.directory-heading {display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;gap:18px}
+.directory-heading h2 {font:400 27px/1.3 var(--display);letter-spacing:-.7px;margin:6px 0 0}
+.command-console .system-directory .new-mission-button {width:100%;margin:0 0 16px;padding:13px 15px;background:#162c36;border-color:#355765;border-radius:6px}
+.command-console .system-directory .navigation {display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.command-console .system-directory .nav-item {padding:13px 12px;border:1px solid transparent;border-radius:7px;min-height:64px;gap:13px}
+.command-console .system-directory .nav-item.active {border-color:#365764;background:#142a35}
+.command-console .system-directory .nav-item>span:not([data-icon]):not(.nav-count) {font:500 13px/1.4 var(--font);color:var(--text-secondary)}
+.command-console .system-directory .nav-item small {display:block;margin-top:5px;color:var(--muted);font:11px/1.5 var(--font)}
+.command-console .system-directory .nav-item svg {color:var(--accent);width:19px;height:19px}
+.command-console .system-directory .local-card {margin:18px 0 0;border-top:1px solid var(--line);padding:17px 7px 0;background:transparent}
+.command-console .sidebar-scrim {position:fixed;inset:86px 0 0;background:#0008;z-index:100;backdrop-filter:blur(5px)}
 
-/* A directive station and mission ledger, not a chat transcript at rest. */
-.command-console .mission-layout { display:block; height:auto; min-width:0; }
-.command-console .mission-main { display:flex; flex-direction:column; min-width:0; background:transparent; }
-.command-console .mission-layout:not(.has-run) .activity-panel { display:none; }
-.command-console .composer-wrap { order:-1; padding:23px 24px 15px; width:100%; max-width:none; margin:0; background:#131b12; border:1px solid #3b4d32; border-radius:5px; z-index:auto; }
-.directive-heading { display:flex; align-items:center; justify-content:space-between; gap:15px; margin-bottom:18px; }
-.directive-heading h2 { font:400 24px/1.2 var(--font); letter-spacing:-.85px; margin:7px 0 0; }
-.directive-local { display:flex; align-items:center; gap:7px; font:8px var(--mono); letter-spacing:1.2px; color:var(--faint); white-space:nowrap; }
-.directive-local i { width:4px; height:4px; border-radius:50%; background:#8aa76e; }
-.command-console .composer { background:transparent; padding:0; border:0; box-shadow:none; max-height:none; overflow:visible; }
-.command-console .composer:focus-within { border:0; box-shadow:none; }
-.command-console .composer textarea#mission-prompt { padding:5px 0 15px; min-height:74px; max-height:260px; resize:vertical; font:400 15px/1.75 var(--font); border-bottom:1px solid #34452d; color:var(--text); }
-.command-console .composer textarea#mission-prompt::placeholder { color:#9aab8f; }
-.command-console .agent-picker { border:0; padding:12px 0 8px; margin:0; display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; }
-.command-console .agent-picker label { font:10px var(--font); color:var(--muted); margin:0; flex:none; }
-.command-console .agent-picker select { width:auto; max-width:240px; padding:6px 9px; background:#0e160d; color:var(--text-secondary); border:1px solid #34452e; font:11px var(--font); height:32px; }
-.command-console #mission-agent-note { margin-left:auto; font:10px var(--font); color:var(--faint); }
-.command-console .mission-expectations { margin:0; padding:0; border:0; background:transparent; }
-.command-console .mission-expectations>summary { padding:9px 0; font:10px var(--font); color:var(--muted); }
-.command-console .mission-expectations>summary>span:last-child { margin-left:auto; font:9px var(--mono); color:var(--faint); }
-.command-console .expectations-fields { padding:12px 0; }
-.command-console .composer .mission-expectations .code-input { border:1px solid var(--line); padding:10px; background:var(--well); font:12px/1.6 var(--mono); min-height:95px; }
-.command-console .composer-toolbar { padding-top:13px; margin-top:3px; border-top:1px solid #2e3d27; background:transparent; }
-.command-console .composer-tools { gap:6px; }
-.command-console .composer-local { font:9px var(--mono); margin-left:4px; max-width:none; }
-.command-console .composer-local span { max-width:140px; }
-.command-console .send-button { border-radius:3px; height:40px; padding:0 17px; background:var(--accent); color:#15200f; font:500 12px var(--font); gap:20px; }
-.command-console .send-button svg { width:15px; height:15px; }
-.command-console .send-button:hover { background:#ccecac; }
-.command-console .composer-caption { margin:12px 0 0; padding:0; font:9px/1.6 var(--font); color:var(--faint); }
-.command-console .composer-caption .keyboard-hint { font:9px var(--mono); margin-left:auto; }
-.command-console .conversation { padding:0; overflow:visible; min-height:0; flex:initial; scroll-behavior:auto; }
-.command-console .welcome { padding:22px 0 0; margin:0; max-width:none; text-align:left; }
-.quick-start-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; }
-.quick-start-heading>span:last-child { font-size:10px; color:var(--faint); }
-.command-console .suggestion-grid { gap:9px; }
-.command-console .suggestion { min-height:100px; border:1px solid var(--line-soft); background:#111810; border-radius:4px; padding:15px 13px; box-shadow:none; }
-.command-console .suggestion>[data-icon] { margin-bottom:12px; color:#8fa67c; }
-.command-console .suggestion strong { color:var(--text-secondary); font:500 12px/1.4 var(--font); letter-spacing:-.15px; }
-.command-console .suggestion>span:last-of-type { font:10px/1.6 var(--font); color:var(--muted); text-decoration:none; max-width:none; margin-top:6px; }
-.command-console .suggestion:hover { background:#1a2616; border-color:#577448; transform:translateY(-2px); }
-.command-mission-log { align-self:start; min-width:0; border:1px solid var(--line-soft); border-radius:5px; background:#0f150f; padding:23px 22px 13px; }
-.ledger-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:15px; }
-.ledger-heading h2 { margin:7px 0 0; font:400 23px/1.2 var(--font); letter-spacing:-.8px; }
-.ledger-heading>div:last-child { display:flex; align-items:center; gap:5px; }
-#command-log-count { font:9px/1.65 var(--mono); color:var(--faint); max-width:84px; text-align:right; }
-.command-console .recent-runs { flex:initial; min-height:0; overflow:visible; padding:0; display:flex; flex-direction:column; }
-.command-console .recent-run { width:100%; border:0; border-top:1px solid var(--line-soft); border-radius:0; background:transparent; padding:16px 0; display:flex; gap:11px; align-items:flex-start; text-align:left; min-width:0; }
-.command-console .recent-run:hover,.command-console .recent-run.selected { background:#192217; border-left:0; color:var(--text); }
-.command-console .recent-run .run-dot { margin-top:5px; flex:none; }
-.recent-run-body { min-width:0; flex:1; }
-.command-console .recent-run .run-title { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; white-space:normal; text-overflow:ellipsis; color:var(--text-secondary); font:400 12px/1.6 var(--font); }
-.recent-run-meta { display:block; color:var(--faint); font:9px/1.65 var(--mono); margin-top:7px; }
-.recent-run>svg { width:13px; height:13px; color:var(--faint); margin:3px 0 0 auto; flex:none; }
-.ledger-actions { display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--line-soft); padding-top:13px; gap:16px; }
-.ledger-actions .text-button { display:inline-flex; align-items:center; gap:6px; color:var(--text-secondary); padding:7px 0; text-decoration:none; min-height:30px; }
-.ledger-actions svg { width:12px; height:12px; }
-.command-console .sidebar-empty { font:13px/1.8 var(--font); padding:16px 0; }
+/* One spatial composition: state, thread, and four real signals. No fake telemetry. */
+.command-view {display:grid;grid-template-columns:minmax(0,1.8fr) minmax(265px,.9fr);align-content:start;gap:28px;padding:29px clamp(24px,3vw,56px) 50px 22px;max-width:1750px;margin:auto}
+.command-overview {grid-column:1/-1;min-width:0;display:grid;grid-template-columns:minmax(0,1fr) 225px;column-gap:28px;border-bottom:1px solid var(--line);padding-bottom:22px}
+.command-overline {grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:18px;color:var(--faint);padding-bottom:10px}
+.command-overline>div {display:flex;align-items:center;gap:11px}
+#command-sync {font:9px var(--mono);color:var(--faint);white-space:nowrap}
+.command-overline .icon-button {width:36px;height:36px}
+.command-overline .icon-button svg {width:14px;height:14px}
+.presence-deck {position:relative;min-width:0;min-height:342px;display:flex;align-items:center;isolation:isolate}
+.presence-copy {position:relative;z-index:2;padding:25px 0 32px;min-width:0;width:47%;pointer-events:none}
+.presence-kicker {display:flex;align-items:center;gap:8px;font:9px var(--mono);letter-spacing:1.9px;color:var(--accent)}
+.presence-kicker i {width:5px;height:5px;background:var(--accent);transform:rotate(45deg)}
+.presence-copy h1 {font:400 clamp(34px,3.8vw,58px)/1.06 var(--display);letter-spacing:-2.2px;margin:19px 0 20px;text-wrap:balance}
+.presence-copy>p {font-size:13px;line-height:1.8;color:var(--muted);margin:0;max-width:365px;overflow-wrap:anywhere}
+.presence-principle {display:flex;align-items:center;gap:8px;margin-top:28px;color:var(--faint);font:9px/1.8 var(--mono);max-width:330px}
+.presence-principle svg {width:13px;height:13px;flex:none}
+.command-presence {position:absolute;right:-15px;top:-2px;bottom:-2px;width:75%;display:flex;align-items:center;justify-content:center;min-height:300px;z-index:-1}
+.presence-geometry {width:100%;height:100%;max-height:380px;min-width:0;overflow:visible}
+.presence-label {position:absolute;z-index:1;color:var(--text-secondary);display:flex;align-items:center;gap:7px;font:9px/1.5 var(--mono);max-width:65%;background:#0a131bb8;padding:5px 9px;border:1px solid var(--line-soft);border-radius:4px}
+.presence-label i {width:4px;height:4px;background:var(--muted);border-radius:50%;flex:none}
+.presence-label-mic {right:20px;top:17px}
+.presence-label-network {right:0;bottom:8px;text-align:right}
+.presence-base {position:absolute;bottom:25px;left:49%;transform:translateX(-50%);white-space:nowrap;color:var(--muted);font:8px var(--mono);letter-spacing:2.5px}
+.command-presence:is([data-state=executing],[data-state=transcribing],[data-state=speaking],[data-state=recording]) .presence-core {animation:signal-breathe 3.5s ease-in-out infinite}
+.command-presence:is([data-state=paused],[data-state=review]) .presence-core {stroke:var(--amber)}
+.command-presence:is([data-state=locked],[data-state=unreachable],[data-state=unavailable]) .presence-core {opacity:.38}
+.command-presence:is([data-state=locked],[data-state=unreachable],[data-state=unavailable]) .signal-spine {opacity:.4}
+@keyframes signal-breathe {50% {opacity:.5;transform:translateY(-2px)}}
+.command-metrics {display:flex;flex-direction:column;justify-content:center;padding:11px 0 4px;gap:3px;min-width:0}
+.command-metric {position:relative;min-width:0;text-align:left;color:var(--text);background:transparent;border:0;border-bottom:1px solid var(--line-soft);padding:17px 10px 17px 20px;display:flex;flex-direction:column;justify-content:center;gap:9px;min-height:78px}
+.command-metric:before {position:absolute;content:"";left:0;top:23px;width:5px;height:5px;border:1px solid #66838d;transform:rotate(45deg)}
+.command-metric:last-child {border-bottom:0}
+button.command-metric:hover {background:#182a354f;border-radius:6px}
+button.command-metric:disabled {opacity:1;cursor:default}
+.metric-label {color:var(--faint);font:8px var(--mono);letter-spacing:1.2px}
+.command-metric>div {display:flex;align-items:baseline;gap:10px;min-width:0}
+.command-metric strong {font:400 26px/1 var(--display);letter-spacing:-.8px}
+.command-metric>div>span:not([data-icon]) {color:var(--muted);font-size:10px;line-height:1.6}
+.command-metric [data-icon] {margin-left:auto;color:var(--faint);align-self:center;flex:none}
+.command-metric svg {width:13px;height:13px}
+#command-brief-note {display:block;overflow-wrap:anywhere;white-space:pre-line;font-size:10px;line-height:1.6}
+.command-metric[data-view="briefing"]>div {display:block}
+.command-metric[data-view="briefing"] #command-brief-note {margin-top:6px}
+.metric-model strong {font:400 13px/1.4 var(--mono);letter-spacing:-.3px;overflow-wrap:anywhere}
+.metric-model #command-model-note {color:var(--muted);font-size:10px;line-height:1.5}
 
-/* Selected work becomes a dossier, with the same real presence kept in view. */
-.command-view[data-selected=true] .presence-deck { min-height:112px; grid-template-columns:1fr 180px; }
-.command-view[data-selected=true] .presence-copy { padding:8px 0 14px; }
-.command-view[data-selected=true] .presence-copy h1 { font-size:28px; letter-spacing:-.9px; margin:8px 0; }
-.command-view[data-selected=true] .presence-copy>p { font-size:12px; max-width:850px; white-space:nowrap; text-overflow:ellipsis; overflow:hidden; }
-.command-view[data-selected=true] .presence-principle,.command-view[data-selected=true] .presence-label,.command-view[data-selected=true] .presence-base { display:none; }
-.command-view[data-selected=true] .command-presence { min-height:110px; }
-.command-view[data-selected=true] .presence-geometry { height:115px; }
-.command-view[data-selected=true] .command-metrics { display:none; }
-.command-view[data-selected=true] .mission-layout { grid-column:1/-1; display:grid; grid-template-columns:minmax(0,1.7fr) minmax(290px,1fr); align-items:start; gap:24px; }
-.command-view[data-selected=true] .mission-heading { border:0; padding:0 0 20px; align-items:flex-start; }
-.command-view[data-selected=true] .mission-heading h1 { font:400 23px/1.4 var(--font); letter-spacing:-.65px; max-width:850px; }
-.command-view[data-selected=true] .mission-heading-actions { display:flex; flex-wrap:wrap; gap:7px; }
-.command-view[data-selected=true] .mission-heading-actions .button { min-height:34px; font-size:10px; padding:8px 10px; }
-.command-console .message-list { max-width:none; padding:0; margin:0; gap:18px; }
-.command-console .message { background:#111911; padding:22px; border:1px solid var(--line-soft); border-radius:4px; }
-.command-console .message.user { background:transparent; padding:18px 0; border-width:1px 0; border-radius:0; }
-.command-console .message-header { font:9px var(--mono); text-transform:uppercase; letter-spacing:1.5px; color:var(--faint); margin-bottom:14px; }
-.command-console .message-avatar { display:none; }
-.command-console .message-content { padding:0; font:14px/1.85 var(--font); color:var(--text-secondary); }
-.command-console .message.user .message-content { font-size:14px; color:var(--muted); }
-.command-console .message-actions { padding:0; margin-top:15px; }
-.command-view[data-selected=true] .composer-wrap { order:initial; margin-top:24px; }
-.command-view[data-selected=true] .directive-heading h2 { font-size:20px; }
-.command-view[data-selected=true] .command-mission-log { grid-column:1/-1; }
-.command-view[data-selected=true] .recent-runs { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:20px; }
-.command-console .activity-panel { width:auto; flex:auto; display:flex; padding:21px; overflow:visible; border:1px solid var(--line-soft); border-radius:4px; background:#101710; }
-.command-console .activity-summary,.command-console .activity-summary.compact { padding:20px 0; }
-.command-console .activity-summary h2 { font:400 17px var(--font); color:var(--text-secondary); }
-.command-console .activity-summary p { font:11px/1.7 var(--font); color:var(--muted); }
-.execution-trail { margin-top:17px; border-top:1px solid var(--line-soft); }
-.execution-trail>summary { padding:16px 0; color:var(--text-secondary); font:12px/1.6 var(--font); cursor:pointer; }
-.execution-trail[open]>summary { padding-bottom:5px; }
-.command-console .event { padding-top:17px; padding-bottom:17px; }
-.command-console .event h3 { font-size:12px; line-height:1.6; }
-.command-console .event p,.command-console .event summary { font-size:11px; }
-.command-console .event pre,.command-console .approval-card pre { max-height:380px; font-size:11px; }
-.command-console .approval-card { margin:16px 0 10px; border-radius:3px; border-color:#836d42; background:#251f13; padding:17px; }
-.command-console .approval-card h3 { font-size:16px; }
-.command-console .approval-card p { font-size:12px; }
-.command-console .approval-actions .button { min-height:42px; }
-.command-console .activity-footer { padding:18px 0 0; font-size:10px; border-top:1px solid var(--line-soft); margin-top:20px; }
-.command-console .thinking-row { padding:18px 0; font-size:12px; }
+/* A directive is a deliberate next move, with the ledger alongside it. */
+.command-console .mission-layout {display:block;height:auto;min-width:0}
+.command-console .mission-main {display:flex;flex-direction:column;min-width:0;background:transparent}
+.command-console .mission-layout:not(.has-run) .activity-panel {display:none}
+.command-console .composer-wrap {position:relative;order:-1;padding:25px 27px 18px;width:100%;max-width:none;margin:0;background:linear-gradient(130deg,#162735aa,#0c172180);border:1px solid #36515f;border-radius:0 18px 18px 18px;z-index:auto;box-shadow:inset 0 1px #8bcbd40a}
+.command-console .composer-wrap:before {position:absolute;content:"";left:-1px;top:-1px;width:50px;height:2px;background:var(--accent)}
+.directive-heading {display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:20px}
+.directive-heading h2 {font:400 29px/1.2 var(--display);letter-spacing:-1px;margin:8px 0 0}
+.directive-local {display:flex;align-items:center;gap:7px;font:8px var(--mono);letter-spacing:1.2px;color:var(--faint);white-space:nowrap}
+.directive-local i {width:4px;height:4px;background:var(--accent);transform:rotate(45deg)}
+.command-console .composer {background:transparent;padding:0;border:0;box-shadow:none;max-height:none;overflow:visible}
+.command-console .composer:focus-within {border:0;box-shadow:none}
+.command-console .composer textarea#mission-prompt {padding:8px 0 17px;min-height:88px;max-height:260px;resize:vertical;font:400 16px/1.8 var(--font);border-bottom:1px solid #324956;color:var(--text)}
+.command-console .composer textarea#mission-prompt::placeholder {color:#a7bbc7}
+.command-console .agent-picker {border:0;padding:15px 0 8px;margin:0;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+.command-console .agent-picker label {font:10px var(--font);color:var(--muted);margin:0;flex:none}
+.command-console .agent-picker select {width:auto;max-width:240px;padding:7px 9px;background:#0a1720;color:var(--text-secondary);border:1px solid #324d5b;font:11px var(--font);height:36px}
+.command-console #mission-agent-note {margin-left:auto;font:10px var(--font);color:var(--faint)}
+.command-console .mission-expectations {margin:0;padding:0;border:0;background:transparent}
+.command-console .mission-expectations>summary {padding:12px 0;font:11px var(--font);color:var(--muted)}
+.command-console .mission-expectations>summary>span:last-child {margin-left:auto;font:9px var(--mono);color:var(--faint)}
+.command-console .expectations-fields {padding:12px 0}
+.command-console .composer .mission-expectations .code-input {border:1px solid var(--line);padding:10px;background:var(--well);font:12px/1.6 var(--mono);min-height:95px}
+.command-console .composer-toolbar {padding-top:15px;margin-top:3px;border-top:1px solid var(--line);background:transparent}
+.command-console .composer-tools {gap:6px}
+.command-console .composer-local {font:9px var(--mono);margin-left:4px;max-width:none}
+.command-console .composer-local span {max-width:140px}
+.command-console .send-button {border-radius:6px;height:44px;padding:0 19px;background:var(--accent);color:#09212a;font:500 12px var(--font);gap:20px}
+.command-console .send-button svg {width:15px;height:15px}
+.command-console .send-button:hover {background:#bff3f7}
+.command-console .composer-caption {margin:15px 0 0;padding:0;font:9px/1.7 var(--font);color:var(--faint)}
+.command-console .composer-caption .keyboard-hint {margin-left:auto}
+.command-console .conversation {overflow:visible;background:transparent}
+.command-console .welcome {max-width:none;width:100%;padding:26px 0 0}
+.quick-start-heading {display:flex;justify-content:space-between;gap:12px;margin:0 0 8px}
+.quick-start-heading>span:last-child {font-size:10px;color:var(--faint)}
+.command-console .suggestion-grid {display:flex;flex-direction:column;gap:0;max-width:none;width:100%;margin:0}
+.command-console .suggestion {position:relative;min-height:68px;display:grid;grid-template-columns:26px minmax(0,1fr) 20px;column-gap:12px;align-items:center;border:0;border-bottom:1px solid var(--line-soft);background:transparent;border-radius:0;padding:15px 5px;box-shadow:none}
+.command-console .suggestion>[data-icon] {grid-row:1/3;margin:0;color:var(--accent)}
+.command-console .suggestion strong {color:var(--text-secondary);font:500 12px/1.4 var(--font);letter-spacing:0}
+.command-console .suggestion>span:last-of-type {grid-column:2;font:10px/1.6 var(--font);color:var(--muted);text-decoration:none;max-width:none;margin-top:4px}
+.command-console .suggestion>i {grid-column:3;grid-row:1/3}
+.command-console .suggestion:hover {background:#16273570;transform:none}
+.command-mission-log {align-self:start;min-width:0;border:0;border-top:1px solid var(--line);border-radius:0;background:transparent;padding:24px 0 13px}
+.ledger-heading {display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:19px}
+.ledger-heading h2 {margin:8px 0 0;font:400 25px/1.2 var(--display);letter-spacing:-.8px}
+.ledger-heading>div:last-child {display:flex;align-items:center;gap:5px}
+#command-log-count {font:9px/1.65 var(--mono);color:var(--faint);max-width:84px;text-align:right}
+.command-console .recent-runs {flex:initial;min-height:0;overflow:visible;padding:0;display:flex;flex-direction:column}
+.command-console .recent-run {width:100%;border:0;border-top:1px solid var(--line-soft);border-radius:0;background:transparent;padding:18px 0;display:flex;gap:11px;align-items:flex-start;text-align:left;min-width:0}
+.command-console .recent-run:hover,.command-console .recent-run.selected {background:#182a3570;border-left:0;color:var(--text)}
+.command-console .recent-run .run-dot {margin-top:5px;flex:none}
+.recent-run-body {min-width:0;flex:1}
+.command-console .recent-run .run-title {display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;white-space:normal;text-overflow:ellipsis;color:var(--text-secondary);font:400 12px/1.6 var(--font)}
+.recent-run-meta {display:block;color:var(--faint);font:9px/1.65 var(--mono);margin-top:7px}
+.recent-run>svg {width:13px;height:13px;color:var(--faint);margin:3px 0 0 auto;flex:none}
+.ledger-actions {display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line-soft);padding-top:13px;gap:16px}
+.ledger-actions .text-button {display:inline-flex;align-items:center;gap:6px;color:var(--text-secondary);padding:7px 0;text-decoration:none;min-height:36px}
+.ledger-actions svg {width:12px;height:12px}
+.command-console .sidebar-empty {font:13px/1.8 var(--font);padding:16px 0}
 
-@media(min-width:1101px) and (max-height:800px) {
-  .command-console .topbar { height:58px; flex-basis:58px; }
-  .workspace-navigation { height:43px; flex-basis:43px; }
-  .command-view { padding-top:14px; gap:19px; }
-  .presence-deck { min-height:170px; }
-  .command-presence { min-height:170px; }
-  .presence-geometry { height:174px; }
-  .presence-copy { padding:9px 0 18px; }
-  .presence-copy h1 { font-size:40px; margin:12px 0; }
-  .presence-copy>p { font-size:13px; }
-  .presence-principle { margin-top:12px; }
-  .presence-label-mic { top:11px; }
-  .presence-label-network { bottom:18px; }
-  .presence-base { display:none; }
-  .command-metric { padding-top:13px; padding-bottom:13px; gap:7px; }
-  .command-console .composer-wrap { padding:18px 21px 12px; }
-  .directive-heading { margin-bottom:12px; }
-  .directive-heading>div { display:flex; align-items:baseline; gap:14px; }
-  .directive-heading h2 { font-size:22px; margin:0; }
-  .command-console .composer textarea#mission-prompt { min-height:62px; }
-  .command-console .composer-caption { font-size:9px; }
-  .command-mission-log { padding:18px 20px 12px; }
-  .command-console .system-directory { top:113px; max-height:calc(100dvh - 129px); }
-  .command-console .sidebar-scrim { top:101px; }
+/* A selected mission reveals its dossier and authority controls. */
+.command-view[data-selected=true] .command-overview {grid-template-columns:1fr;padding-bottom:0}
+.command-view[data-selected=true] .presence-deck {min-height:140px}
+.command-view[data-selected=true] .presence-copy {padding:10px 0 22px;width:75%}
+.command-view[data-selected=true] .presence-copy h1 {font-size:30px;letter-spacing:-1px;margin:10px 0}
+.command-view[data-selected=true] .presence-copy>p {font-size:12px;max-width:850px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
+.command-view[data-selected=true] .presence-principle,.command-view[data-selected=true] .presence-label,.command-view[data-selected=true] .presence-base,.command-view[data-selected=true] .command-metrics {display:none}
+.command-view[data-selected=true] .command-presence {width:220px;min-height:140px;right:0}
+.command-view[data-selected=true] .mission-layout {grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1.7fr) minmax(290px,1fr);align-items:start;gap:28px}
+.command-view[data-selected=true] .mission-heading {border:0;padding:0 0 20px;align-items:flex-start}
+.command-view[data-selected=true] .mission-heading h1 {font:400 25px/1.4 var(--display);letter-spacing:-.65px;max-width:850px}
+.command-view[data-selected=true] .mission-heading-actions {display:flex;flex-wrap:wrap;gap:7px}
+.command-view[data-selected=true] .mission-heading-actions .button {min-height:38px;font-size:10px;padding:8px 10px}
+.command-console .message-list {max-width:none;padding:0;margin:0;gap:20px}
+.command-console .message {background:linear-gradient(140deg,#13212c,#0e172080);padding:25px;border:1px solid var(--line-soft);border-radius:0 14px 14px 14px}
+.command-console .message.user {background:transparent;padding:18px 0;border-width:1px 0;border-radius:0}
+.command-console .message-header {font:9px var(--mono);text-transform:uppercase;letter-spacing:1.5px;color:var(--faint);margin-bottom:14px}
+.command-console .message-avatar {display:none}
+.command-console .message-content {padding:0;font:14px/1.85 var(--font);color:var(--text-secondary)}
+.command-console .message.user .message-content {font-size:14px;color:var(--muted)}
+.command-console .message-actions {padding:0;margin-top:15px}
+.command-view[data-selected=true] .composer-wrap {order:initial;margin-top:24px}
+.command-view[data-selected=true] .directive-heading h2 {font-size:24px}
+.command-view[data-selected=true] .command-mission-log {grid-column:1/-1}
+.command-view[data-selected=true] .recent-runs {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px}
+.command-console .activity-panel {width:auto;flex:auto;display:flex;padding:24px;overflow:visible;border:1px solid var(--line-soft);border-radius:14px;background:#101b2580}
+.command-console .activity-summary,.command-console .activity-summary.compact {padding:20px 0}
+.command-console .activity-summary h2 {font:400 18px var(--display);color:var(--text-secondary)}
+.command-console .activity-summary p {font:11px/1.7 var(--font);color:var(--muted)}
+.execution-trail {margin-top:17px;border-top:1px solid var(--line-soft)}
+.execution-trail>summary {padding:16px 0;color:var(--text-secondary);font:12px/1.6 var(--font);cursor:pointer}
+.execution-trail[open]>summary {padding-bottom:5px}
+.command-console .event {padding-top:17px;padding-bottom:17px}
+.command-console .event h3 {font-size:12px;line-height:1.6}
+.command-console .event p,.command-console .event summary {font-size:11px}
+.command-console .event pre,.command-console .approval-card pre {max-height:380px;font-size:11px}
+.command-console .approval-card {margin:16px 0 10px;border-radius:7px;border-color:#9c7b50;background:#282015;padding:19px}
+.command-console .approval-card h3 {font-size:17px}
+.command-console .approval-card p {font-size:12px}
+.command-console .approval-actions .button {min-height:44px}
+.command-console .activity-footer {padding:18px 0 0;font-size:10px;border-top:1px solid var(--line-soft);margin-top:20px}
+.command-console .thinking-row {padding:18px 0;font-size:12px}
+
+/* The brief is an editorial artifact, with the long evidence tucked behind it. */
+.command-console .briefing-grid {grid-template-columns:minmax(290px,.75fr) minmax(0,1.4fr);align-items:start}
+.command-console .brief-document {padding:25px;background:#101b2580}
+.brief-poster-frame {margin:24px 0;border:1px solid var(--line);background:#0b1117;padding:12px;border-radius:6px}
+.brief-poster-frame img {display:block;width:100%;max-width:600px;height:auto;margin:auto;aspect-ratio:4/5}
+.brief-poster-frame p {max-width:600px;margin:12px auto 0;font-size:11px;line-height:1.7}
+.brief-full-report {border-top:1px solid var(--line);margin-top:18px;padding-top:15px}
+.brief-full-report>summary {font-size:12px;color:var(--text-secondary);padding:8px 0;cursor:pointer}
+.command-console .brief-full-report pre {max-height:600px;overflow:auto}
+.command-console .pairing-overlay {background:radial-gradient(ellipse at 30% 40%,#173d4d66,transparent 55%),radial-gradient(ellipse at 80% 90%,#543c2530,transparent 60%),#080d12}
+.command-console .pairing-card {position:relative;background:#0d1821d9;border:1px solid #34505f;border-radius:0 24px 24px 24px;padding:48px;box-shadow:0 40px 120px #0008;max-width:530px;overflow:hidden}
+.command-console .pairing-card:before {content:"";position:absolute;left:0;top:0;height:2px;width:94px;background:var(--accent)}
+.command-console .pairing-card h1 {font:400 46px/1.1 var(--display);letter-spacing:-1.8px}
+.command-console .pairing-card input {border-color:#385766}
+.command-console .pairing-note {color:var(--muted);line-height:1.8}
+.command-console .pairing-mark {color:var(--accent);margin-bottom:30px}
+
+@media(min-width:1200px) and (max-height:850px) {
+  .command-console .topbar {height:72px;flex-basis:72px}
+  .workspace-navigation {top:92px;bottom:20px;padding:7px}
+  .command-tab {min-height:61px}
+  .command-view {padding-top:20px;gap:23px}
+  .presence-deck {min-height:290px}
+  .presence-copy h1 {font-size:43px;margin:16px 0}
+  .presence-principle {margin-top:19px}
+  .command-presence {min-height:280px}
+  .command-metric {min-height:69px;padding-top:13px;padding-bottom:13px;gap:7px}
+  .command-console .system-directory {top:92px;max-height:calc(100dvh - 114px)}
+  .command-console .sidebar-scrim {top:72px}
 }
-@media(min-width:1450px) { .presence-copy h1 { font-size:53px; } .command-view { gap:28px; } .presence-deck { min-height:248px; } }
-@media(max-width:1100px) {
-  .instance-mark { display:none; }
-  .command-console .topbar-actions { margin-left:auto; gap:15px; }
-  .command-console .topbar-actions #internet-indicator span:last-child { display:inline; }
-  .command-console .connection-badge { font-size:9px; }
-  .presence-deck { grid-template-columns:minmax(0,1.25fr) minmax(250px,1fr); gap:5px; }
-  .presence-copy h1 { font-size:36px; }
-  .command-presence { min-height:220px; }
-  .presence-label { max-width:95%; font-size:8px; }
-  .presence-label-mic { top:20px; }
-  .presence-label-network { bottom:22px; }
-  .command-view { grid-template-columns:minmax(0,1.45fr) minmax(270px,1fr); gap:20px; }
-  .command-metric { padding:16px 15px; }
-  .metric-label { font-size:7px; letter-spacing:.9px; }
-  .command-metric>div { flex-wrap:wrap; gap:7px; }
-  .command-metric>div>span:not([data-icon]) { font-size:9px; }
-  .metric-model strong { font-size:14px; }
-  .command-console #mission-agent-note { display:none; }
-  .directive-local { display:none; }
-  .command-console .composer-local { display:none; }
-  .command-view[data-selected=true] .mission-layout { grid-template-columns:minmax(0,1.5fr) minmax(270px,1fr); gap:18px; }
-  .command-view[data-selected=true] .recent-runs { grid-template-columns:repeat(2,minmax(0,1fr)); }
+@media(min-width:1700px) {.presence-deck {min-height:405px}.presence-copy h1 {font-size:64px}.command-overview {grid-template-columns:minmax(0,1fr) 265px}}
+@media(max-width:1200px) {
+  .instance-mark {display:none}
+  .command-console .topbar-actions {margin-left:auto;gap:15px}
+  .command-overview {grid-template-columns:minmax(0,1fr) 185px;column-gap:12px}
+  .presence-deck {min-height:330px}
+  .presence-copy {width:53%}
+  .presence-copy h1 {font-size:40px}
+  .presence-principle {display:none}
+  .command-presence {right:-30px;width:76%}
+  .presence-label {font-size:8px;max-width:90%}
+  .presence-label-mic {top:4px;right:0}
+  .presence-label-network {bottom:0;right:0}
+  .presence-base {display:none}
+  .command-view {grid-template-columns:minmax(0,1.5fr) minmax(250px,.9fr);gap:22px}
+  .command-metric {padding:15px 6px 15px 15px}
+  .metric-label {font-size:7px;letter-spacing:.7px}
+  .command-metric>div {flex-wrap:wrap;gap:6px}
+  .command-console #mission-agent-note,.directive-local,.command-console .composer-local {display:none}
+  .command-view[data-selected=true] .mission-layout {grid-template-columns:minmax(0,1.4fr) minmax(250px,1fr);gap:18px}
+  .command-view[data-selected=true] .recent-runs {grid-template-columns:repeat(2,minmax(0,1fr))}
+  .quick-start-heading>span:last-child {display:none}
 }
-@media(max-width:800px) {
-  .command-console .topbar { padding:0 20px; gap:15px; }
-  .command-console .brand { font-size:17px; letter-spacing:2px; }
-  .command-console .brand small { font-size:7px; letter-spacing:1.1px; }
-  .command-console .topbar-actions { gap:11px; }
-  .command-console .topbar-actions .quiet-button span:last-child { display:none; }
-  .command-console .topbar-actions #internet-indicator span:last-child { display:none; }
-  .command-console .connection-badge { font-size:0; gap:0; }
-  .command-console .connection-badge i { width:6px; height:6px; }
-  .command-console .topbar-actions .quiet-button { min-width:28px; justify-content:center; }
-  .command-navigation { gap:21px; }
-  .command-view { grid-template-columns:1fr; }
-  .command-mission-log { grid-column:1; }
-  .command-console .composer-local { display:flex; }
-  .command-metrics { grid-template-columns:1fr 1fr; }
-  .command-metric { min-height:84px; border-bottom:1px solid var(--line-soft); padding:16px 18px; }
-  .command-metric:nth-child(2) { border-right:0; }
-  .command-metric:nth-child(3) { border-bottom:0; padding-left:0; }
-  .command-metric:last-child { border-bottom:0; padding-right:0; }
-  .metric-label { font-size:8px; letter-spacing:1.1px; }
-  .command-metric>div>span:not([data-icon]) { font-size:10px; }
-  #command-brief-note { max-width:none; }
-  .command-view[data-selected=true] .mission-layout { grid-template-columns:1fr; }
-  .command-console .activity-panel { display:flex; }
-  .command-view[data-selected=true] .mission-layout .activity-panel { display:flex; }
-  .command-view[data-selected=true] .mission-heading { flex-direction:column; }
-  .command-view[data-selected=true] .presence-deck { grid-template-columns:1fr 120px; }
+@media(max-width:960px) {
+  .command-console .topbar {padding:0 24px;gap:14px;height:76px;flex-basis:76px}
+  .command-console .brand {font-size:20px;letter-spacing:2.5px}
+  .command-console .brand small {font-size:7px;letter-spacing:1.4px}
+  .command-console .topbar-actions {gap:10px}
+  .command-console .topbar-actions .quiet-button span:last-child {display:none}
+  .command-console .topbar-actions #pause-label {display:block;position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  .command-console .topbar-actions #internet-indicator span:last-child {display:none}
+  .command-console .connection-badge {font-size:0;gap:0}
+  .command-console .connection-badge i {width:6px;height:6px}
+  .command-console .topbar-actions .quiet-button {min-width:36px;justify-content:center}
+  .workspace-navigation {left:12px;top:98px;bottom:22px;width:74px;padding:8px 4px}
+  .command-tab {font-size:10px;min-height:67px}
+  .command-console main {padding-left:98px}
+  .command-view {padding-left:16px;padding-right:26px;grid-template-columns:1fr}
+  .command-overview {grid-template-columns:1fr}
+  .presence-deck {min-height:300px}
+  .presence-copy {width:50%}
+  .presence-copy h1 {font-size:46px}
+  .command-presence {right:-5px;width:72%;min-height:290px}
+  .presence-label-mic {right:15px;top:3px}
+  .command-metrics {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;padding:8px 0 0}
+  .command-metric {border:0;border-left:1px solid var(--line-soft);padding:12px;min-height:90px;justify-content:start}
+  .command-metric:before {display:none}
+  .command-metric:first-child {border-left:0;padding-left:0}
+  .command-metric:last-child {padding-right:0}
+  .command-metric strong {font-size:23px}
+  .metric-model strong {font-size:12px}
+  .command-mission-log {padding-top:23px}
+  .command-console .recent-runs {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 20px}
+  .command-view[data-selected=true] .mission-layout {grid-template-columns:1fr}
+  .command-console .activity-panel {margin-top:3px}
+  .command-console .content-view {padding:30px 26px 50px 16px}
+  .command-console .content-view .page-heading h1 {font-size:35px}
+  .command-console .briefing-grid {grid-template-columns:1fr}
+  .command-console .system-directory {left:100px;top:95px;width:calc(100vw - 122px);max-height:calc(100dvh - 116px);padding:24px}
+  .command-console .sidebar-scrim {top:76px}
+  .command-console .global-banner {padding-left:116px;padding-right:26px}
 }
-@media(max-width:540px) {
-  .command-console .topbar { height:63px; flex-basis:63px; padding:0 16px; }
-  .command-console .brand { font-size:16px; gap:8px; }
-  .command-console .brand-mark { width:25px; }
-  .command-console .brand-mark svg { width:24px; height:24px; }
-  .command-console .brand small { font-size:6px; letter-spacing:.9px; }
-  .command-console .topbar-actions { gap:6px; }
-  .command-console .topbar-actions .icon-button { width:40px; height:44px; }
-  .command-console .topbar-actions .quiet-button { min-width:40px; min-height:44px; }
-  .workspace-navigation { padding:0 16px; height:47px; flex-basis:47px; gap:12px; }
-  .command-navigation { overflow-x:auto; scrollbar-width:none; gap:20px; }
-  .command-tab { font-size:11px; min-height:46px; }
-  .directory-toggle { width:35px; padding:0 6px; }
-  .directory-toggle span:last-child { display:none; }
-  .command-view { padding:14px 16px 32px; gap:21px; }
-  .command-overline>.eyebrow { max-width:190px; font-size:7px; letter-spacing:1px; }
-  #command-sync { font-size:7px; }
-  .command-overline>div { gap:3px; }
-  .presence-deck { grid-template-columns:1fr; gap:0; }
-  .presence-copy { padding:24px 0 0; }
-  .presence-copy h1 { font-size:34px; letter-spacing:-1.4px; margin:13px 0; }
-  .presence-copy>p { font-size:13px; }
-  .presence-principle { margin-top:14px; font-size:8px; }
-  .command-presence { min-height:183px; margin-top:12px; }
-  .presence-geometry { height:190px; }
-  .presence-label-mic { top:10px; }
-  .presence-label-network { bottom:17px; }
-  .presence-base { font-size:7px; bottom:0; }
-  .command-metrics { margin-top:17px; }
-  .command-metric { min-height:85px; gap:11px; padding:14px; }
-  .command-metric strong { font-size:23px; }
-  .command-metric.metric-model strong { font-size:13px; }
-  .metric-label { font-size:7px; letter-spacing:.8px; }
-  .command-metric>div { gap:6px; }
-  .command-console .composer-wrap { padding:21px 17px 14px; }
-  .directive-heading h2 { font-size:23px; }
-  .command-console .composer textarea#mission-prompt { font-size:15px; min-height:100px; }
-  .command-console .agent-picker { padding:13px 0 7px; }
-  .command-console .agent-picker select { max-width:calc(100% - 65px); font-size:12px; height:38px; }
-  .command-console .composer-tools .icon-button { width:30px; height:36px; }
-  .command-console .composer-local { display:none; }
-  .command-console .send-button { height:44px; padding:0 13px; gap:13px; }
-  .command-console .composer-caption { font-size:9px; line-height:1.8; }
-  .command-console .composer-caption .keyboard-hint { display:none; }
-  .quick-start-heading>span:last-child { display:none; }
-  .command-console .suggestion-grid { grid-template-columns:1fr; }
-  .command-console .suggestion { min-height:75px; padding-left:46px; }
-  .command-console .suggestion>[data-icon] { position:absolute; left:15px; top:19px; }
-  .command-console .suggestion strong { font-size:13px; }
-  .command-console .suggestion>span:last-of-type { font-size:11px; }
-  .command-console .system-directory { top:120px; right:10px; width:calc(100vw - 20px); max-height:calc(100dvh - 130px); padding:20px 15px; }
-  .command-console .system-directory .navigation { grid-template-columns:1fr; }
-  .command-console .system-directory .nav-item { min-height:60px; }
-  .command-console .sidebar-scrim { top:110px; }
-  .command-view[data-selected=true] .presence-deck { grid-template-columns:1fr 76px; min-height:110px; }
-  .command-view[data-selected=true] .presence-copy h1 { font-size:23px; }
-  .command-view[data-selected=true] .presence-copy>p { font-size:11px; }
-  .command-view[data-selected=true] .presence-geometry { width:110px; min-width:110px; }
-  .command-view[data-selected=true] .presence-kicker { font-size:7px; letter-spacing:.8px; }
-  .command-view[data-selected=true] .recent-runs { grid-template-columns:1fr; gap:0; }
-  .command-console .message { padding:18px; }
-  .command-console .message-content { font-size:13px; }
-  .command-console .content-view { padding:27px 16px 40px; }
-  .command-console .content-view .page-heading h1 { font-size:28px; }
+@media(max-width:650px) {
+  .command-console .topbar {height:68px;flex-basis:68px;padding:0 17px;gap:10px}
+  .command-console .brand {font-size:18px;letter-spacing:2px;gap:8px}
+  .command-console .brand-mark {width:24px}
+  .command-console .brand-mark svg {width:24px}
+  .command-console .brand small {font-size:6px;letter-spacing:1.1px}
+  .command-console .topbar-actions {gap:3px}
+  .command-console .topbar-actions .quiet-button {min-width:31px}
+  .command-console .topbar .icon-button {width:31px}
+  .command-console .connection-badge {display:none}
+  .workspace-navigation {position:static;flex:0 0 64px;width:100%;height:64px;flex-direction:row;gap:4px;border-width:0 0 1px;border-radius:0;padding:0 10px;background:#0b141d;align-items:stretch}
+  .command-navigation {flex:1;flex-direction:row;gap:0;justify-content:space-between}
+  .command-tab {flex:1;min-width:0;min-height:62px;gap:5px;border-radius:0;padding:8px 3px;font-size:10px;border:0}
+  .rail-index {font-size:8px}
+  .command-tab.active {background:transparent}
+  .command-tab.active:after {left:14px;right:14px;top:auto;bottom:0;width:auto;height:2px}
+  .navigation-context {flex:none;align-items:stretch;margin:0;width:51px;border-left:1px solid var(--line-soft)}
+  .directory-toggle {font-size:0;gap:0;min-height:62px;padding:8px}
+  .directory-toggle svg {width:21px;height:21px}
+  .command-console main {padding-left:0}
+  .command-view {padding:18px 20px 34px;gap:24px}
+  .command-overline {align-items:flex-start;gap:10px}
+  .command-overline>.eyebrow {font-size:7px;letter-spacing:1.3px;max-width:150px}
+  #command-sync {font-size:8px;max-width:122px;white-space:normal;text-align:right;line-height:1.6}
+  .command-overline>div {gap:4px;align-items:flex-start}
+  .command-overline .icon-button {width:28px;height:28px}
+  .presence-deck {min-height:340px;align-items:flex-start;padding-top:10px}
+  .presence-copy {width:78%;padding:16px 0 130px}
+  .presence-kicker {font-size:8px}
+  .presence-copy h1 {font-size:43px;letter-spacing:-1.5px;margin:15px 0}
+  .presence-copy>p {font-size:12px;max-width:290px}
+  .command-presence {right:0;top:auto;bottom:-2px;width:78%;height:245px;min-height:0;opacity:.86}
+  .presence-label-mic {top:auto;bottom:11px;left:-55px;right:auto;max-width:70%}
+  .presence-label-network {right:5px;bottom:-8px;max-width:80%}
+  .presence-label {background:#0a131b;font-size:7px}
+  .command-metrics {grid-template-columns:1fr 1fr;padding-top:15px;gap:2px 0}
+  .command-metric {padding:15px 13px;min-height:86px}
+  .command-metric:nth-child(3) {border-left:0;padding-left:0;border-top:1px solid var(--line-soft)}
+  .command-metric:nth-child(4) {border-top:1px solid var(--line-soft)}
+  .metric-label {font-size:8px;letter-spacing:1px}
+  .metric-model strong {font-size:13px}
+  .command-console .composer-wrap {padding:22px 20px 16px}
+  .directive-heading h2 {font-size:27px}
+  .command-console .composer textarea#mission-prompt {font-size:15px;min-height:92px}
+  .command-console .send-button {padding:0 13px;gap:15px;font-size:11px}
+  .command-console .composer-caption .keyboard-hint {display:none}
+  .command-console .recent-runs {grid-template-columns:1fr}
+  .command-console .suggestion {min-height:73px}
+  .command-view[data-selected=true] .presence-deck {min-height:140px}
+  .command-view[data-selected=true] .presence-copy {width:85%;padding-bottom:20px}
+  .command-view[data-selected=true] .presence-copy h1 {font-size:29px}
+  .command-view[data-selected=true] .command-presence {width:130px;height:135px;min-height:0;right:0;top:0;bottom:auto;opacity:.4}
+  .command-view[data-selected=true] .recent-runs {grid-template-columns:1fr}
+  .command-view[data-selected=true] .mission-heading {flex-direction:column}
+  .command-console .message,.command-console .activity-panel {padding:20px}
+  .command-console .content-view {padding:26px 20px 40px}
+  .command-console .content-view .page-heading h1 {font-size:33px}
+  .command-console .system-directory {left:12px;right:12px;top:143px;width:calc(100vw - 24px);max-height:calc(100dvh - 159px);padding:21px 16px}
+  .command-console .system-directory .navigation {grid-template-columns:1fr}
+  .command-console .sidebar-scrim {top:132px}
+  .command-console .global-banner {padding-left:20px;padding-right:20px}
+  .command-console .pairing-card {padding:33px 27px;border-radius:0 18px 18px 18px}
+  .command-console .pairing-card h1 {font-size:40px}
+  .brief-poster-frame {padding:5px}
+  .command-console .brief-document {padding:17px}
 }
 @media(max-width:360px) {
-  .command-console .topbar { padding:0 12px; gap:8px; }
-  .command-console .brand { font-size:15px; letter-spacing:1.3px; }
-  .command-console .topbar-actions { gap:4px; }
-  .command-console .topbar-actions .icon-button { width:32px; }
-  .command-console .topbar-actions .quiet-button { min-width:32px; }
+  .command-console .topbar {padding:0 10px;gap:4px}
+  .command-console .brand {font-size:16px;letter-spacing:1.4px}
+  .command-console .brand-mark {display:none}
+  .command-console .topbar-actions {gap:0}
+  .command-console .topbar-actions .quiet-button {min-width:30px}
+  .command-console .topbar .icon-button {width:30px}
+  .presence-copy h1 {font-size:38px}
+  .command-view {padding-left:15px;padding-right:15px}
 }
 @media(prefers-reduced-motion:reduce) {
-  .command-console *, .command-console *:before, .command-console *:after { animation:none!important; transition:none!important; scroll-behavior:auto!important; }
+  .command-console *, .command-console *:before, .command-console *:after {animation:none!important;transition:none!important;scroll-behavior:auto!important}
 }
-body.command-console:not(.command-motion-visible) .presence-orbit,body.command-console:not(.command-motion-visible) .presence-core { animation-play-state:paused; }
+body.command-console:not(.command-motion-visible) .presence-orbit,body.command-console:not(.command-motion-visible) .presence-core {animation-play-state:paused}
+@media(forced-colors:active) {.signal-geometry {forced-color-adjust:none}.command-tab.active {outline:1px solid Highlight}.command-console .composer-wrap {border-color:CanvasText}}
+
+/* Keep the primary directive action in the first laptop viewport. */
+@media(min-width:961px) and (max-height:850px) {
+  .command-console .topbar {height:72px;flex-basis:72px}
+  .workspace-navigation {top:92px;bottom:20px;overflow-y:auto}
+  .command-view {padding-top:16px;gap:20px}
+  .command-overview {padding-bottom:14px}
+  .command-overline {padding-bottom:0}
+  .command-overline .icon-button {width:28px;height:28px}
+  .presence-deck {min-height:230px}
+  .presence-copy {padding:16px 0;width:51%}
+  .presence-copy h1 {font-size:40px;margin:14px 0}
+  .presence-principle {display:none}
+  .command-presence {min-height:220px}
+  .presence-label-mic {top:0;right:2px}
+  .presence-label-network {bottom:0;right:0}
+  .command-metrics {display:grid;grid-template-columns:1fr 1fr;align-content:center;gap:0;padding:0}
+  .command-metric {min-height:78px;justify-content:start;padding:11px 8px;border:0;border-left:1px solid var(--line-soft);gap:7px}
+  .command-metric:nth-child(odd) {padding-left:0;border-left:0}
+  .command-metric:nth-child(n+3) {border-top:1px solid var(--line-soft)}
+  .command-metric:before {display:none}
+  .command-metric strong {font-size:24px}
+  .metric-model strong {font-size:12px}
+  .command-metric>div>span:not([data-icon]) {font-size:10px}
+  .command-console .composer-wrap {padding:18px 23px 13px}
+  .directive-heading {margin-bottom:8px}
+  .directive-heading .eyebrow {display:none}
+  .directive-heading h2 {font-size:26px;margin:0}
+  .command-console .composer {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:16px}
+  .command-console .composer textarea#mission-prompt {grid-column:1/-1;min-height:55px;padding:5px 0 12px;font-size:15px}
+  .command-console .agent-picker {padding:9px 0 5px;gap:6px}
+  .command-console .agent-picker select {height:32px;max-width:200px}
+  .command-console .agent-picker label {display:none}
+  .command-console #mission-agent-note {display:none}
+  .command-console .mission-expectations {align-self:center}
+  .command-console .mission-expectations>summary {padding:10px 0}
+  .command-console .mission-expectations[open] {grid-column:1/-1}
+  .command-console .composer-toolbar {grid-column:1/-1;padding-top:10px}
+  .command-console .composer-caption {margin-top:10px}
+  .command-console .send-button {height:42px}
+  .command-console .system-directory {top:92px;max-height:calc(100dvh - 114px)}
+  .command-console .sidebar-scrim {top:72px}
+}
+
+@media print {
+  @page {size:A4 portrait;margin:8mm}
+  body.brief-printing {background:white!important;color:black!important;overflow:visible!important}
+  .brief-printing> :not(.app-shell), .brief-printing .app-shell> :not(.main-shell),
+  .brief-printing .main-shell> :not(main), .brief-printing main> :not(#view-briefing),
+  .brief-printing #view-briefing> :not(.briefing-grid), .brief-printing .briefing-grid> :not(.brief-document),
+  .brief-printing .brief-document> :not(#brief-poster-frame), .brief-printing #brief-poster-note {display:none!important}
+  .brief-printing .app-shell,.brief-printing .main-shell,.brief-printing main,.brief-printing #view-briefing,
+  .brief-printing .briefing-grid,.brief-printing .brief-document,.brief-printing #brief-poster-frame {
+    display:block!important;position:static!important;float:none!important;width:auto!important;max-width:none!important;
+    height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important;
+    padding:0!important;margin:0!important;border:0!important;border-radius:0!important;box-shadow:none!important;background:white!important;
+    break-inside:avoid;page-break-inside:avoid;
+  }
+  .brief-printing #brief-poster-image {display:block!important;width:auto!important;height:auto!important;max-width:194mm!important;max-height:277mm!important;margin:0 auto!important;object-fit:contain;break-inside:avoid;page-break-inside:avoid}
+}
 
 /* Reusable fixed routines stay within the Workflows workspace. */
 .command-console #view-workflows>.section-tabs { overflow-x:auto; gap:22px; }

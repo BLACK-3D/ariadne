@@ -286,6 +286,7 @@ function lockSession(message = "") {
   state.runRequest += 1;
   if (state.recording) stopRecording(true);
   stopSpeech();
+  clearBriefPoster(true);
   state.speechPreferenceRequest += 1;
   state.speechPreferenceConfirmed = 0;
   state.speechPreferencesSaving = false;
@@ -2414,6 +2415,7 @@ $("#settings-lock").addEventListener("click", () => lockSession());
 $("#pause-toggle").addEventListener("click", togglePause);
 // Specialist roles and deterministic daily reporting share the same local server.
 let agentCatalog = [], wakeRequest = false, wakeRememberDirty = false, briefRequest = false, briefConfig = null;
+let briefViewRequest = 0, briefLoadRequest = 0, briefPosterUrl = null, briefPoster = null;
 async function loadAgents({quiet = false} = {}) {
   if (!state.authenticated) return;
   try {
@@ -2470,9 +2472,11 @@ async function setWakeListening(start) {
 }
 async function loadBriefing() {
   if (!state.authenticated || briefRequest) return;
+  const request = ++briefLoadRequest, token = state.token;
+  const current = () => state.authenticated && state.token === token && request === briefLoadRequest;
   try {
     const data = await api("/briefing");
-    if (!state.authenticated) return;
+    if (!current()) return;
     window.ariadneCommand?.briefing(data);
     briefConfig = data.config;
     if (data.location) renderLocationResult(data.location, false);
@@ -2491,7 +2495,9 @@ async function loadBriefing() {
     $("#brief-error").textContent = cfg.pause_reason || ""; $("#brief-error").hidden = !cfg.pause_reason;
     $("#brief-save").textContent = cfg.paused ? "Save settings and resume brief" : "Save briefing settings";
     await showBriefReceipt(receipt);
+    if (!current()) return;
     const history = await api("/briefing/history");
+    if (!current()) return;
     const container = $("#brief-history"); clear(container);
     for (const run of (history.runs || []).slice(0,10)) {
       const card = node("article", "brief-history-item"), body = node("div");
@@ -2499,19 +2505,90 @@ async function loadBriefing() {
       if (run.artifacts?.length) card.append(button("Read report", "button-secondary", () => showBriefReceipt(run), "file"));
       container.append(card);
     }
-  } catch (error) { toast(error.message, true); }
+  } catch (error) { if (current()) toast(error.message, true); }
+}
+function clearBriefPoster(invalidateLoad = false) {
+  if (invalidateLoad) briefLoadRequest += 1;
+  briefViewRequest += 1;
+  if (briefPosterUrl) URL.revokeObjectURL(briefPosterUrl);
+  briefPosterUrl = null; briefPoster = null;
+  const image = $("#brief-poster-image"), frame = $("#brief-poster-frame");
+  if (image) { image.removeAttribute("src"); image.alt = "One-page Ariadne daily brief"; }
+  if (frame) frame.hidden = true;
+  const note = $("#brief-poster-note");
+  if (note) note.textContent = "";
+  $("#brief-report-title").textContent = "Awaiting the first brief";
+  $("#brief-report").textContent = "Your local daily brief will appear here.";
+  $("#brief-receipt").textContent = "One page. Local evidence. No language-model calls.";
+  clear($("#brief-artifacts"));
+}
+function downloadBriefBlob(blob, filename) {
+  const url = URL.createObjectURL(blob), link = node("a");
+  link.href = url; link.download = filename;
+  document.body.append(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+async function downloadBriefPoster(format, control) {
+  const poster = briefPoster, request = briefViewRequest, token = state.token;
+  const current = () => state.authenticated && state.token === token && request === briefViewRequest && briefPoster === poster;
+  if (!poster || !current() || control.disabled) return;
+  if (format === "svg") { downloadBriefBlob(poster.blob, poster.filename+".svg"); return; }
+  control.disabled = true;
+  const url = URL.createObjectURL(poster.blob);
+  try {
+    const image = new Image();
+    await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error("The local poster image could not be decoded. Download SVG instead.")); image.src = url; });
+    if (!current()) return;
+    const canvas = document.createElement("canvas"); canvas.width = 1080; canvas.height = 1350;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("PNG export is unavailable in this browser. Download SVG instead.");
+    context.drawImage(image, 0, 0, 1080, 1350);
+    const blob = await new Promise((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error("PNG export failed. Download SVG instead.")), "image/png"));
+    if (current()) downloadBriefBlob(blob, poster.filename+".png");
+  } catch (error) { if (current()) toast(error.message, true); }
+  finally { URL.revokeObjectURL(url); if (current()) control.disabled = false; }
+}
+function printBriefPoster() {
+  if (!state.authenticated || !briefPoster) return;
+  document.body.classList.add("brief-printing");
+  try { window.print(); } finally { document.body.classList.remove("brief-printing"); }
 }
 async function showBriefReceipt(receipt) {
+  clearBriefPoster();
+  const request = briefViewRequest, token = state.token;
+  const current = () => state.authenticated && state.token === token && request === briefViewRequest;
   const actions = $("#brief-artifacts"); clear(actions);
-  if (!receipt) return;
+  if (!receipt || !state.authenticated) return;
   $("#brief-report-title").textContent = `${receipt.day || "Latest brief"} · ${humanize(receipt.status)}`;
   $("#brief-receipt").textContent = `${receipt.model_calls ?? 0} model calls · ${receipt.wall_seconds ?? "—"} seconds · ${receipt.source_count ?? 0} cached sources`;
   const artifact = receipt.artifacts?.find(item => item.path.endsWith("brief.md"));
-  if (artifact) {
-    const report = await api(`/briefing/report?request_id=${encodeURIComponent(receipt.request_id)}`);
+  if (artifact && receipt.status === "completed") {
+    let report;
+    try { report = await api(`/briefing/report?request_id=${encodeURIComponent(receipt.request_id)}`); }
+    catch (error) {
+      if (current()) { $("#brief-report").textContent = "Could not read this saved brief. "+error.message; toast(error.message, true); }
+      return;
+    }
+    if (!current()) return;
     $("#brief-report").textContent = report.content || "The report is empty.";
     if (report.truncated) $("#brief-report").append(document.createTextNode("\n[Preview truncated; download the report for complete content.]"));
-    for (const file of receipt.artifacts) actions.append(button(file.path.endsWith(".md") ? "Download report" : "Download evidence JSON", "button-secondary", () => downloadArtifact(file.path), "file"));
+    const poster = report.poster;
+    if (poster && poster.mime === "image/svg+xml" && poster.width === 1080 && poster.height === 1350 && typeof poster.svg === "string" && poster.svg.length <= 36000) {
+      const blob = new Blob([poster.svg], {type:"image/svg+xml"});
+      briefPosterUrl = URL.createObjectURL(blob);
+      briefPoster = {blob, filename:"ariadne-brief-"+String(receipt.day || receipt.request_id).replace(/[^A-Za-z0-9_-]/g,"_").slice(0,64)};
+      const image = $("#brief-poster-image");
+      image.src = briefPosterUrl; image.alt = typeof poster.accessible_text === "string" ? poster.accessible_text : "One-page Ariadne daily brief";
+      $("#brief-poster-note").textContent = poster.note || "One-page view from verified saved evidence. Full details below.";
+      $("#brief-poster-frame").hidden = false;
+      const png = button("Download PNG", "button-primary", () => downloadBriefPoster("png", png), "arrow-up-right");
+      const svg = button("Download SVG", "button-secondary", () => downloadBriefPoster("svg", svg), "file");
+      actions.append(png, svg, button("Print one page", "button-secondary", printBriefPoster, "file"));
+    }
+    for (const file of receipt.artifacts) {
+      if (file.path.endsWith(".svg")) continue; // Freshness-aware export above; saved SVG stays in the workspace.
+      actions.append(button(file.path.endsWith(".md") ? "Full report" : "Evidence JSON", "button-secondary", () => downloadArtifact(file.path), "file"));
+    }
   } else $("#brief-report").textContent = receipt.error || "This briefing has no completed report. Inspect its status before retrying.";
 }
 async function saveBriefing(event) {

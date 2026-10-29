@@ -1,5 +1,7 @@
 # Ariadne — local AI in a box
 
+Version 0.12 adds the **Signal Room interface**, a **1080×1350 one-page daily brief** with local PNG/SVG export and printing, and a **Windows background host that continues after the launcher or Codex closes**. Double-click Start to launch or reopen the verified host; use Stop Ariadne.cmd for explicit shutdown. See [interface research](docs/SIGNAL_ROOM_0_12.md), [daily signal](docs/DAILY_SIGNAL_0_12.md) and [independent hosting](docs/INDEPENDENT_HOST_0_12.md).
+
 Version 0.11 adds **quick offline Cori speech**, a reusable CPU speech worker, voice and pace controls shared by PC wake replies and browser playback, and concise spoken answers. Existing system speech and four slower Kokoro presets remain available. See [voice operation and measurements](docs/FAST_VOICE_0_11.md).
 
 Version 0.10 adds **three local-only specialist agents**, six checked offline workflows with a new output folder per run, and verified structural comparisons between saved routine reports. The full portable exporter pins public model assets and excludes private model metadata. See [offline autonomy and portable operation](docs/OFFLINE_AUTONOMY_0_10.md).
@@ -23,8 +25,9 @@ This is an implemented assistant runtime, not movie-level general intelligence. 
 For a fresh GitHub clone, follow [Build from source](docs/BUILD_FROM_SOURCE.md). See [GitHub source contents](docs/GITHUB_SOURCE.md) for included files and private-data exclusions.
 
 1. Double-click **Start Ariadne.cmd**, or run `powershell -NoProfile -ExecutionPolicy Bypass -File .\start.ps1` from this folder.
-2. Open **http://127.0.0.1:8080**. Paste the pairing token printed in the launcher terminal. The browser retains it in tab-session storage, not a password manager. **Lock** clears that browser session.
+2. Open **http://127.0.0.1:8080**. Pair using the key in `data/server.token`. The background host does not print that key into its logs. The browser retains it in tab-session storage, not a password manager. **Lock** clears that browser session.
 3. Start a mission, or review a reusable **Workflow**. Inspect its activity trail, file checks and approval requests. Add references under **Knowledge**, durable notes under **Memory**, and recurring instructions under **Schedules**. **Capabilities** shows the tools actually available on this server.
+4. Closing the browser, launcher or Codex leaves the Windows background host running. Double-click **Stop Ariadne.cmd** when you want Ariadne and its owned model/flow services to stop. This does not install a Windows service or automatic login task.
 
 The local token is also in `data/server.token`. Treat the project data folder and backups as private. `python -m ariadne token` prints it locally. Never share the token in a public URL.
 

@@ -416,6 +416,10 @@ class Application:
             if not receipt or receipt.get("status") != "completed":
                 raise KeyError()
             result = self.briefing_content(receipt)
+            json_artifact, payload = self.briefing_payload(receipt, "brief.json")
+            from .brief_poster import poster_view
+            result["poster"] = poster_view(json.loads(payload))
+            result["poster"]["evidence_json"] = {"path": json_artifact["path"], "sha256": json_artifact["sha256"]}
         elif parts == ["voice", "wake"] and method == "GET":
             result = self.wake_status()
         elif parts == ["voice", "wake", "start"] and method == "POST":

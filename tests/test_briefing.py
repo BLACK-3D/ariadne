@@ -99,7 +99,7 @@ class BriefingTests(unittest.TestCase):
         self.assertEqual(report["activity"]["window_end_utc"], "2026-10-28T11:00:00+00:00")
         self.assertEqual(report["model_calls"], 0)
         self.assertEqual(receipt["model_calls"], 0)
-        self.assertEqual(len(receipt["artifacts"]), 2)
+        self.assertEqual({row["path"].rsplit("/", 1)[-1] for row in receipt["artifacts"]}, {"brief.json", "brief.md", "brief.svg"})
         for row in receipt["artifacts"]:
             data = self.registry._path(row["path"]).read_bytes()
             self.assertEqual(hashlib.sha256(data).hexdigest(), row["sha256"])

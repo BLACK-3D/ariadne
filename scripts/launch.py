@@ -14,7 +14,7 @@ from ariadne.locking import InstanceLock
 from scripts.provision import local_env, start_model_server
 
 
-def main():
+def main(*, on_ready=None, stop_event=None, show_pairing_token=True, on_service_started=None, require_new_services=False, service_process_factory=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args()
@@ -25,7 +25,7 @@ def main():
     if not os.environ.get("ARIADNE_OLLAMA_URL"):
         if not executable.is_file():
             raise SystemExit("The bundled Ollama runtime is missing. Run scripts/provision.py or explicitly configure ARIADNE_OLLAMA_URL for your own server.")
-        start_model_server(executable, local_env(), allow_owned=True)
+        start_model_server(executable, local_env(), allow_owned=not require_new_services, on_process=on_service_started, create_process=service_process_factory)
     # Only the provisioned factory routes opt into the fixed local service.
     # Other owner-managed services retain their own lifecycle.
     automation = _allowed_path(settings.data_dir / "automation-config.json")
@@ -33,7 +33,7 @@ def main():
         entries = json.loads(automation.read_text(encoding="utf-8")).get("flows", [])
         if any(entry.get("id") == "flows_health" and entry.get("url") == "http://127.0.0.1:1880/ariadne/health" and entry.get("token_file") == "flows.token" for entry in entries):
             from scripts.local_services import start as start_flows
-            start_flows()
+            start_flows(on_process=on_service_started, require_new=require_new_services, create_process=service_process_factory)
     browser_host = "127.0.0.1" if settings.host in {"0.0.0.0", "::"} else settings.host
     url = f"http://{browser_host}:{settings.port}"
     # Check local worker ownership without transmitting credentials to a listener.
@@ -50,7 +50,12 @@ def main():
         probe.release()
     from ariadne.__main__ import main as serve
     sys.argv = [sys.argv[0], "serve"]
-    serve(on_ready=None if args.no_browser else lambda: webbrowser.open(url))
+    def ready():
+        if on_ready:
+            on_ready()
+        if not args.no_browser:
+            webbrowser.open(url)
+    serve(on_ready=ready, stop_event=stop_event, show_pairing_token=show_pairing_token)
 
 
 if __name__ == "__main__":

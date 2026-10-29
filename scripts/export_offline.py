@@ -24,11 +24,12 @@ from ariadne import __version__
 
 SOURCE_DIRS = ("ariadne", "scripts", "tests")
 SOURCE_FILES = {"LICENSE", "README.md", "THIRD_PARTY_NOTICES.md", "pyproject.toml", "Dockerfile", "compose.yaml",
-    "compose.provision.yaml", "Start Ariadne.cmd", "start.ps1", "start.sh", ".gitignore", ".dockerignore"}
+    "compose.provision.yaml", "Start Ariadne.cmd", "Stop Ariadne.cmd", "start.ps1", "start.sh", ".gitignore", ".dockerignore"}
 CONFIG_FILES = {"engineering-assets.json", "knowledge-model-assets.json", "knowledge-wheels-manifest.json", "ocr-wheels-manifest.json",
     "production-assets.json", "production-blender-assets.json", "mcp.example.json", "connectors.example.json", "box-profiles.json", "public-models.json", "speech-assets.json"}
 DOCS = {"ARCHITECTURE.md", "ANALYTICS_0_3.md", "OCR_0_3.md", "MCP_0_3.md", "KNOWLEDGE_0_4.md", "MEDIA_0_4.md", "PRODUCTION_0_4.md", "PORTABLE_0_4.md", "DELIVERY_0_4.md",
     "DIFFERENTIAL_REVIEW_0_4_SHARED.md", "REVIEW_0_4_EXTENSIONS.md", "REVIEW_PORTABLE_PYTHON_0_4.md", "SURVIVAL_0_5.md", "SURVIVAL-SOURCES.md", "WORKFLOWS_0_5.md", "AGENTS_0_6.md", "DAILY-BRIEFING.md", "WAKE_VOICE.md", "INTERNET.md", "COMMAND_CENTER_0_8.md", "OFFLINE_ROUTINES_0_9.md", "OFFLINE_AUTONOMY_0_10.md", "FAST_VOICE_0_11.md", "BUILD_FROM_SOURCE.md", "GITHUB_SOURCE.md"}
+DOCS.update({"SIGNAL_ROOM_0_12.md", "INDEPENDENT_HOST_0_12.md", "DAILY_SIGNAL_0_12.md"})
 RUNTIME_DIRS = ("runtime/python", "runtime/ollama", "runtime/whisper", "runtime/ocr/models", "runtime/ocr/wheels", "runtime/ocr/notices",
     "runtime/media/python", "runtime/media/flux-python", "runtime/media/piper-python", "runtime/media/piper", "runtime/media/kokoro", "runtime/media/sherpa", "runtime/media/silero",
     "runtime/media/diarization", "runtime/media/flux", "runtime/media/licenses", "runtime/media/wheels", "runtime/media/flux-wheels",
