@@ -1,5 +1,7 @@
 # Daily briefing
 
+Version 0.14 adds an opt-in [daily repository watch](REPOSITORY_WATCH_0_14.md) to the same local report. It shares existing Internet/pause controls, uses a fixed shortlist and retains dated results offline. The user's requested 6 AM repository updates do not require Codex to be open.
+
 The [29 October 2026 capability radar](CAPABILITY_RADAR_2026_10_29.md) is a separately dated research addendum covering business systems, trading technology and local controls. Its local copy lives under `data/workspace/briefings/capability-radar-2026-10-29`. It preserves the completed daily report and its verified receipt. The scan creates no automatic repository polling, installations, broker connections or device authority; future repository-update scheduling is a separate preference.
 
 In 0.7, the owner Internet switch in **Internet** also governs this collector, including the independent Windows scheduled job. New installations start with the switch off. With it off, reports use saved dated evidence and make no new public requests. Both the master Internet switch and the briefing's online-source preference must be enabled for refresh. See [Internet operation](INTERNET.md).

@@ -1,5 +1,7 @@
 # Ariadne — local AI in a box
 
+Version 0.14 adds a **daily repository watch** to the local 6 AM brief: selected business, trading, control and AI upstreams, first-observation baselines, changed/unchanged metadata and dated offline results. It uses no language model and installs nothing. See [daily repository operation](docs/REPOSITORY_WATCH_0_14.md).
+
 The [29 October capability radar](docs/CAPABILITY_RADAR_2026_10_29.md) adds a primary-source scan of **49 business, trading, device/control and AI candidates**, with offline requirements, license constraints, recurring-cost considerations and concrete integration workflows. These are researched proposals, separate from installed capabilities. The dated report is also saved as a local daily-brief addendum.
 
 Version 0.13 adds **checked private backups**: double-click **Backup Ariadne.cmd** to create a new owner-state archive, verify every member hash and check each SQLite snapshot before publishing it. Verification runs offline without a model and leaves Ariadne running. This is a standalone utility; an already running server can keep its current version until its next deliberate restart. See [backup scope and verification limits](docs/CHECKED_BACKUPS_0_13.md).

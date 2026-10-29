@@ -47,16 +47,29 @@ def main():
             revision = json.loads(os.environ["ARIADNE_BRIEFING_INTERNET_REVISION"])
             if revision is not None and (type(revision) is not int or revision < 0):
                 raise ValueError("Invalid Internet revision.")
-            if int(os.environ["ARIADNE_BRIEFING_CONFIG_REVISION"]) != cfg["revision"]:
-                raise ValueError("Briefing settings changed before collection.")
+            config_revision = int(os.environ["ARIADNE_BRIEFING_CONFIG_REVISION"])
+            if config_revision < 0:
+                raise ValueError("Invalid briefing revision.")
+        except (KeyError, ValueError):
+            raise SystemExit("Collector configuration is missing or invalid; dated cache is retained.") from None
+        try:
+            if config_revision != cfg["revision"]:
+                raise BriefingCollectionStopped("Briefing settings changed before collection.")
             check = lambda: service.check_collection(cfg, revision)
             check()
-            cache = collect_external(cfg, check=check)
+            if cfg["repository_updates"]:
+                service.collect_repository_updates(cfg, revision)
+            cache = None
+            if cfg["region"]:
+                cache = collect_external(cfg, check=check)
+                check()
+                service.save_cache(cache, _region_digest(cfg), collection_policy=(cfg, revision))
             check()
-            service.save_cache(cache, _region_digest(cfg), collection_policy=(cfg, revision))
-        except (BriefingCollectionStopped, KeyError, ValueError):
+        except BriefingCollectionStopped:
             raise SystemExit("Collection settings changed or were revoked; dated cache is retained.") from None
-        result = {"ok": True, "sources": len(cache["sources"])}
+        except (KeyError, ValueError):
+            raise SystemExit("Public-source collection failed validation; dated cache is retained.") from None
+        result = {"ok": True, "sources": len(cache["sources"]) if cache else 0, "repository_updates": cfg["repository_updates"]}
     elif args.action == "status":
         result = service.status()
     elif args.action == "run":

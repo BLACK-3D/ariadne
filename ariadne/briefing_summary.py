@@ -58,6 +58,82 @@ def _size(value):
     return len(json.dumps(value, ensure_ascii=False, allow_nan=False))
 
 
+def repository_summary(report, now=None):
+    """Pure bounded view of recorded repository checks, never a live scan.
+
+    Counts are derived from the saved rows, not publisher text or unchecked
+    aggregate counters. Baselines are distinct from changed observations.
+    """
+    now = datetime.now(timezone.utc) if now is None else now
+    if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
+        raise ValueError("Repository summary time must carry an explicit time zone.")
+    now = now.astimezone(timezone.utc)
+    raw = report.get("repository_updates") if isinstance(report, dict) else None
+    raw = raw if type(raw) is dict else {}
+    cfg = report.get("config") if isinstance(report, dict) and type(report.get("config")) is dict else {}
+    enabled = raw.get("enabled") is True or not raw and cfg.get("repository_updates") is True
+    result = {"enabled": enabled, "status": "disabled" if not enabled else "unavailable", "checked_at": None,
+              "stale": bool(enabled), "counts": {"changed": 0, "baseline": 0, "unchanged": 0, "failed": 0},
+              "items": [], "omitted": False,
+              "description": "Repository updates are disabled for this saved report." if not enabled else
+                  "No verified repository snapshot is available; no current release facts are inferred."}
+    if not enabled:
+        return result
+    stamp = _date(raw.get("checked_at"))
+    result["checked_at"] = stamp.isoformat(timespec="seconds") if stamp else None
+    result["status"] = raw.get("status") if raw.get("status") in {"fresh", "cached", "partial", "unavailable"} else "unavailable"
+    result["stale"] = not stamp or (now-stamp).total_seconds() > 36*3600 or (now-stamp).total_seconds() < -300
+    note, clipped = _short(raw.get("collection_note"), 240)
+    if note:
+        result["collection_note"] = note
+    result["omitted"] |= clipped
+    rows = raw.get("sources") if type(raw.get("sources")) is list else []
+    result["omitted"] |= len(rows) > 16
+    for row in rows[:16]:
+        if type(row) is not dict:
+            result["omitted"] = True
+            continue
+        status = row.get("status") if row.get("status") in {"baseline", "changed", "unchanged", "cached_refresh_failed", "unavailable"} else "unavailable"
+        name, cut = _short(row.get("name"), 80)
+        version, version_cut = _short(row.get("version"), 96)
+        previous, previous_cut = _short(row.get("previous_version"), 96)
+        checked, published = _date(row.get("checked_at")), _date(row.get("published_at"))
+        if status in {"baseline", "changed", "unchanged"} and (not checked or (now-checked).total_seconds() < -300):
+            status = "unavailable"
+        stale = status in {"unavailable", "cached_refresh_failed"} or not checked
+        if checked:
+            age = (now-checked).total_seconds()
+            stale = stale or age > 36*3600 or age < -300
+        changes = row.get("changes") if type(row.get("changes")) is list else []
+        changed_fields = []
+        for change in changes[:6]:
+            value, value_cut = _short(change, 40)
+            if value:
+                changed_fields.append(value)
+            result["omitted"] |= value_cut
+        item = {"name": name or "Repository name unavailable", "status": status, "version": version or None,
+                "checked_at": checked.isoformat(timespec="seconds") if checked else None, "stale": bool(stale), "changes": changed_fields}
+        if previous:
+            item["previous_version"] = previous
+        if published:
+            item["published_at"] = published.isoformat(timespec="seconds")
+        source_url = _url(row.get("url"))
+        if source_url:
+            item["url"] = source_url
+        result["items"].append(item)
+        result["counts"][status if status in {"changed", "baseline", "unchanged"} else "failed"] += 1
+        result["stale"] |= stale
+        result["omitted"] |= cut or version_cut or previous_cut or len(changes) > 6
+    if result["items"]:
+        counts = result["counts"]
+        result["description"] = ("Saved watch: "+str(counts["changed"])+" changed; "+str(counts["baseline"])+
+            " first observations; "+str(counts["unchanged"])+" unchanged; "+str(counts["failed"])+
+            " failed/unavailable. These outcomes apply to the recorded checks; first observations are not new releases.")
+    if result["stale"]:
+        result["description"] += " Saved checks are stale, failed or unavailable; this is not a fresh comprehensive search."
+    return result
+
+
 def compact_summary(report, now=None):
     """Return at most 5,500 JSON characters with explicit omissions and citations.
 
@@ -93,6 +169,13 @@ def compact_summary(report, now=None):
         "truncated": False, "omitted": {"source_entries": max(0, len(sources)-MAX_SOURCE_ENTRIES), "source_items": 0,
                                         "text_clipped": region_cut, "urls": 0, "warnings": 0},
     }
+    radar = repository_summary(report, now)
+    if radar["enabled"]:
+        # Reserve a small explicit repository header in the model-facing view;
+        # full row metadata and URLs remain in the verified Markdown/JSON.
+        result["repository_updates"] = {key: radar[key] for key in ("status", "checked_at", "stale", "counts")}
+        result["repository_updates"]["note"] = "Saved watchlist outcomes, not a fresh comprehensive scan. First observations are not new releases. Details in full report."
+        result["omitted"]["repository_rows"] = len(radar["items"])
     indexed, groups = {}, {kind: [] for kind in _KINDS}
     for number, source in enumerate(sources[:MAX_SOURCE_ENTRIES], 1):
         if type(source) is not dict:

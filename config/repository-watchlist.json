@@ -1,0 +1,112 @@
+{
+  "schema": 1,
+  "scope": "Fixed read-only release/commit/model-metadata watchlist. Research leads only; no installations, accounts, trades or device authority.",
+  "entries": [
+    {
+      "id": "erpnext",
+      "name": "ERPNext",
+      "domain": "business",
+      "kind": "github_release",
+      "repo": "frappe/erpnext"
+    },
+    {
+      "id": "dolibarr",
+      "name": "Dolibarr",
+      "domain": "business",
+      "kind": "github_release",
+      "repo": "Dolibarr/dolibarr"
+    },
+    {
+      "id": "twenty",
+      "name": "Twenty CRM",
+      "domain": "business",
+      "kind": "github_release",
+      "repo": "twentyhq/twenty"
+    },
+    {
+      "id": "paperless",
+      "name": "Paperless-ngx",
+      "domain": "business",
+      "kind": "github_release",
+      "repo": "paperless-ngx/paperless-ngx"
+    },
+    {
+      "id": "openbb",
+      "name": "OpenBB ODP",
+      "domain": "trading",
+      "kind": "github_release",
+      "repo": "openbq-org/OpenBB"
+    },
+    {
+      "id": "qlib",
+      "name": "Qlib",
+      "domain": "trading",
+      "kind": "github_release",
+      "repo": "microsoft/qlib"
+    },
+    {
+      "id": "lean",
+      "name": "LEAN engine",
+      "domain": "trading",
+      "kind": "github_commit",
+      "repo": "QuantConnect/Lean",
+      "branch": "master"
+    },
+    {
+      "id": "home-assistant",
+      "name": "Home Assistant Core",
+      "domain": "controls",
+      "kind": "github_release",
+      "repo": "home-assistant/core"
+    },
+    {
+      "id": "esphome",
+      "name": "ESPHome",
+      "domain": "controls",
+      "kind": "github_release",
+      "repo": "esphome/esphome"
+    },
+    {
+      "id": "matter-server",
+      "name": "Matter.js server",
+      "domain": "controls",
+      "kind": "github_release",
+      "repo": "matter-js/matterjs-server"
+    },
+    {
+      "id": "dsc",
+      "name": "Microsoft DSC",
+      "domain": "controls",
+      "kind": "github_release",
+      "repo": "PowerShell/DSC"
+    },
+    {
+      "id": "ollama",
+      "name": "Ollama",
+      "domain": "ai_core",
+      "kind": "github_release",
+      "repo": "ollama/ollama"
+    },
+    {
+      "id": "llama-cpp",
+      "name": "llama.cpp",
+      "domain": "ai_core",
+      "kind": "github_release",
+      "repo": "ggml-org/llama.cpp"
+    },
+    {
+      "id": "qwen35",
+      "name": "Qwen3.5-9B",
+      "domain": "ai_core",
+      "kind": "hf_model",
+      "repo": "Qwen/Qwen3.5-9B"
+    },
+    {
+      "id": "lfm3-omni",
+      "name": "LFM3-Omni-2B",
+      "domain": "ai_core",
+      "kind": "hf_model",
+      "repo": "LiquidAI/LFM3-Omni-2B"
+    }
+  ]
+}

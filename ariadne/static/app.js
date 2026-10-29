@@ -2490,6 +2490,8 @@ async function loadBriefing() {
       $("#brief-latitude").value = cfg.region?.latitude ?? "";
       $("#brief-longitude").value = cfg.region?.longitude ?? "";
       $("#brief-online").checked = cfg.online_sources;
+      $("#brief-repository-updates").checked = cfg.repository_updates === true;
+      $("#brief-config-form").dataset.revision = String(cfg.revision);
       $("#brief-feeds").value = (cfg.news_feeds || []).map(feed => feed.url).join("\n");
     }
     $("#brief-error").textContent = cfg.pause_reason || ""; $("#brief-error").hidden = !cfg.pause_reason;
@@ -2598,9 +2600,11 @@ async function saveBriefing(event) {
   if (briefConfig?.paused && !await confirmAction("Resume the daily brief?", "Review the previous failed or interrupted report before resuming. The daily schedule will not replay that day automatically.", "Save and resume", "Keep held")) return;
   $("#brief-save").disabled = true;
   try {
+    const expectedRevision = Number($("#brief-config-form").dataset.revision);
+    if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) throw new Error("Refresh briefing settings before saving.");
     const urls = $("#brief-feeds").value.split(/\r?\n/).map(value => value.trim()).filter(Boolean);
     const feeds = urls.map(url => (briefConfig?.news_feeds || []).find(feed => feed.url === url) || {title:"Regional official news", url, region_terms:[]});
-    await api("/briefing/config", {method:"PUT", body:{enabled:$("#brief-enabled").checked, paused:false, region:name ? {name, latitude:Number(latitude), longitude:Number(longitude), country:"US"} : null, online_sources:$("#brief-online").checked, news_feeds:feeds}});
+    await api("/briefing/config", {method:"PUT", body:{enabled:$("#brief-enabled").checked, paused:false, region:name ? {name, latitude:Number(latitude), longitude:Number(longitude), country:"US"} : null, online_sources:$("#brief-online").checked, repository_updates:$("#brief-repository-updates").checked, news_feeds:feeds, expected_revision:expectedRevision}});
     toast("Daily briefing settings saved."); await loadBriefing();
   } catch (error) { toast(error.message, true); }
   finally { $("#brief-save").disabled = false; }

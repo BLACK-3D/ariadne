@@ -90,6 +90,8 @@ class PortableExportReviewTests(unittest.TestCase):
             "docs/SIGNAL_ROOM_0_12.md": b"Offline interface design decisions.",
             "docs/DAILY_SIGNAL_0_12.md": b"One-page local briefing instructions.",
             "docs/CHECKED_BACKUPS_0_13.md": b"Private backup verification and recovery limits.",
+            "config/repository-watchlist.json": b'{"schema":1,"repositories":[]}',
+            "docs/REPOSITORY_WATCH_0_14.md": b"Bounded daily upstream metadata watch.",
         }
         for name, payload in public.items():
             target = self.root / name
@@ -98,12 +100,15 @@ class PortableExportReviewTests(unittest.TestCase):
         private = self.root / "data/host/status.json"
         private.parent.mkdir(parents=True)
         private.write_bytes(b"PRIVATE_HOST_CONTROL_EVENT_AND_PROCESS_STATE")
+        (self.root / "data/repository-radar-cache.json").write_bytes(b"PRIVATE_REPOSITORY_WATCH_BASELINE")
         export(self.output, self.root)
         with zipfile.ZipFile(self.output) as archive:
             for name, payload in public.items():
                 self.assertEqual(archive.read(name), payload)
             self.assertFalse(any(name.startswith("data/host/") for name in archive.namelist()))
             self.assertFalse(any(b"PRIVATE_HOST_CONTROL_EVENT_AND_PROCESS_STATE" in archive.read(name) for name in archive.namelist()))
+            self.assertNotIn("data/repository-radar-cache.json", archive.namelist())
+            self.assertFalse(any(b"PRIVATE_REPOSITORY_WATCH_BASELINE" in archive.read(name) for name in archive.namelist()))
 
     def test_changed_reviewed_public_manifest_refuses_before_archive_publication(self):
         path = self.root / self.catalog()["models"][0]["manifest"]["path"]

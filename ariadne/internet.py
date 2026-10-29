@@ -187,11 +187,16 @@ def _tls_context():
     return context
 
 
-def public_get(url, *, deadline=None):
+def public_get(url, *, deadline=None, max_redirects=3, max_bytes=None):
     """DNS checked as a complete set, then numeric socket pinned under hostname TLS."""
+    max_bytes = MAX_BYTES if max_bytes is None else max_bytes
+    if type(max_redirects) is not int or not 0 <= max_redirects <= 3:
+        raise ValueError("Public reads permit zero to three redirects.")
+    if type(max_bytes) is not int or not 1 <= max_bytes <= MAX_BYTES:
+        raise ValueError("Public response byte limit must be within the supported maximum.")
     deadline = deadline or time.monotonic()+25
     initial = url = public_url(url)
-    for redirects in range(4):
+    for redirects in range(max_redirects+1):
         parsed = urlsplit(url)
         remaining = deadline-time.monotonic()
         if remaining <= 0:
@@ -215,8 +220,8 @@ def public_get(url, *, deadline=None):
             response = connection.getresponse()
             if response.status in {301, 302, 303, 307, 308}:
                 location = response.getheader("Location")
-                if not location or redirects == 3:
-                    raise ValueError("Public source exceeded three redirects or supplied an invalid redirect.")
+                if not location or redirects == max_redirects:
+                    raise ValueError("Public source exceeded its redirect limit or supplied an invalid redirect.")
                 url = public_url(urljoin(url, location))
                 continue
             if response.status != 200:
@@ -224,13 +229,13 @@ def public_get(url, *, deadline=None):
             if response.getheader("Content-Encoding", "identity").lower() not in {"", "identity"}:
                 raise ValueError("Compressed responses are not accepted.")
             length = response.getheader("Content-Length")
-            if length and (not length.isdecimal() or int(length) > MAX_BYTES):
-                raise ValueError("Public response exceeds the 2 MB limit or has an invalid length.")
+            if length and (not length.isdecimal() or int(length) > max_bytes):
+                raise ValueError("Public response exceeds its byte limit or has an invalid length.")
             content_type = response.getheader("Content-Type", "")
             if content_type.split(";", 1)[0].strip().lower() not in _MIME:
                 raise ValueError("Only text, HTML, JSON and XML responses are accepted.")
             payload = bytearray()
-            while len(payload) <= MAX_BYTES:
+            while len(payload) <= max_bytes:
                 remaining = deadline-time.monotonic()
                 if remaining <= 0:
                     raise TimeoutError("Public request exceeded its deadline.")
@@ -238,12 +243,12 @@ def public_get(url, *, deadline=None):
                 # close response while HTTPResponse's file still owns the fd.
                 # Keep the original bounded socket timeout; do not manipulate
                 # that closed socket after getresponse() on Windows.
-                chunk = response.read1(min(65_536, MAX_BYTES+1-len(payload)))
+                chunk = response.read1(min(65_536, max_bytes+1-len(payload)))
                 if not chunk:
                     break
                 payload.extend(chunk)
-            if len(payload) > MAX_BYTES:
-                raise ValueError("Public response exceeds the 2 MB limit.")
+            if len(payload) > max_bytes:
+                raise ValueError("Public response exceeds its byte limit.")
             return {"requested_url": initial, "url": url, "content_type": content_type,
                     "payload": bytes(payload), "bytes": len(payload), "fetched_at": _stamp()}
         finally:

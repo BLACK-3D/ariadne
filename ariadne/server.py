@@ -396,7 +396,15 @@ class Application:
                 raise ValueError("The browser location is stale; request a fresh position")
             self.store.set_setting("device_location", result)
         elif parts == ["briefing", "config"] and method == "PUT":
-            result = self.briefing.configure(self.body(env))
+            data = self.body(env)
+            if type(data) is not dict:
+                raise ValueError("Briefing settings must be a JSON object")
+            expected_revision = data.pop("expected_revision", None)
+            from .briefing import BriefingConflict
+            try:
+                result = self.briefing.configure(data, expected_revision=expected_revision)
+            except BriefingConflict as error:
+                raise HTTPError(409, str(error)) from None
         elif parts == ["briefing", "run"] and method == "POST":
             data = self.body(env)
             if set(data) - {"request_id"}:

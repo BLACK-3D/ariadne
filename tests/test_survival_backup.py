@@ -82,6 +82,7 @@ class SurvivalBackupTests(unittest.TestCase):
             "mcp.json": b'{"fixture":"keep byte-for-byte"}',
             "automation-config.json": b'{"fixture":"flows"}',
             "knowledge-config.json": b'{"fixture":"private references"}',
+            "repository-radar-cache.json": b'{"fixture":"dated upstream baseline"}',
             "erpnext/bootstrap.env": b"FIXTURE_SECRET=owner-only\n",
         }
         for name, payload in private.items():

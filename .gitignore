@@ -16,6 +16,8 @@ __pycache__/
 /.backup-integrity-*/
 /.backup-review-*/
 /.workflow-schedule-review-*/
+/.repo-radar-test-*/
+/.repository-brief-test-*/
 /dist/
 /backups/
 *.egg-info/

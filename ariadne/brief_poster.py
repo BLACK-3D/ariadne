@@ -11,7 +11,7 @@ import re
 import textwrap
 from urllib.parse import urlsplit
 
-from .briefing_summary import compact_summary
+from .briefing_summary import compact_summary, repository_summary
 
 WIDTH, HEIGHT = 1080, 1350
 MAX_SVG_BYTES = 36_000
@@ -52,6 +52,7 @@ def poster_view(report, now=None):
     source item carries its own freshness label; omitted details stay in JSON/MD.
     """
     summary = compact_summary(report, now)
+    radar = repository_summary(report, now)
     source_index = {row["id"]: row for row in summary["sources"]}
     generated = summary["generated_at_utc"]
     checked = summary["freshness_checked_at_utc"]
@@ -83,7 +84,8 @@ def poster_view(report, now=None):
             suffix = " / EXPIRED" if item.get("expiry") == "expired" else " / EXPIRY UNKNOWN" if item.get("expiry") == "unknown" else ""
             signals.append({"label": name+" · "+status(item["source"])+suffix,
                             "title": item["title"], "detail": item.get("summary", "")})
-    shown_signals = signals[:3]
+    signal_limit = 2 if radar["enabled"] else 3
+    shown_signals = signals[:signal_limit]
     if not shown_signals:
         shown_signals = [{"label": "SOURCE COVERAGE", "title": "No regional items available in this view.",
                           "detail": "An empty saved response is not an all-clear. Review official channels."}]
@@ -169,7 +171,17 @@ def poster_view(report, now=None):
         y = 778+index*98
         text(clip(item["label"], 82), 64, y, 14, _AMBER, family="Consolas, monospace")
         lines(item["title"], 64, y+29, 67, 2, 22, weight=700, gap=27)
-    text("03 / YOUR NEXT MOVE", 64, 1085, 17, _MUTED, family="Consolas, monospace")
+    if radar["enabled"]:
+        text("03 / REPOSITORY WATCH", 64, 974, 17, _MUTED, family="Consolas, monospace")
+        if radar["items"]:
+            counts = radar["counts"]
+            line = (str(counts["changed"])+" CHANGED / "+str(counts["baseline"])+" FIRST OBS. / "+
+                    str(counts["unchanged"])+" UNCHANGED / "+str(counts["failed"])+" FAILED")
+        else:
+            line = "No verified repository snapshot available."
+        lines(line, 64, 1003, 88, 1, 18, _INK, weight=700)
+        text("LAST ATTEMPT "+_clock(radar["checked_at"])+(" / STALE OR FAILED" if radar["stale"] else " / SAVED CHECKS")+" / DETAILS IN REPORT", 64, 1032, 12, _AMBER if radar["stale"] else _MUTED, family="Consolas, monospace")
+    text(("04" if radar["enabled"] else "03")+" / YOUR NEXT MOVE", 64, 1085, 17, _MUTED, family="Consolas, monospace")
     lines(priority, 64, 1123, 65, 1, 23, weight=700)
     lines(priority_note, 64, 1154, 83, 1, 18, _MUTED)
     rule(1175)
@@ -183,7 +195,7 @@ def poster_view(report, now=None):
         text(_clock(row["retrieved"]), x, y+14, 11, _MUTED, family="Consolas, monospace")
     if not summary["sources"]:
         lines("No matching public-source cache. Weather, forecast and regional facts are unavailable.", 64, 1232, 110, 2, 14, _MUTED)
-    omissions = len(signals) > 3 or summary["truncated"] or presentation_clipped
+    omissions = len(signals) > signal_limit or summary["truncated"] or presentation_clipped or radar["omitted"]
     text("Compact view · full details + URLs in report"+(" · items/text omitted" if omissions else ""), 64, 1331, 12, _MUTED)
     text("Saved evidence is not an all-clear. Local recorded activity only. 0 model calls.", 64, 1347, 11, _MUTED)
     svg.append('</svg>')
@@ -196,5 +208,6 @@ def poster_view(report, now=None):
             "note": "One-page view derived from verified saved JSON. Source freshness checked at "+_clock(checked)+". Full report retains details and URLs.",
             "accessible_text": "\n".join(["Ariadne daily brief", region, "Generated "+_clock(generated),
                 "Station: "+conditions+"; "+(status(weather["source"]) if weather else "unavailable"),
-                *[item["title"]+" — "+item["label"] for item in shown_signals], priority,
+                *[item["title"]+" — "+item["label"] for item in shown_signals],
+                *(["Repository watch: "+radar["description"]+" Last attempt "+_clock(radar["checked_at"])] if radar["enabled"] else []), priority,
                 "Saved evidence is not an all-clear. Full details and source URLs remain in the report."])}
