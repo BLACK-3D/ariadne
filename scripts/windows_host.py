@@ -78,6 +78,22 @@ def same_process(expected):
         return False
 
 
+def in_any_job(pid):
+    """Native job membership, separate from immutable identity/stop authority."""
+    kernel = _kernel()
+    kernel.IsProcessInJob.argtypes = [wintypes.HANDLE, wintypes.HANDLE, ctypes.POINTER(wintypes.BOOL)]
+    handle = kernel.OpenProcess(0x1000, False, pid)
+    if not handle:
+        raise ProcessLookupError("Process unavailable for independence verification.")
+    try:
+        result = wintypes.BOOL()
+        if not kernel.IsProcessInJob(handle, None, ctypes.byref(result)):
+            raise OSError("Could not verify native process independence.")
+        return bool(result.value)
+    finally:
+        kernel.CloseHandle(handle)
+
+
 class StopEvent:
     """Named, random, same-user control channel; no HTTP token is transmitted."""
     def __init__(self, name, *, create=False):
@@ -301,22 +317,13 @@ def _job_process(job, command, *, cwd, env, stdout, stderr, stdin, creationflags
 
 
 def detach(command, cwd, environment):
-    """Try explicit job breakaway, then same-user WMI process creation.
+    """Create the fixed host through the same-user Windows CIM broker.
 
-    A denied breakaway never falls back to an ordinary inherited child. WMI's
-    creator is the Windows provider, so the caller's kill-on-close job does not
-    own the host. The caller must verify resulting PID/exe/creation/owner and
-    wait for the host's nonce-bound readiness receipt before claiming success.
+    Successful direct breakaway can retain an outer nested caller job. The
+    broker is therefore always used; provider breakaway flags apply there.
+    Both the host and launcher independently require native job-free status
+    before services/readiness. A denied broker never uses an inherited fallback.
     """
-    flags = 0x01000000 | 0x00000008 | 0x00000200
-    try:
-        process = subprocess.Popen(command, cwd=cwd, env=environment, stdin=subprocess.DEVNULL,
-                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                   close_fds=True, creationflags=flags)
-        return process.pid, "win32_breakaway"
-    except OSError as error:
-        if error.winerror not in (5, 50, 87):
-            raise
     # Fixed PowerShell source; command/path arrive as JSON stdin, never shell code.
     script = "$ErrorActionPreference='Stop';$p=[Console]::In.ReadToEnd()|ConvertFrom-Json;$s=New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{ShowWindow=[uint16]0;CreateFlags=[uint32]0x01000208};$r=Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{CommandLine=[string]$p.command;CurrentDirectory=[string]$p.cwd;ProcessStartupInformation=$s};if($r.ReturnValue -ne 0){throw 'Independent host creation failed'};[Console]::Write([string]$r.ProcessId)"
     executable = str(Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe")

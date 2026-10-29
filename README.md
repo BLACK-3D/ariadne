@@ -2,6 +2,8 @@
 
 Version 0.12 adds the **Signal Room interface**, a **1080×1350 one-page daily brief** with local PNG/SVG export and printing, and a **Windows background host that continues after the launcher or Codex closes**. Double-click Start to launch or reopen the verified host; use Stop Ariadne.cmd for explicit shutdown. See [interface research](docs/SIGNAL_ROOM_0_12.md), [daily signal](docs/DAILY_SIGNAL_0_12.md) and [independent hosting](docs/INDEPENDENT_HOST_0_12.md).
 
+The 0.12.1 host uses the fixed Windows CIM broker and verifies that the host is outside all Windows jobs before starting services. A successful breakaway alone is insufficient when a caller belongs to nested jobs.
+
 Version 0.11 adds **quick offline Cori speech**, a reusable CPU speech worker, voice and pace controls shared by PC wake replies and browser playback, and concise spoken answers. Existing system speech and four slower Kokoro presets remain available. See [voice operation and measurements](docs/FAST_VOICE_0_11.md).
 
 Version 0.10 adds **three local-only specialist agents**, six checked offline workflows with a new output folder per run, and verified structural comparisons between saved routine reports. The full portable exporter pins public model assets and excludes private model metadata. See [offline autonomy and portable operation](docs/OFFLINE_AUTONOMY_0_10.md).

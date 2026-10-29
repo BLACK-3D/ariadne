@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT))
 from ariadne.box_profiles import regular
 from ariadne.config import _allowed_path
 from ariadne.locking import InstanceLock
-from scripts.windows_host import StopEvent, ServiceJob, detach, process_identity, same_process
+from scripts.windows_host import StopEvent, ServiceJob, detach, in_any_job, process_identity, same_process
 
 ENVIRONMENT_KEYS = frozenset({"ARIADNE_DATA_DIR", "ARIADNE_HOST", "ARIADNE_PORT", "ARIADNE_MODEL", "ARIADNE_MAX_STEPS",
     "ARIADNE_MODEL_TIMEOUT", "ARIADNE_OFFLINE", "ARIADNE_OLLAMA_URL", "ARIADNE_ENABLE_DOCKER", "ARIADNE_DOCKER_IMAGE"})
@@ -80,6 +80,16 @@ def status():
     return record if verified_record(record) else None
 
 
+def job_free(identity):
+    """Bind the job query to the same immutable process on both sides."""
+    if not same_process(identity):
+        raise ValueError("Host identity changed before independence verification.")
+    free = not in_any_job(identity["pid"])
+    if not same_process(identity):
+        raise ValueError("Host identity changed during independence verification.")
+    return free
+
+
 def start(*, no_browser=False):
     """One serialized launch, one fixed child, bounded readiness; never retry."""
     base = host_directory()
@@ -90,6 +100,8 @@ def start(*, no_browser=False):
         if current:
             if current["state"] != "running":
                 raise ValueError("Ariadne is starting/stopping; no duplicate host was created.")
+            if not job_free(current["identity"]):
+                raise ValueError("The existing Ariadne host remains job-bound. Stop it before starting an independent host.")
             if not no_browser:
                 webbrowser.open(current["url"])
             print("Ariadne is already running independently. " + current["url"])
@@ -117,6 +129,8 @@ def start(*, no_browser=False):
         identity = process_identity(pid)
         if identity["executable"] != str(Path(sys.executable).resolve()) or identity["owner_sid"] != process_identity(os.getpid())["owner_sid"]:
             raise ValueError("Independent process identity mismatch; no ready host claimed.")
+        if not job_free(identity):
+            raise ValueError("The broker-created process remains job-bound; no independent host is claimed.")
         deadline = time.monotonic() + 100
         while time.monotonic() < deadline:
             if not same_process(identity):
@@ -131,7 +145,9 @@ def start(*, no_browser=False):
                 if record.get("state") == "failed":
                     raise ValueError("Independent host startup failed; no automatic retry was attempted.")
                 if record.get("state") == "running":
-                    write_json(base / "last-launch.json", {"schema": 1, "request_id": request_id, "method": method, "identity": identity, "ready": True})
+                    if record.get("job_free_preflight") is not True or record.get("job_free_ready") is not True or not job_free(identity):
+                        raise ValueError("Host readiness did not prove native process independence.")
+                    write_json(base / "last-launch.json", {"schema": 1, "request_id": request_id, "method": method, "identity": identity, "ready": True, "native_job_free": True})
                     if not no_browser:
                         webbrowser.open(record["url"])
                     print("Ariadne is running independently. " + record["url"])
@@ -214,6 +230,10 @@ def run(request_id):
               "stop_event": "Local\\Ariadne-" + secrets.token_hex(24), "state": "starting", "services": []}
     log_path = base / "host.log"
     try:
+        if not job_free(record["identity"]):
+            record["independence_error"] = "Job-bound host refused before any application or owned service startup."
+            raise ValueError("The background host remains associated with a Windows job.")
+        record["job_free_preflight"] = True
         event = StopEvent(record["stop_event"], create=True)
         services = ServiceJob()
         write_json(base / "status.json", record)
@@ -228,10 +248,12 @@ def run(request_id):
             record["services"].append(process_identity(process.pid))
             write_json(base / "status.json", record)
         def ready():
+            if not job_free(record["identity"]):
+                raise ValueError("Host became job-bound before readiness.")
             from ariadne.config import load_settings
             settings = load_settings()
             host = "127.0.0.1" if settings.host in {"0.0.0.0", "::"} else settings.host
-            record.update(state="running", url=f"http://{host}:{settings.port}")
+            record.update(state="running", url=f"http://{host}:{settings.port}", job_free_ready=True)
             write_json(base / "status.json", record)
         watcher = threading.Thread(target=watch_for_stop, args=(event, finished, stop_requested, record,
                                    lambda: write_json(base / "status.json", record)), name="ariadne-host-stop", daemon=True)
@@ -281,7 +303,8 @@ def main():
             stop()
         elif args.action == "status":
             current = status()
-            print(json.dumps({"running": bool(current), "state": current["state"] if current else "stopped"}))
+            print(json.dumps({"running": bool(current), "state": current["state"] if current else "stopped",
+                              "independent": bool(current) and job_free(current["identity"])}))
         else:
             run(args.request)
     except (ValueError, OSError) as error:

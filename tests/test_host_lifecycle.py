@@ -19,8 +19,14 @@ class HostTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.root_patch = patch.object(host, "ROOT", self.root)
         self.root_patch.start()
+        self.job_patch = patch.object(host, "in_any_job", return_value=False)
+        self.job_patch.start()
+        self.process_patch = patch.object(host, "same_process", return_value=True)
+        self.process_patch.start()
 
     def tearDown(self):
+        self.process_patch.stop()
+        self.job_patch.stop()
         self.root_patch.stop()
         self.temp.cleanup()
 
@@ -76,6 +82,54 @@ class HostTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "starting/stopping"):
                 host.start(no_browser=True)
         detach.assert_not_called()
+
+    def test_job_bound_existing_host_is_not_claimed_independent_or_relaunched(self):
+        with patch.object(host, "status", return_value=self.record()), patch.object(host, "in_any_job", return_value=True), patch.object(host, "detach") as detach, patch.object(host.webbrowser, "open") as browser:
+            with self.assertRaisesRegex(ValueError, "remains job-bound"):
+                host.start()
+        detach.assert_not_called()
+        browser.assert_not_called()
+
+    def test_job_bound_preflight_refuses_before_event_services_or_app_work(self):
+        request_id = "a" * 48
+        host.write_json(host.host_directory() / ("start-" + request_id + ".json"),
+                        {"schema": 1, "request_id": request_id, "environment": {}})
+        with patch.dict(os.environ), patch.object(host.os, "chdir"), patch.object(host, "process_identity", return_value=self.identity()), patch.object(host, "in_any_job", return_value=True), patch.object(host, "StopEvent") as event, patch.object(host, "ServiceJob") as services, patch("scripts.launch.main") as launch:
+            host.run(request_id)
+        event.assert_not_called()
+        services.assert_not_called()
+        launch.assert_not_called()
+        record = host.read_json(host.host_directory() / "status.json")
+        self.assertEqual(record["state"], "failed")
+        self.assertNotIn("job_free_preflight", record)
+        self.assertEqual(record["services"], [])
+        self.assertIn("Job-bound host refused", record["independence_error"])
+
+    def test_job_bound_existing_host_remains_eligible_for_identity_checked_stop(self):
+        current = self.record()
+        event = Mock()
+        with patch.object(host, "status", return_value=current), patch.object(host, "in_any_job", return_value=True) as membership, patch.object(host, "StopEvent", return_value=event), patch.object(host, "same_process", side_effect=[True, False, False]), patch.object(host, "read_json", return_value={**current, "state": "stopped"}), patch("sys.stdout", io.StringIO()):
+            self.assertTrue(host.stop())
+        event.signal.assert_called_once()
+        membership.assert_not_called()
+
+    def test_job_query_is_bracketed_by_exact_identity_rechecks(self):
+        with patch.object(host, "same_process", side_effect=[True, False]) as identity, patch.object(host, "in_any_job", return_value=False) as membership:
+            with self.assertRaisesRegex(ValueError, "changed during"):
+                host.job_free(self.identity())
+        self.assertEqual(identity.call_count, 2)
+        membership.assert_called_once_with(self.identity()["pid"])
+
+    def test_job_query_failure_refuses_preflight_before_services_or_app(self):
+        request_id = "c" * 48
+        host.write_json(host.host_directory() / ("start-" + request_id + ".json"),
+                        {"schema": 1, "request_id": request_id, "environment": {}})
+        with patch.dict(os.environ), patch.object(host.os, "chdir"), patch.object(host, "process_identity", return_value=self.identity()), patch.object(host, "in_any_job", side_effect=OSError("injected unavailable query")), patch.object(host, "StopEvent") as event, patch.object(host, "ServiceJob") as services, patch("scripts.launch.main") as launch:
+            host.run(request_id)
+        event.assert_not_called()
+        services.assert_not_called()
+        launch.assert_not_called()
+        self.assertEqual(host.read_json(host.host_directory() / "status.json")["state"], "failed")
 
     def test_stop_absent_or_stale_record_changes_no_process(self):
         with patch.object(host, "status", return_value=None), patch.object(host, "StopEvent") as event, patch("sys.stdout", io.StringIO()):
