@@ -47,7 +47,7 @@ def seed_workflows(store):
             for item in items:
                 if db.execute("SELECT count(*) FROM workflows").fetchone()[0] >= 100:
                     break
-                db.execute("INSERT INTO workflows VALUES (?,?,?,?,?)", (ident(), item["name"], item["prompt"], json.dumps(item["checks"]), now()))
+                db.execute("INSERT INTO workflows(id,name,prompt,checks,created_at,agent_id) VALUES (?,?,?,?,?,?)", (ident(), item["name"], item["prompt"], json.dumps(item["checks"]), now(), item.get("agent_id", "general")))
             db.execute("INSERT INTO settings VALUES (?, 'true')", (key,))
 
 

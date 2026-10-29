@@ -65,7 +65,8 @@ class Store:
             additions = {
                 "runs": {"checks": "TEXT NOT NULL DEFAULT '[]'", "verification": "TEXT NOT NULL DEFAULT '{}'", "verification_status": "TEXT NOT NULL DEFAULT 'not_requested'", "verification_attempts": "INTEGER NOT NULL DEFAULT 0", "workflow_id": "TEXT", "agent_id": "TEXT NOT NULL DEFAULT 'general'"},
                 "approvals": {"capability_fingerprint": "TEXT NOT NULL DEFAULT ''", "capability": "TEXT NOT NULL DEFAULT '{}'"},
-                "schedules": {"last_error": "TEXT"},
+                "schedules": {"last_error": "TEXT", "workflow_id": "TEXT", "checks": "TEXT NOT NULL DEFAULT '[]'", "agent_id": "TEXT NOT NULL DEFAULT 'general'"},
+                "workflows": {"agent_id": "TEXT NOT NULL DEFAULT 'general'"},
                 "document_versions": {"processor": "TEXT NOT NULL DEFAULT '{}'", "content_sha256": "TEXT"},
                 "documents": {"source_id": "TEXT", "source_name": "TEXT", "source_path": "TEXT", "sha256": "TEXT", "format": "TEXT", "byte_size": "INTEGER", "version": "INTEGER NOT NULL DEFAULT 1", "updated_at": "REAL", "warnings": "TEXT NOT NULL DEFAULT '[]'", "processor": "TEXT NOT NULL DEFAULT '{}'", "content_sha256": "TEXT"},
             }
@@ -341,15 +342,20 @@ class Store:
         with self.connect() as db:
             return self.decode(db.execute("SELECT * FROM workflows WHERE id=?", (workflow_id,)).fetchone())
 
-    def workflow_save(self, name, prompt, checks, workflow_id=None):
+    def workflow_save(self, name, prompt, checks, workflow_id=None, agent_id=None):
+        from .agents import resolve_agent
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
-            if workflow_id and not db.execute("SELECT 1 FROM workflows WHERE id=?", (workflow_id,)).fetchone():
+            existing = db.execute("SELECT agent_id FROM workflows WHERE id=?", (workflow_id,)).fetchone() if workflow_id else None
+            if workflow_id and not existing:
                 raise KeyError("Workflow not found")
             if not workflow_id and db.execute("SELECT count(*) FROM workflows").fetchone()[0] >= 100:
                 raise ValueError("At most 100 workflows may be saved")
             workflow_id = workflow_id or ident()
-            db.execute("INSERT INTO workflows(id,name,prompt,checks,created_at) VALUES (?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,prompt=excluded.prompt,checks=excluded.checks", (workflow_id, name, prompt, json.dumps(checks), now()))
+            selected = existing["agent_id"] if agent_id is None and existing else "general" if agent_id is None else agent_id
+            if selected != "auto":
+                selected = resolve_agent(prompt, selected)
+            db.execute("INSERT INTO workflows(id,name,prompt,checks,created_at,agent_id) VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,prompt=excluded.prompt,checks=excluded.checks,agent_id=excluded.agent_id", (workflow_id, name, prompt, json.dumps(checks), now(), selected))
             return self.decode(db.execute("SELECT * FROM workflows WHERE id=?", (workflow_id,)).fetchone())
 
     def workflow_delete(self, workflow_id):
@@ -362,19 +368,34 @@ class Store:
             workflow = self.decode(db.execute("SELECT * FROM workflows WHERE id=?", (workflow_id,)).fetchone())
             if not workflow:
                 raise KeyError("Workflow not found")
-            run_id = self._insert_run(db, workflow["prompt"], checks=workflow["checks"], workflow_id=workflow_id)
+            run_id = self._insert_run(db, workflow["prompt"], checks=workflow["checks"], workflow_id=workflow_id, agent_id=workflow["agent_id"])
         return self.run(run_id)
 
     def schedules(self):
         with self.connect() as db:
-            return [dict(r) for r in db.execute("SELECT * FROM schedules ORDER BY next_run")]
+            return [self.decode(r) for r in db.execute("SELECT * FROM schedules ORDER BY next_run")]
 
-    def schedule_add(self, name, prompt, interval):
+    def schedule_add(self, name, prompt, interval, workflow_id=None, agent_id=None, checks=None):
+        from .agents import resolve_agent
+        if type(interval) is not int or not 5 <= interval <= 525600:
+            raise ValueError("interval_minutes must be an integer between 5 and 525600")
         schedule_id = ident()
         with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
             if db.execute("SELECT count(*) FROM schedules").fetchone()[0] >= 100:
                 raise ValueError("Schedule limit reached (100).")
-            db.execute("INSERT INTO schedules(id,name,prompt,interval_minutes,enabled,next_run,last_run_id) VALUES (?,?,?,?,?,?,NULL)", (schedule_id, name, prompt, interval, 1, now() + interval * 60))
+            if workflow_id is not None:
+                if not isinstance(workflow_id, str):
+                    raise ValueError("workflow_id must name a saved workflow")
+                workflow = self.decode(db.execute("SELECT * FROM workflows WHERE id=?", (workflow_id,)).fetchone())
+                if not workflow:
+                    raise KeyError("Workflow not found")
+                prompt, checks, agent_id = workflow["prompt"], workflow["checks"], workflow["agent_id"]
+            if not isinstance(prompt, str) or not prompt.strip() or len(prompt) > 16000:
+                raise ValueError("A schedule requires mission instructions of at most 16000 characters")
+            # Resolve automatic routing once into this immutable schedule snapshot.
+            selected = resolve_agent(prompt, agent_id)
+            db.execute("INSERT INTO schedules(id,name,prompt,interval_minutes,enabled,next_run,last_run_id,workflow_id,checks,agent_id) VALUES (?,?,?,?,?,?,NULL,?,?,?)", (schedule_id, name, prompt, interval, 1, now() + interval * 60, workflow_id, json.dumps(checks or []), selected))
         return {"id": schedule_id}
 
     def schedule_update(self, schedule_id, enabled):
@@ -399,7 +420,7 @@ class Store:
                     db.execute("UPDATE schedules SET enabled=0,last_error='Previous mission stopped or failed its expected output checks. Review and explicitly re-enable.' WHERE id=?", (schedule["id"],))
                     continue
                 try:
-                    run_id = self._insert_run(db, schedule["prompt"])
+                    run_id = self._insert_run(db, schedule["prompt"], checks=json.loads(schedule["checks"]), workflow_id=schedule["workflow_id"], agent_id=schedule["agent_id"])
                 except ValueError:
                     break
                 db.execute("UPDATE schedules SET next_run=?,last_run_id=? WHERE id=?", (now() + schedule["interval_minutes"] * 60, run_id, schedule["id"]))

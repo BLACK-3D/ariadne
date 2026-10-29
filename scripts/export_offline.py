@@ -26,7 +26,7 @@ SOURCE_FILES = {"LICENSE", "README.md", "THIRD_PARTY_NOTICES.md", "pyproject.tom
 CONFIG_FILES = {"engineering-assets.json", "knowledge-model-assets.json", "knowledge-wheels-manifest.json", "ocr-wheels-manifest.json",
     "production-assets.json", "production-blender-assets.json", "mcp.example.json", "connectors.example.json", "box-profiles.json"}
 DOCS = {"ARCHITECTURE.md", "ANALYTICS_0_3.md", "OCR_0_3.md", "MCP_0_3.md", "KNOWLEDGE_0_4.md", "MEDIA_0_4.md", "PRODUCTION_0_4.md", "PORTABLE_0_4.md", "DELIVERY_0_4.md",
-    "DIFFERENTIAL_REVIEW_0_4_SHARED.md", "REVIEW_0_4_EXTENSIONS.md", "REVIEW_PORTABLE_PYTHON_0_4.md", "SURVIVAL_0_5.md", "SURVIVAL-SOURCES.md", "WORKFLOWS_0_5.md", "AGENTS_0_6.md", "DAILY-BRIEFING.md", "WAKE_VOICE.md", "INTERNET.md", "COMMAND_CENTER_0_8.md"}
+    "DIFFERENTIAL_REVIEW_0_4_SHARED.md", "REVIEW_0_4_EXTENSIONS.md", "REVIEW_PORTABLE_PYTHON_0_4.md", "SURVIVAL_0_5.md", "SURVIVAL-SOURCES.md", "WORKFLOWS_0_5.md", "AGENTS_0_6.md", "DAILY-BRIEFING.md", "WAKE_VOICE.md", "INTERNET.md", "COMMAND_CENTER_0_8.md", "OFFLINE_ROUTINES_0_9.md", "BUILD_FROM_SOURCE.md", "GITHUB_SOURCE.md"}
 RUNTIME_DIRS = ("runtime/python", "runtime/ollama", "runtime/whisper", "runtime/ocr/models", "runtime/ocr/wheels", "runtime/ocr/notices",
     "runtime/media/python", "runtime/media/flux-python", "runtime/media/kokoro", "runtime/media/sherpa", "runtime/media/silero",
     "runtime/media/diarization", "runtime/media/flux", "runtime/media/licenses", "runtime/media/wheels", "runtime/media/flux-wheels",
@@ -117,7 +117,7 @@ def inventory(root=ROOT):
             if path.is_file() and path.name in CONFIG_FILES:
                 info = _regular(path)
                 files["config/" + path.name] = (path, info.st_size)
-    for relative in ("config/erpnext/compose.yaml", "config/erpnext/images.json"):
+    for relative in ("config/erpnext/compose.yaml", "config/erpnext/images.json", "config/erpnext/LICENSE"):
         path = _allowed_path(root / relative)
         if path.exists():
             info = _regular(path)

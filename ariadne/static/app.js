@@ -23,6 +23,7 @@ const iconPaths = {
   sparkles: ["m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3ZM20 2v4M18 4h4"],
   "arrow-up-right": ["M6 18 18 6M6 6h12v12"],
   "arrow-up": ["M12 20V4M5 11l7-7 7 7"],
+  "arrow-down": ["M12 4v16M5 13l7 7 7-7"],
   "arrow-right": ["M4 12h16M13 5l7 7-7 7"],
   "arrow-left": ["M20 12H4M11 5l-7 7 7 7"],
   workflow: ["M3 3h6v6H3V3ZM15 15h6v6h-6v-6ZM6 9v9h9M9 6h9v9"],
@@ -216,6 +217,7 @@ function renderStatus(status) {
   if (status.internet) renderInternetStatus(status.internet);
   updateComposer();
   window.ariadneCommand?.status(status);
+  window.ariadneRoutines?.status(status);
 }
 async function refreshStatus({quiet = false} = {}) {
   if (!state.authenticated || state.refreshingStatus) return;
@@ -291,6 +293,7 @@ function lockSession(message = "") {
   updateComposer();
   setMenu(false);
   window.ariadneCommand?.locked();
+  window.ariadneRoutines?.locked();
   $("#access-token").focus();
 }
 
@@ -757,6 +760,7 @@ async function loadSchedules() {
       const symbol = node("span", "schedule-icon"); symbol.append(icon("clock"));
       const body = node("div", "schedule-body");
       body.append(node("h2", "", schedule.name), node("p", "", schedule.prompt));
+      if (schedule.workflow_id) body.append(node("p", "schedule-workflow-snapshot", `Saved workflow snapshot · ${workflowAgentLabel(schedule.agent_id)} · ${(schedule.checks || []).length} output checks. Later workflow edits do not change these instructions.`));
       if (schedule.last_error) body.append(node("p", "schedule-last-error", `Schedule held · ${schedule.last_error}`));
       const meta = node("div", "schedule-meta");
       const interval = node("span"); interval.append(icon("clock"), document.createTextNode(intervalLabel(schedule.interval_minutes)));
@@ -773,6 +777,7 @@ async function loadSchedules() {
         catch (error) { toast(error.message, true); toggle.disabled = false; }
       });
       actions.append(toggle, iconButton("trash", "Remove schedule", () => removeResource("schedules", schedule.id, "Remove this schedule?", `“${schedule.name}” will stop creating recurring missions. Existing missions will remain.`)));
+      if (schedule.last_run_id) actions.append(button("Last mission", "button-secondary", () => selectRun(schedule.last_run_id), "eye"));
       card.append(main, actions); container.append(card);
     }
   });
@@ -801,14 +806,32 @@ function confirmAction(title, description, actionLabel = "Remove", cancelLabel =
 const editorDefinitions = {
   source:{title:"Add a read-only source folder", eyebrow:"LOCAL REFERENCE ACCESS", endpoint:"sources", fields:[{name:"name",label:"Folder name",max:120,placeholder:"For example: Business references"},{name:"path",label:"Absolute folder path on this server",max:1000,placeholder:"C:\\ReferenceLibrary",help:"This grants read-only browsing of this folder. Selected documents can be imported into Knowledge. Drive E: and linked paths are excluded."}]},
   workflow:{title:"Create a workflow",eyebrow:"REUSABLE INSTRUCTIONS, CHECKABLE OUTPUTS",endpoint:"workflows",fields:[{name:"name",label:"Workflow name",max:120,placeholder:"For example: Prepare a weekly operations brief"},{name:"prompt",label:"Mission instructions",textarea:true,max:16000,placeholder:"Describe the task, references, output paths, and boundaries…"},{name:"checks",label:"Expected output checks (JSON)",textarea:true,code:true,max:50000,value:"[]",help:"Up to 10 workspace checks. Use the templates below, then edit their paths, text, or column names. Use quoted decimal strings for exact JSON number checks; unquoted values must be safe integers. An empty array means no automatic outcome checks."}]},
+  workflowSchedule:{title:"Schedule a saved workflow",eyebrow:"FROZEN WORKFLOW / RECURRING LOCAL WORK",endpoint:"schedules",fields:[{name:"name",label:"Schedule name",max:120},{name:"interval_minutes",label:"Repeat every (minutes)",type:"number",min:5,max:525600,value:1440,help:"Saving captures this workflow's current instructions, output checks and resolved agent. Later workflow edits do not change this schedule. Missed intervals are not replayed; ordinary permissions and approval gates remain active."}]},
   memory:{title:"Add a memory", eyebrow:"DURABLE CONTEXT", endpoint:"memory", fields:[{name:"content", label:"What should Ariadne remember?", textarea:true, max:4000, placeholder:"For example: Prefer simple local tools and low recurring operating costs.", help:"Keep it useful and specific. Maximum 4,000 characters."}]},
   knowledge:{title:"Add local knowledge", eyebrow:"YOUR REFERENCE LIBRARY", endpoint:"knowledge", fields:[{name:"title", label:"Document title", max:200, placeholder:"For example: Our business operating principles"}, {name:"content", label:"Reference text", textarea:true, max:500000, placeholder:"Paste the content you want to make searchable…", help:"Plain text is indexed and stored on this server. Maximum 500,000 characters."}]},
   schedule:{title:"Create a schedule", eyebrow:"RECURRING LOCAL WORK", endpoint:"schedules", fields:[{name:"name", label:"Schedule name", max:120, placeholder:"For example: Daily workspace review"}, {name:"prompt", label:"Mission instructions", textarea:true, max:16000, placeholder:"Describe the work, its expected output, and any limits…", help:"The same tool permissions and approval policies apply."}, {name:"interval_minutes", label:"Repeat every (minutes)", type:"number", min:5, max:525600, value:1440, help:"Minimum 5 minutes. Runs while the server is powered on; missed intervals are not replayed."}]},
 };
+editorDefinitions.workflow.fields.splice(1, 0, {name:"agent_id", label:"Assigned agent", type:"agent", value:"general", help:"Choose a specialist or automatic routing. Saved workflow missions keep the existing approval and step limits."});
+function populateWorkflowAgent(select, chosen = "general") {
+  select.replaceChildren();
+  const auto = node("option", "", "Auto · route this workflow"); auto.value = "auto"; select.append(auto);
+  const entries = agentCatalog.length ? agentCatalog : [{id:"general",name:"Ariadne coordinator"}];
+  for (const agent of entries) { const option = node("option", "", agent.name); option.value = agent.id; select.append(option); }
+  if (![...select.options].some(option => option.value === chosen)) {
+    const missing = node("option", "", `${chosen} · unavailable`); missing.value = chosen; missing.disabled = true; select.append(missing);
+  }
+  select.value = chosen;
+}
+function workflowAgentLabel(identifier) {
+  return identifier === "auto" ? "Auto · resolved when queued" : agentCatalog.find(agent => agent.id === (identifier || "general"))?.name || humanize(identifier || "general");
+}
+function scheduleWorkflow(workflow) {
+  openEditor("workflowSchedule", {extra:{workflow_id:workflow.id}, values:{name:`${workflow.name} schedule`.slice(0,120)}});
+}
 function openEditor(type, options = {}) {
   const definition = editorDefinitions[type];
   if (!definition) return;
-  state.editor = {...definition, editId:options.editId || null};
+  state.editor = {...definition, editId:options.editId || null, extra:options.extra || {}};
   $("#editor-title").textContent = options.editId ? "Edit workflow" : definition.title;
   $("#editor-eyebrow").textContent = definition.eyebrow;
   $("#editor-error").hidden = true;
@@ -819,11 +842,12 @@ function openEditor(type, options = {}) {
   for (const field of definition.fields) {
     const wrapper = node("div", "editor-field");
     const label = node("label", "", field.label); label.htmlFor = `editor-input-${field.name}`;
-    const input = node(field.textarea ? "textarea" : "input");
+    const input = node(field.type === "agent" ? "select" : field.textarea ? "textarea" : "input");
     input.id = `editor-input-${field.name}`; input.name = field.name; input.required = true;
     if (field.placeholder) input.placeholder = field.placeholder;
     if (field.textarea || !field.type) input.maxLength = field.max;
-    if (field.type) { input.type = field.type; input.min = String(field.min); input.max = String(field.max); input.step = "1"; }
+    if (field.type === "agent") populateWorkflowAgent(input, options.values?.[field.name] || field.value || "general");
+    else if (field.type) { input.type = field.type; input.min = String(field.min); input.max = String(field.max); input.step = "1"; }
     if (field.value !== undefined) input.value = String(field.value);
     if (options.values?.[field.name] !== undefined) input.value = String(options.values[field.name]);
     if (field.code) { input.classList.add("code-input"); input.spellcheck = false; }
@@ -833,7 +857,7 @@ function openEditor(type, options = {}) {
     fields.append(wrapper);
   }
   $("#editor-dialog").showModal();
-  $("input, textarea", fields)?.focus();
+  $("input, textarea, select", fields)?.focus();
 }
 async function saveEditor(event) {
   event.preventDefault();
@@ -841,7 +865,7 @@ async function saveEditor(event) {
   const save = $("#save-editor"); save.disabled = true;
   $("#editor-error").hidden = true;
   const definition = state.editor;
-  const body = {};
+  const body = {...(definition.extra || {})};
   for (const field of definition.fields) {
     const value = $(`#editor-input-${field.name}`).value.trim();
     body[field.name] = field.type === "number" ? Number(value) : value;
@@ -1492,6 +1516,7 @@ async function openArtifact(path) {
 }
 async function loadWorkflows() {
   syncWorkflowTab();
+  if (state.workflowTab === "routines") { await window.ariadneRoutines?.load(); return; }
   await Promise.allSettled([loadAIWorkflows(), loadProcedures()]);
 }
 async function loadAIWorkflows() {
@@ -1504,6 +1529,7 @@ async function loadAIWorkflows() {
       const header = node("div", "resource-card-header");
       const symbol = node("div", "card-icon"); symbol.append(icon("workflow")); header.append(symbol);
       if (workflow.builtin) header.append(node("span", "tag", "Starter workflow"));
+      header.append(node("span", "tag", workflowAgentLabel(workflow.agent_id)));
       card.append(header, node("h2", "", workflow.name), node("p", "workflow-excerpt", workflow.prompt));
       const checks = workflow.checks || [];
       const list = node("div", "workflow-check-preview");
@@ -1513,6 +1539,7 @@ async function loadAIWorkflows() {
       card.append(list);
       const actions = node("div", "workflow-actions");
       actions.append(button("Review & run", "button-primary", () => reviewWorkflow(workflow), "play"));
+      actions.append(button("Schedule", "button-secondary", () => scheduleWorkflow(workflow), "clock"));
       const tools = node("div", "workflow-edit-actions");
       tools.append(iconButton("settings", "Edit workflow", () => editWorkflow(workflow)), iconButton("copy", "Copy workflow", () => editWorkflow(workflow, true)), iconButton("trash", "Remove workflow", () => removeResource("workflows", workflow.id, "Remove this workflow?", `“${workflow.name}” will be removed from your workflow library. Existing missions keep their recorded instructions and results.`)));
       actions.append(tools); card.append(actions); container.append(card);
@@ -1520,19 +1547,20 @@ async function loadAIWorkflows() {
   });
 }
 function editWorkflow(workflow, copy = false) {
-  openEditor("workflow", {editId:copy ? null : workflow.id, values:{name:`${workflow.name}${copy ? " copy" : ""}`.slice(0, 120), prompt:workflow.prompt, checks:JSON.stringify(workflow.checks || [], null, 2)}});
+  openEditor("workflow", {editId:copy ? null : workflow.id, values:{name:`${workflow.name}${copy ? " copy" : ""}`.slice(0, 120), agent_id:workflow.agent_id || "general", prompt:workflow.prompt, checks:JSON.stringify(workflow.checks || [], null, 2)}});
 }
 function saveRunWorkflow() {
   const detail = state.detail;
   if (!detail) return;
   const prompt = [...(detail.messages || [])].reverse().find(message => message.role === "user" && typeof message.content === "string")?.content || "";
   const checks = checkDefinitions(detail.run?.checks || detail.verification?.checks);
-  openEditor("workflow", {values:{name:String(detail.run?.title || "New workflow").slice(0, 120), prompt, checks:JSON.stringify(checks, null, 2)}});
+  openEditor("workflow", {values:{name:String(detail.run?.title || "New workflow").slice(0, 120), agent_id:detail.run?.agent_id || "general", prompt, checks:JSON.stringify(checks, null, 2)}});
 }
 function reviewWorkflow(workflow) {
   state.workflowToRun = workflow;
   $("#workflow-review-title").textContent = workflow.name;
   $("#workflow-review-prompt").textContent = workflow.prompt;
+  $("#workflow-review-agent").textContent = workflowAgentLabel(workflow.agent_id);
   $("#workflow-review-error").hidden = true;
   const checks = $("#workflow-review-checks"); clear(checks);
   for (const check of workflow.checks || []) {
@@ -1562,9 +1590,10 @@ function syncWorkflowTab() {
   }
 }
 function setWorkflowTab(name) {
-  if (!["ai", "procedures"].includes(name)) return;
+  if (!["ai", "procedures", "routines"].includes(name)) return;
   state.workflowTab = name; syncWorkflowTab();
   if (name === "procedures" && state.authenticated) loadProcedures();
+  if (name === "routines" && state.authenticated) window.ariadneRoutines?.load();
 }
 function procedureRequestId(run) { return run?.request_id || run?.id || ""; }
 function procedureControls() {
@@ -2279,6 +2308,7 @@ async function loadAgents({quiet = false} = {}) {
     const data = await api("/agents");
     if (!state.authenticated) return;
     agentCatalog = data.agents || [];
+    if ($("#editor-input-agent_id")) populateWorkflowAgent($("#editor-input-agent_id"), $("#editor-input-agent_id").value || "general");
     const select = $("#mission-agent"), selected = select.value;
     select.replaceChildren();
     const auto = node("option", "", "Auto · route this mission"); auto.value = "auto"; select.append(auto);
@@ -2491,7 +2521,8 @@ $$('[data-workflow-tab]').forEach(tab => {
   tab.addEventListener("click", () => setWorkflowTab(tab.dataset.workflowTab));
   tab.addEventListener("keydown", event => {
     if (!["ArrowLeft","ArrowRight","Home","End"].includes(event.key)) return;
-    event.preventDefault(); const name = event.key === "Home" ? "ai" : event.key === "End" ? "procedures" : state.workflowTab === "ai" ? "procedures" : "ai";
+    event.preventDefault(); const names = $$('[data-workflow-tab]').map(item => item.dataset.workflowTab), current = names.indexOf(state.workflowTab);
+    const name = event.key === "Home" ? names[0] : event.key === "End" ? names[names.length-1] : names[(current + (event.key === "ArrowRight" ? 1 : -1) + names.length) % names.length];
     setWorkflowTab(name); $(`[data-workflow-tab="${name}"]`).focus();
   });
 });
@@ -2648,4 +2679,5 @@ $("#internet-search-form").addEventListener("submit", event => { event.preventDe
 $("#internet-fetch-form").addEventListener("submit", event => { event.preventDefault(); requestInternet("fetch", {url:$("#internet-url").value.trim()}); });
 window.addEventListener("pagehide", () => { if (state.recording) stopRecording(true); stopSpeech(); });
 window.ariadneCommand?.attach({state, api, node, button, icon, selectRun, newMission, showView, dateLabel, humanize, modelReady, refreshStatus, loadRuns});
+window.ariadneRoutines?.attach({state, api, node, button, icon, openArtifact, downloadArtifact, confirmAction, toast, dateLabel, bytes, humanize});
 if (state.token) connect(); else $("#access-token").focus();

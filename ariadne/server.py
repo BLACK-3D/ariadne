@@ -20,6 +20,7 @@ from .voice import Voice
 from .sources import SourceManager, SourceChanged
 from .verification import validate_checks
 from .capabilities import catalog, seed_workflows
+from .routines import RoutineConflict
 
 
 class HTTPError(Exception):
@@ -48,6 +49,7 @@ class Application:
         self.sources = SourceManager(settings, self.store)
         self.engine.tools.references.books.sources = self.sources
         self.procedures = self.engine.tools.procedures.service()
+        self.routines = self.engine.routines
         from .internet import InternetService
         self.internet = InternetService(settings, self.store, self.engine.tools)
         self.engine.internet_provider = self.internet_call
@@ -230,7 +232,8 @@ class Application:
                 assets = {"/": ("index.html", "text/html"), "/index.html": ("index.html", "text/html"),
                           "/app.js": ("app.js", "text/javascript"), "/styles.css": ("styles.css", "text/css"),
                           "/static/app.js": ("app.js", "text/javascript"), "/static/styles.css": ("styles.css", "text/css"),
-                          "/static/command.js": ("command.js", "text/javascript"), "/static/command.css": ("command.css", "text/css")}
+                          "/static/command.js": ("command.js", "text/javascript"), "/static/command.css": ("command.css", "text/css"),
+                          "/static/routines.js": ("routines.js", "text/javascript")}
                 if path not in assets:
                     raise HTTPError(404, "Not found")
                 filename, mime = assets[path]
@@ -238,6 +241,8 @@ class Application:
         except HTTPError as error:
             status, payload, mime = error.status, {"error": error.message}, "application/json"
         except SourceChanged as error:
+            status, payload, mime = 409, {"error": str(error)}, "application/json"
+        except RoutineConflict as error:
             status, payload, mime = 409, {"error": str(error)}, "application/json"
         except KeyError:
             status, payload, mime = 404, {"error": "Not found"}, "application/json"
@@ -299,6 +304,7 @@ class Application:
                       "max_steps": self.settings.max_steps, "workspace": str(self.settings.workspace), "voice": self.voice.status(),
                       "speech_backend": self.store.setting("speech_backend", "system"),
                       "wake": self.wake_status()}
+            result["routines"] = self.routines.status()
             from .network_policy import network_policy_status
             result["network_policy"] = network_policy_status()
             result["internet"] = self.internet.status()
@@ -570,14 +576,54 @@ class Application:
                 result, status = {"run": self.procedures.run(parts[1], data["request_id"])}, 201
             except ProcedureConflict as error:
                 raise HTTPError(409, str(error)) from None
+        elif parts == ["routines"] and method == "GET":
+            result = {**self.routines.catalog(), "routines": self.routines.definitions(), "runs": self.routines.runs()}
+        elif parts == ["routines"] and method == "POST":
+            data = self.body(env)
+            from .tools import _object
+            _object(data, {"name", "steps", "interval_minutes", "enabled"}, {"name", "steps"})
+            result, status = {"routine": self.routines.save(text_field(data, "name", 120), data["steps"], data.get("interval_minutes", 1440), data.get("enabled", False))}, 201
+            self.engine.wake.set()
+        elif len(parts) == 2 and parts[0] == "routines" and method in {"PUT", "DELETE"}:
+            if method == "DELETE":
+                self.routines.delete(parts[1])
+                result = {"ok": True}
+            else:
+                data = self.body(env)
+                from .tools import _object
+                _object(data, {"name", "steps", "interval_minutes", "enabled", "expected_revision"}, {"name", "steps", "expected_revision"})
+                result = {"routine": self.routines.save(text_field(data, "name", 120), data["steps"], data.get("interval_minutes", 1440), data.get("enabled", False), routine_id=parts[1], expected_revision=data["expected_revision"])}
+            self.engine.wake.set()
+        elif len(parts) == 3 and parts[0] == "routines" and parts[2] == "run" and method == "POST":
+            data = self.body(env)
+            from .tools import _object
+            from .routines import RoutineConflict
+            _object(data, {"request_id"}, {"request_id"})
+            try:
+                result, status = {"run": self.routines.enqueue(parts[1], data["request_id"])}, 201
+            except RoutineConflict as error:
+                raise HTTPError(409, str(error)) from None
+            self.engine.wake.set()
+        elif len(parts) == 3 and parts[:2] == ["routines", "runs"] and method == "GET":
+            result = {"run": self.routines.detail(parts[2])}
+        elif len(parts) == 4 and parts[:2] == ["routines", "runs"] and parts[3] in {"cancel", "verify"} and method == "POST":
+            data = self.body(env)
+            from .tools import _object
+            _object(data, set(), set())
+            from .routines import RoutineConflict
+            try:
+                result = {"run": (self.routines.cancel(parts[2]) if parts[3] == "cancel" else self.routines.verify(parts[2]))}
+            except RoutineConflict as error:
+                raise HTTPError(409, str(error)) from None
+            self.engine.wake.set()
         elif parts == ["workflows"] and method == "GET":
             result = {"workflows": self.store.workflows()}
         elif parts == ["workflows"] and method == "POST":
             data = self.body(env)
-            result, status = {"workflow": self.store.workflow_save(text_field(data, "name", 120), text_field(data, "prompt", 16000), validate_checks(data.get("checks", []), self.engine.tools))}, 201
+            result, status = {"workflow": self.store.workflow_save(text_field(data, "name", 120), text_field(data, "prompt", 16000), validate_checks(data.get("checks", []), self.engine.tools), agent_id=data.get("agent_id"))}, 201
         elif len(parts) == 2 and parts[0] == "workflows" and method == "PUT":
             data = self.body(env)
-            result = {"workflow": self.store.workflow_save(text_field(data, "name", 120), text_field(data, "prompt", 16000), validate_checks(data.get("checks", []), self.engine.tools), parts[1])}
+            result = {"workflow": self.store.workflow_save(text_field(data, "name", 120), text_field(data, "prompt", 16000), validate_checks(data.get("checks", []), self.engine.tools), parts[1], agent_id=data.get("agent_id"))}
         elif len(parts) == 2 and parts[0] == "workflows" and method == "DELETE":
             self.store.workflow_delete(parts[1])
             result = {"ok": True}
@@ -592,7 +638,12 @@ class Application:
             interval = data.get("interval_minutes")
             if type(interval) is not int or not 5 <= interval <= 525600:
                 raise ValueError("interval_minutes must be an integer between 5 and 525600")
-            result, status = self.store.schedule_add(text_field(data, "name", 120), text_field(data, "prompt", 16000), interval), 201
+            if "workflow_id" in data:
+                from .tools import _object
+                _object(data, {"name", "workflow_id", "interval_minutes"}, {"name", "workflow_id", "interval_minutes"})
+                result, status = self.store.schedule_add(text_field(data, "name", 120), None, interval, workflow_id=data["workflow_id"]), 201
+            else:
+                result, status = self.store.schedule_add(text_field(data, "name", 120), text_field(data, "prompt", 16000), interval, agent_id=data.get("agent_id"), checks=validate_checks(data.get("checks", []), self.engine.tools)), 201
         elif len(parts) == 2 and parts[0] == "schedules" and method in {"POST", "DELETE"}:
             if method == "DELETE":
                 self.store.schedule_delete(parts[1])

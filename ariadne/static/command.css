@@ -363,3 +363,45 @@ button.command-metric:disabled { opacity:1; cursor:default; }
   .command-console *, .command-console *:before, .command-console *:after { animation:none!important; transition:none!important; scroll-behavior:auto!important; }
 }
 body.command-console:not(.command-motion-visible) .presence-orbit,body.command-console:not(.command-motion-visible) .presence-core { animation-play-state:paused; }
+
+/* Reusable fixed routines stay within the Workflows workspace. */
+.command-console #view-workflows>.section-tabs { overflow-x:auto; gap:22px; }
+.command-console #view-workflows>.section-tabs>[role=tab] { flex-shrink:0; }
+.command-console .workflow-actions { flex-wrap:wrap; }
+.command-console .workflow-edit-actions { margin-left:auto; }
+.routine-toolbar,.routine-card .operation-actions,.routine-receipt .operation-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.routine-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.routine-card .resource-card-header { justify-content:space-between; gap:10px; }
+.routine-plan { padding-left:23px; margin:16px 0; color:var(--text); }
+.routine-plan li { padding:6px 0 6px 4px; font-size:13px; line-height:1.6; }
+.routine-plan li::marker { color:var(--accent); font:11px var(--mono); }
+.routine-plan small { display:block; margin-top:4px; color:var(--muted); font-size:11px; overflow-wrap:anywhere; }
+.routine-schedule-note { color:var(--muted); font-size:12px; line-height:1.6; }
+.routine-card .operation-actions { margin-top:auto; padding-top:15px; }
+.routine-starters { padding:20px 0; margin-top:20px; border-top:1px solid var(--line); }
+.routine-starters>summary { cursor:pointer; font-size:14px; color:var(--text); padding:8px 0; }
+.routine-starters>p { color:var(--muted); font-size:12px; margin:8px 0 20px; }
+.routine-template h3 { margin:0 0 10px; font-size:18px; }
+.routine-template p { color:var(--muted); font-size:12px; line-height:1.7; }
+.routine-dialog { max-width:680px; }
+.routine-step-picker { border:1px solid var(--line); margin:18px 0; padding:14px; border-radius:5px; min-width:0; }
+.routine-step-picker legend { font-size:13px; padding:0 7px; }
+.routine-step-picker legend span { color:var(--muted); font-size:11px; margin-left:8px; }
+.routine-step-row { display:grid; grid-template-columns:22px minmax(0,1fr) repeat(3,34px); gap:6px; align-items:center; margin-bottom:10px; }
+.routine-step-row select { min-width:0; width:100%; font-size:12px; }
+.routine-step-row .icon-button { width:34px; height:36px; }
+.routine-step-number { color:var(--muted); font:11px var(--mono); text-align:center; }
+.routine-run-steps { padding-left:22px; margin:16px 0; }
+.routine-run-steps li { padding:9px 0; font-size:13px; }
+.routine-run-steps .tag { margin-left:12px; font-size:10px; }
+.routine-run-steps small { display:block; margin-top:5px; color:var(--muted); font:10px var(--mono); overflow-wrap:anywhere; }
+.routine-receipt .operation-actions { margin-top:16px; }
+.schedule-workflow-snapshot { font-size:12px!important; color:var(--muted); line-height:1.7; }
+@media(max-width:700px) {
+  .routine-grid { grid-template-columns:1fr; }
+  .routine-toolbar { width:100%; }
+  .routine-step-row { grid-template-columns:18px minmax(0,1fr) repeat(3,30px); gap:3px; }
+  .routine-step-row .icon-button { width:30px; min-width:30px; }
+  .routine-step-picker { padding:10px; }
+  .routine-step-picker legend span { display:block; margin-left:0; }
+}

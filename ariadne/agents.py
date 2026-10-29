@@ -13,7 +13,7 @@ from dataclasses import dataclass
 PROFILE_VERSION = 2
 COMMON = frozenset({"capability_find", "file_list", "file_read", "file_write",
                     "workspace_search", "calculate", "memory_search", "knowledge_search",
-                    "web_search", "web_fetch"})
+                    "web_search", "web_fetch", "routine_read"})
 
 
 @dataclass(frozen=True)

@@ -1,5 +1,7 @@
 # Ariadne — local AI in a box
 
+Version 0.9 adds **offline routines**: saved sequences of fixed reports, opt-in recurrence, durable step receipts and explicit artifact verification, with no model calls inside a routine. AI workflows can retain their selected specialist, and workflow schedules freeze instructions, output checks and specialist selection. See [offline routines and checked schedules](docs/OFFLINE_ROUTINES_0_9.md).
+
 A local assistant with a browser console, autonomous tool loops, durable memory, searchable knowledge, recurring missions, offline voice, and operator-defined HTTP integrations. Models, conversations and files stay on your server when using the bundled local configuration. No paid API is required.
 
 Version 0.8 introduces a **command-center interface**: a live system presence, horizontal navigation, an on-demand system directory, a directive station, an expandable mission ledger, and result dossiers with visible approval controls. Presence reflects reported activity; it does not simulate thoughts. The interface uses local assets and no new model calls or public polling. See [the command center](docs/COMMAND_CENTER_0_8.md).
