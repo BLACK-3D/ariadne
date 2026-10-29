@@ -1,0 +1,446 @@
+{
+  "schema": 1,
+  "checked_at_utc": "2026-10-29T17:25:53Z",
+  "scope": "Fourteen detailed controls candidates, plus named search/screening exclusions; official GitHub metadata, default-branch files, release redirects and publisher documentation. Broad targeted research, not all GitHub, code audit or deployment qualification.",
+  "discovery_queries": [
+    "local home automation matter mqtt",
+    "Windows UI automation",
+    "local AI agent sandbox"
+  ],
+  "screened_extras": [
+    {
+      "repo": "langchain-ai/langgraph",
+      "observed_latest_tag": "1.2.18",
+      "decision": "Defer replacing Ariadne orchestration: substantial existing-engine overlap; evidence https://github.com/langchain-ai/langgraph/releases/tag/1.2.18"
+    },
+    {
+      "repo": "matter-js/matter.js",
+      "observed_latest_tag": "v0.18.0",
+      "decision": "Library underpinning preferred server; not itself an automatically certified Matter product; evidence https://github.com/matter-js/matter.js/blob/main/README.md"
+    },
+    {
+      "repo": "shanselman/FlaUI-MCP",
+      "decision": "Discovery-only small wrapper; no authority or security qualification performed."
+    }
+  ],
+  "limits": [
+    "No repository code was cloned, executed or installed.",
+    "No hardware, camera, microphone, accounts, network settings or services were changed.",
+    "No whole-dependency vulnerability/license audit, benchmark, hardware commissioning or offline cold-start was performed.",
+    "Default-branch documentation can be ahead of releases; every integration needs exact artifact/license/dependency pins and independent qualification.",
+    "Rankings and operating-cost implications are architectural judgments; no numerical energy or monetary savings were measured."
+  ],
+  "candidates": [
+    {
+      "id": "home_assistant",
+      "repo": "home-assistant/core",
+      "name": "Home Assistant Core",
+      "domain": "controls",
+      "best_use": "Local device state and reviewed automation",
+      "license": "Apache-2.0",
+      "offline": "Local integrations can work offline; cloud integrations do not. VM/container and local network/devices remain powered.",
+      "status": "recommended_candidate",
+      "priority": 1,
+      "existing_overlap": "Existing fixed Node-RED and MCP supply a transport but no physical-device inventory.",
+      "adapter": "Start with a localhost read gateway for selected entity IDs, timestamps and unavailable states; later exact service/parameters approval.",
+      "operating_cost": "Separate VM/container, recorder retention, backups and integration updates; no added language model required.",
+      "risks": [
+        "Every authenticated HA user is an owner-like trust boundary under current security policy.",
+        "MCP defaults expose all LLM APIs; select APIs/entities instead of importing broad authority."
+      ],
+      "sources": [
+        "https://github.com/home-assistant/core/releases/tag/2026.10.4",
+        "https://github.com/home-assistant/core/blob/dev/LICENSE.md",
+        "https://www.home-assistant.io/security/",
+        "https://www.home-assistant.io/integrations/mcp_server/",
+        "https://www.home-assistant.io/installation/"
+      ],
+      "observed_latest_tag": "2026.10.4",
+      "release_published_at": null,
+      "release_date_note": "Latest-page tag or official download version observed on checked_at_utc; exact machine-readable publication timestamp was not verified.",
+      "repository_archived": false,
+      "installation": "research_only_not_installed_or_activated"
+    },
+    {
+      "id": "esphome",
+      "repo": "esphome/esphome",
+      "name": "ESPHome",
+      "domain": "controls",
+      "best_use": "Purpose-built local sensors and low-risk device endpoints",
+      "license": "MIT for Python/other code; GPL-3.0 for C++ runtime",
+      "offline": "Flashed firmware communicates locally; offline rebuild also needs the cached toolchain and exact component sources.",
+      "status": "recommended_candidate",
+      "priority": 2,
+      "existing_overlap": "Ariadne has no commissioned ESP hardware adapter; reuse HA gateway rather than second device authority path.",
+      "adapter": "Prototype temperature, environment or power telemetry via encrypted native API; device-specific bounded commands only after simulation.",
+      "operating_cost": "Requires suitable microcontroller/sensors, firmware/toolchain archive and firmware updates; device hardware draws power.",
+      "risks": [
+        "Native API encryption must be configured, not inferred.",
+        "External components/lambdas compile code; unreviewed YAML is not harmless configuration.",
+        "Physical installation and actuation need their own engineering review."
+      ],
+      "sources": [
+        "https://github.com/esphome/esphome/releases/tag/2026.10.1",
+        "https://github.com/esphome/esphome/blob/dev/LICENSE",
+        "https://new.esphome.io/components/api/"
+      ],
+      "observed_latest_tag": "2026.10.1",
+      "release_published_at": null,
+      "release_date_note": "Latest-page tag or official download version observed on checked_at_utc; exact machine-readable publication timestamp was not verified.",
+      "repository_archived": false,
+      "installation": "research_only_not_installed_or_activated"
+    },
+    {
+      "id": "mosquitto",
+      "repo": "eclipse-mosquitto/mosquitto",
+      "name": "Eclipse Mosquitto",
+      "domain": "controls",
+      "best_use": "Local MQTT event bus and bounded device telemetry",
+      "license": "EPL-2.0 OR BSD-3-Clause (Eclipse Distribution License 1.0)",
+      "offline": "Native Windows packages are available; local broker/client traffic needs no WAN after provisioning.",
+      "status": "recommended_candidate",
+      "priority": 1,
+      "existing_overlap": "Existing Node-RED can consume MQTT; Ariadne currently exposes only fixed HTTP routes, so arbitrary flows are not already approved.",
+      "adapter": "Gateway subscribes to selected state topics; write topics have separate credentials/ACLs and expiring exact command IDs.",
+      "operating_cost": "One small local broker service plus bounded retained/persistent storage; no inference required for routing.",
+      "risks": [
+        "Local-only anonymous defaults are for tests; authenticated listeners and topic ACLs are needed for a connected system.",
+        "Retained messages and redelivery can repeat unsafe commands unless command expiry/idempotency is implemented."
+      ],
+      "sources": [
+        "https://mosquitto.org/download/",
+        "https://github.com/eclipse-mosquitto/mosquitto/blob/master/LICENSE.txt",
+        "https://github.com/eclipse-mosquitto/mosquitto/blob/master/README.md",
+        "https://mosquitto.org/documentation/authentication-methods/"
+      ],
+      "observed_latest_tag": "2.1.2",
+      "release_published_at": null,
+      "release_date_note": "Latest-page tag or official download version observed on checked_at_utc; exact machine-readable publication timestamp was not verified.",
+      "repository_archived": false,
+      "installation": "research_only_not_installed_or_activated"
+    },
+    {
+      "id": "matter_server",
+      "repo": "matter-js/matterjs-server",
+      "name": "Open Home Foundation Matter.js Server",
+      "domain": "controls",
+      "best_use": "Current Matter controller behind Home Assistant",
+      "license": "Apache-2.0",
+      "offline": "Local commissioned-device control is useful offline; Thread/BLE/IPv6/mDNS and commissioning trust data still need qualification.",
+      "status": "conditional_candidate",
+      "priority": 2,
+      "existing_overlap": "Prefer HA integration instead of adding a second device/fabric authority store to Ariadne.",
+      "adapter": "Use current HA-supported Matter server and read selected attributes via the HA gateway; preserve fabric/storage backup.",
+      "operating_cost": "Node.js server and supported radio/border-router/network setup; extra credential-bearing state and upgrade/migration burden.",
+      "risks": [
+        "README supports Node 22.13+,24.x or26.x; not a claim of a native Windows hardware qualification.",
+        "The new server can migrate Python-server state on first start; do not try migration against owner devices during research.",
+        "matter.js library itself does not certify a product."
+      ],
+      "sources": [
+        "https://github.com/matter-js/matterjs-server/releases/tag/v1.5.5",
+        "https://github.com/matter-js/matterjs-server/blob/main/README.md",
+        "https://github.com/matter-js/matterjs-server",
+        "https://www.home-assistant.io/blog/2026/06/23/the-matter-upgrade-youve-been-waiting-for/",
+        "https://github.com/matter-js/matter.js/blob/main/README.md"
+      ],
+      "observed_latest_tag": "v1.5.5",
+      "release_published_at": null,
+      "release_date_note": "Latest-page tag or official download version observed on checked_at_utc; exact machine-readable publication timestamp was not verified.",
+      "repository_archived": false,
+      "installation": "research_only_not_installed_or_activated"
+    },
+    {
+      "id": "python_matter_legacy",
+      "repo": "matter-js/python-matter-server",
+      "name": "Legacy Python Matter Server",
+      "domain": "controls",
+      "best_use": "Migration context only",
+      "license": "Apache-2.0",
+      "offline": "Legacy local controller; not a new offline foundation.",
+      "status": "reject_archived",
+      "priority": 4,
+      "existing_overlap": "Do not add this archived server to Ariadne.",
+      "adapter": "Use its documentation only when planning a separately reviewed migration to matterjs-server.",
+      "operating_cost": "Unsupported legacy maintenance would add avoidable burden.",
+      "risks": [
+        "Repository archived June23,2026.",
+        "README identifies8.1.2 as final and says updates/support have ended."
+      ],
+      "sources": [
+        "https://github.com/matter-js/python-matter-server",
+        "https://github.com/matter-js/python-matter-server/blob/main/README.md"
+      ],
+      "observed_latest_tag": "8.1.2",
+      "release_published_at": null,
+      "release_date_note": "Latest-page tag or official download version observed on checked_at_utc; exact machine-readable publication timestamp was not verified.",
+      "repository_archived": true,
+      "installation": "research_only_not_installed_or_activated"
+    },
+    {
+      "id": "zigbee2mqtt",
+      "repo": "Koenkk/zigbee2mqtt",
+      "name": "Zigbee2MQTT",
+      "domain": "controls",
+      "best_use": "Local Zigbee devices and sensor state",
+      "license": "GPL-3.0",
+      "offline": "Works with local MQTT broker; Windows supported with Node and an appropriate coordinator/driver; no mandatory cloud for local devices.",
+      "status": "conditional_candidate",
+      "priority": 2,
+      "existing_overlap": "Adds radio-backed device support; reuse MQTT/HA gateway and existing approval records.",
+      "adapter": "Start with coordinator simulator and read telemetry; later specific allowed device commands with reconciliation.",
+      "operating_cost": "Separate Node process, adapter firmware/device compatibility and key/coordinator backups.",
+      "risks": [
+        "Needs supported coordinator and actual compatible devices; none were discovered or commissioned.",
+        "Do not accept unexpected onboarding/port8080 conflicts with Ariadne.",
+        "RF interference and coordinator failure are distinct from AI reliability."
+      ],
+      "sources": [
+        "https://github.com/Koenkk/zigbee2mqtt/releases/tag/2.14.2",
+        "https://github.com/Koenkk/zigbee2mqtt",
+        "https://www.zigbee2mqtt.io/guide/getting-started/",
+        "https://www.zigbee2mqtt.io/guide/adapters/",
+        "https://www.zigbee2mqtt.io/guide/installation/05_windows.html"
+      ],
+      "observed_latest_tag": "2.14.2",
+      "release_published_at": null,
+      "release_date_note": "Latest-page tag or official download version observed on checked_at_utc; exact machine-readable publication timestamp was not verified.",
+      "repository_archived": false,
+      "installation": "research_only_not_installed_or_activated"
+    },
+    {
+      "id": "pywinauto",
+      "repo": "pywinauto/pywinauto",
+      "name": "pywinauto",
+      "domain": "controls",
+      "best_use": "Selected native Windows application inspection/actions",
+      "license": "BSD-3-Clause",
+      "offline": "Can operate local Windows apps offline; many keyboard/mouse operations require an active desktop.",
+      "status": "conditional_candidate",
+      "priority": 2,
+      "existing_overlap": "Ariadne has loopback browser automation but no general approved native desktop controller.",
+      "adapter": "One app/process-identity allowlist, semantic UI selectors, short session lease, before/after evidence and explicit write approvals.",
+      "operating_cost": "On-demand Python worker; no new model required for deterministic app tasks; UI changes create maintenance.",
+      "risks": [
+        "Docs label0.6.8 while GitHub latesttag is0.6.9; exact bundled Python3.13 compatibility remains unqualified.",
+        "Lock/RDP/session changes can break desktop interaction.",
+        "Never route trading orders or privileged OS changes through a generic click/type tool."
+      ],
+      "sources": [
+        "https://github.com/pywinauto/pywinauto/releases/tag/0.6.9",
+        "https://github.com/pywinauto/pywinauto/blob/master/LICENSE",
+        "https://github.com/pywinauto/pywinauto",
+        "https://pywinauto.readthedocs.io/en/latest/remote_execution.html"
+      ],
+      "observed_latest_tag": "0.6.9",
+      "release_published_at": null,
+      "release_date_note": "Latest-page tag or official download version observed on checked_at_utc; exact machine-readable publication timestamp was not verified.",
+      "repository_archived": false,
+      "installation": "research_only_not_installed_or_activated"
+    },
+    {
+      "id": "flaui",
+      "repo": "FlaUI/FlaUI",
+      "name": "FlaUI",
+      "domain": "controls",
+      "best_use": "Alternative .NET Windows UI Automation worker",
+      "license": "MIT",
+      "offline": "Native Win32/WinForms/WPF inspection and interaction can run locally; .NET/runtime assets must be cached.",
+      "status": "conditional_candidate",
+      "priority": 3,
+      "existing_overlap": "Alternative to pywinauto, not a reason to bundle both.",
+      "adapter": "Compare one problematic target app against pywinauto; fixed signed worker and selected automation IDs.",
+      "operating_cost": "Adds .NET worker/build/runtime footprint and UI regression maintenance; choose only on measured app compatibility.",
+      "risks": [
+        "UIA2/UIA3 behavior varies by target framework.",
+        "Release5 removes older .NET targets and adds .NET8; this PC's target-app/session compatibility is not measured.",
+        "Desktop UI access itself is broad authority; library license does not constrain it."
+      ],
+      "sources": [
+        "https://github.com/FlaUI/FlaUI/releases/tag/v5.0.0",
+        "https://github.com/FlaUI/FlaUI/blob/main/LICENSE.txt",
+        "https://github.com/FlaUI/FlaUI/blob/main/README.md"
+      ],
+      "observed_latest_tag": "v5.0.0",
+      "release_published_at": null,
+      "release_date_note": "Latest-page tag or official download version observed on checked_at_utc; exact machine-readable publication timestamp was not verified.",
+      "repository_archived": false,
+      "installation": "research_only_not_installed_or_activated"
+    },
+    {
+      "id": "playwright",
+      "repo": "microsoft/playwright",
+      "name": "Playwright",
+      "domain": "controls",
+      "best_use": "Operate and verify local business web applications",
+      "license": "Apache-2.0",
+      "offline": "Existing local runtime works with provisioned browser assets; live websites still require network/account access.",
+      "status": "already_installed_extend",
+      "priority": 1,
+      "existing_overlap": "Already integrated for approved loopback apps; extend fixed workflows rather than adding an unrestricted MCP browser.",
+      "adapter": "Read inventory screens, fill draft local forms, verify generated apps and save bounded evidence; approvals remain per write.",
+      "operating_cost": "On-demand browser and regression tests; cache exact matching browser revision; no additional AI service by itself.",
+      "risks": [
+        "Browser contexts and request routing are not an OS sandbox.",
+        "Existing Ariadne local origin/path confinement must remain; do not expose generic navigation to owner sessions.",
+        "Publisher's token-efficiency marketing is not a local measurement."
+      ],
+      "sources": [
+        "https://github.com/microsoft/playwright/releases/tag/v1.64.1",
+        "https://github.com/microsoft/playwright",
+        "https://playwright.dev/docs/browsers"
+      ],
+      "observed_latest_tag": "v1.64.1",
+      "release_published_at": null,
+      "release_date_note": "Latest-page tag or official download version observed on checked_at_utc; exact machine-readable publication timestamp was not verified.",
+      "repository_archived": false,
+      "installation": "research_only_not_installed_or_activated"
+    },
+    {
+      "id": "dsc",
+      "repo": "PowerShell/DSC",
+      "name": "Microsoft DSC",
+      "domain": "controls",
+      "best_use": "Declarative system inventory and approved configuration plans",
+      "license": "MIT",
+      "offline": "Cross-platform standalone CLI; fixed resources can operate offline after provisioning.",
+      "status": "recommended_candidate",
+      "priority": 1,
+      "existing_overlap": "Ariadne has independent hosting but no general checked OS desired-state inventory.",
+      "adapter": "Begin with reviewed resource Get/Test only and produce a drift report; Set is a separate exact configuration approval.",
+      "operating_cost": "On-demand command rather than a new scheduler/service; resource manifests and binaries need pinned updates.",
+      "risks": [
+        "Get/Test labels do not make an arbitrary third-party resource trustworthy.",
+        "Set can change OS/software/services outside Yikes; current research grants no such exception.",
+        "Resource code may spawn programs or contact networks; review each fixed resource implementation."
+      ],
+      "sources": [
+        "https://github.com/PowerShell/DSC/releases/tag/v3.3.0",
+        "https://github.com/PowerShell/DSC",
+        "https://github.com/PowerShell/DSC/blob/main/README.md",
+        "https://learn.microsoft.com/en-us/powershell/dsc/overview?view=dsc-3.0"
+      ],
+      "observed_latest_tag": "v3.3.0",
+      "release_published_at": null,
+      "release_date_note": "Latest-page tag or official download version observed on checked_at_utc; exact machine-readable publication timestamp was not verified.",
+      "repository_archived": false,
+      "installation": "research_only_not_installed_or_activated"
+    },
+    {
+      "id": "openhands",
+      "repo": "OpenHands/OpenHands",
+      "name": "OpenHands Agent Canvas",
+      "domain": "controls",
+      "best_use": "Isolated software-building experiments",
+      "license": "MIT for inspected core repository; editions/providers/dependencies separate",
+      "offline": "Local backend is possible; offline operation also needs local model, dependency/container caches and a blocked network test.",
+      "status": "conditional_candidate",
+      "priority": 3,
+      "existing_overlap": "Substantial overlap with Ariadne agents, schedules, files, reviews and independent host; avoid second default control plane.",
+      "adapter": "Use only a disposable project snapshot and qualified sandbox for coding benchmark; review patches before applying.",
+      "operating_cost": "Extra agent backend/UI/sandbox lifecycle and model inference; Docker Desktop is not currently part of the verified box.",
+      "risks": [
+        "Current default-branch README warns direct no-sandbox agent server has full filesystem access.",
+        "Docker recommended provider is not proof of sufficient mounts/egress/credential isolation.",
+        "Do not run repository instructions, self-updates or autonomous deployment as part of this scan."
+      ],
+      "sources": [
+        "https://github.com/OpenHands/OpenHands/releases/tag/v1.34.0",
+        "https://github.com/OpenHands/OpenHands/blob/main/LICENSE",
+        "https://github.com/OpenHands/OpenHands/blob/main/README.md",
+        "https://docs.openhands.dev/openhands/usage/sandboxes/overview"
+      ],
+      "observed_latest_tag": "v1.34.0",
+      "release_published_at": null,
+      "release_date_note": "Latest-page tag or official download version observed on checked_at_utc; exact machine-readable publication timestamp was not verified.",
+      "repository_archived": false,
+      "installation": "research_only_not_installed_or_activated"
+    },
+    {
+      "id": "mcp_python_sdk",
+      "repo": "modelcontextprotocol/python-sdk",
+      "name": "Official MCP Python SDK",
+      "domain": "controls",
+      "best_use": "Typed local capability gateways",
+      "license": "MIT",
+      "offline": "SDK can serve local tools over standard transports; each actual tool controls offline behavior.",
+      "status": "conditional_candidate",
+      "priority": 2,
+      "existing_overlap": "Ariadne already uses checksum-pinned FastMCP slim4.1.4 with explicit reviewed protocol modes; do not blindly replace its client.",
+      "adapter": "Build narrow loopback-only business/device gateways, select tool identities and schemas, retain approved read/write policy.",
+      "operating_cost": "Additional gateway dependency only where existing fixed HTTP is insufficient; protocol upgrades need compatibility tests.",
+      "risks": [
+        "SDK examples and read-only annotations are not authorization.",
+        "Currentv2 APIs differ from oldexamples; keep Ariadne's pinned protocol contract until tested.",
+        "Do not enable sampling, resources, elicitation or arbitrary server registration by default."
+      ],
+      "sources": [
+        "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v2.3.0",
+        "https://github.com/modelcontextprotocol/python-sdk",
+        "https://py.sdk.modelcontextprotocol.io/"
+      ],
+      "observed_latest_tag": "v2.3.0",
+      "release_published_at": null,
+      "release_date_note": "Latest-page tag or official download version observed on checked_at_utc; exact machine-readable publication timestamp was not verified.",
+      "repository_archived": false,
+      "installation": "research_only_not_installed_or_activated"
+    },
+    {
+      "id": "otel_collector",
+      "repo": "open-telemetry/opentelemetry-collector",
+      "name": "OpenTelemetry Collector",
+      "domain": "controls",
+      "best_use": "Local service metrics and traces across optional engines",
+      "license": "Apache-2.0",
+      "offline": "Collector can route telemetry locally; exporters and receivers must be explicitly configured.",
+      "status": "conditional_candidate",
+      "priority": 2,
+      "existing_overlap": "Existing receipts/logs cover single-box work; useful when multiple optional business/device services justify correlation.",
+      "adapter": "Local receiver/exporter only, bounded queue/retention, redact prompt/document/credential payloads; chart task success and measured latency.",
+      "operating_cost": "One optional daemon and telemetry storage; disable unused receivers/exporters and avoid high-cardinality traces.",
+      "risks": [
+        "Examples include network listeners/exporters; do not assume a private default.",
+        "Observability may capture sensitive data and creates disk/CPU work.",
+        "No measured savings or native resource budget established."
+      ],
+      "sources": [
+        "https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.164.0",
+        "https://github.com/open-telemetry/opentelemetry-collector",
+        "https://opentelemetry.io/docs/collector/configuration/"
+      ],
+      "observed_latest_tag": "v0.164.0",
+      "release_published_at": null,
+      "release_date_note": "Latest-page tag or official download version observed on checked_at_utc; exact machine-readable publication timestamp was not verified.",
+      "repository_archived": false,
+      "installation": "research_only_not_installed_or_activated"
+    },
+    {
+      "id": "temporal",
+      "repo": "temporalio/temporal",
+      "name": "Temporal",
+      "domain": "controls",
+      "best_use": "Durable multi-service business workflow orchestration",
+      "license": "MIT",
+      "offline": "Self-hosted service is possible; single-binary development mode is not a production recovery qualification.",
+      "status": "defer_scale",
+      "priority": 3,
+      "existing_overlap": "Current Ariadne already has durable mission/routine receipts and fail-stop uncertainty handling.",
+      "adapter": "Consider only when a concrete multi-service workflow exceeds current engine; bind external action idempotency/reconciliation explicitly.",
+      "operating_cost": "Extra production service/storage, workers, auth/TLS, schema upgrades, backups and monitoring.",
+      "risks": [
+        "Workflow durability and retries do not establish exactly-once physical actions or trading orders."
+      ],
+      "sources": [
+        "https://github.com/temporalio/temporal/releases/tag/v1.32.1",
+        "https://github.com/temporalio/temporal",
+        "https://docs.temporal.io/self-hosted-guide"
+      ],
+      "observed_latest_tag": "v1.32.1",
+      "release_published_at": null,
+      "release_date_note": "Latest-page tag or official download version observed on checked_at_utc; exact machine-readable publication timestamp was not verified.",
+      "repository_archived": false,
+      "installation": "research_only_not_installed_or_activated"
+    }
+  ]
+}
+

@@ -1,0 +1,125 @@
+# Trading and financial research repository scan
+
+Checked **29 October 2026, 17:25 UTC**. This report ranks **14 candidates**, with classic FinRL inspected as predecessor evidence. It is a broad primary-source capability scan, not every GitHub/AI repository, a security certification, or evidence of trading returns. No software was installed, model run, account created, broker account connected or trade placed. Owner settings and E: were untouched. The [JSON inventory](repo-scan-trading-2026-10-29.json) records current source identities, exact license-file blob hashes, versions, dependencies, constraints and proposed adapters.
+
+## What would expand Ariadne first
+
+1. **Read-only financial data and provenance:** qualify a minimal OpenBB ODP 5 provider set, feeding bounded dated files into Ariadne's existing analytics. Preserve provider entitlements, coverage, timestamps and adjustment rules. Its current repository is Apache-2.0, following the v5 license change; the wider hosted Workspace/stewardship announcement is a separate product matter. [ODP 5 release](https://github.com/openbq-org/OpenBB/releases/tag/openbb-v5.0.0), [official transition announcement](https://openbb.co/).
+2. **Reproducible offline research:** compare a simple deterministic baseline with Qlib 0.9.8 and one event-driven engine. Qlib's October release hardens artifact/configuration loading; arbitrary saved Python/serialized models must not become trusted merely because an agent found them online. [Qlib security/reliability release](https://github.com/microsoft/qlib/releases/tag/v0.9.8).
+3. **Trading simulation:** evaluate LEAN's open-source engine directly or a separately pinned stable Nautilus line. LEAN's documented CLI requires a paid organization and Docker, so it is not the zero-subscription appliance path. Nautilus 2.0.0rc8 is new, but upstream explicitly advises against release candidates for real-capital production. [CLI prerequisites](https://www.lean.io/docs/v2/lean-cli/key-concepts/getting-started), [Nautilus install/version distinction](https://nautilustrader.io/docs/latest/getting_started/installation/).
+4. **Paper connection later:** choose an actual market/broker first, then consider the official Alpaca SDK or community ib_async client. Research authorization does not authorize a broker connection, account setup or orders. Paper operation uses live data/services and is not offline. [Alpaca paper limitations](https://docs.alpaca.markets/us/docs/paper-trading), [ib_async requirements](https://github.com/ib-api-reloaded/ib_async/blob/main/README.md).
+
+Ariadne already has bounded exact-decimal tables, larger local analytics, balanced business records, document/report output, fixed workflows and an approval ledger. Those are useful building blocks; they are not exchange calendars, corporate-action histories, tick feeds, a fill simulator or a broker reconciliation service. This assessment comes from the local source and docs, including [analytics](ANALYTICS_0_3.md) and the root [capability inventory](../README.md).
+
+## Ranked repository coverage
+
+Version and date are the exact observed release/package or commit shown, not an assumption that the corresponding README and artifact have identical functionality. All candidate repositories reported non-archived through the GitHub connector. That alone is not a maintenance or safety verdict.
+
+| Candidate | Observed version/activity · UTC date | Verified repository license | Ariadne decision |
+| --- | --- | --- | --- |
+| [LEAN engine](https://github.com/QuantConnect/Lean) | master 8f6000f · 2026-10-29 | [Apache-2.0 engine](https://github.com/QuantConnect/Lean/blob/master/LICENSE) | Qualify engine directly; CLI paid/Docker route separate |
+| [NautilusTrader](https://github.com/nautechsystems/nautilus_trader) | v2.0.0rc8 · 2026-10-29 | [LGPL-3.0](https://github.com/nautechsystems/nautilus_trader/blob/develop/LICENSE) | Watch 2.x RC; compare stable 1.x before any paper use |
+| [Qlib](https://github.com/microsoft/qlib) | v0.9.8 · 2026-10-08 | [MIT](https://github.com/microsoft/qlib/blob/main/LICENSE) | First research candidate; use security-hardened release |
+| [VectorBT](https://github.com/polakowo/vectorbt) | v1.2.0 · 2026-10-19 | [Apache-2.0 + Commons Clause](https://github.com/polakowo/vectorbt/blob/master/LICENSE.md) | Defer unrestricted commercial bundle |
+| [Backtesting.py](https://github.com/kernc/backtesting.py) | 0.6.6 · 2026-07-22 | [AGPL-3.0](https://github.com/kernc/backtesting.py/blob/master/LICENSE.md) | Small comparator after AGPL review |
+| [Backtrader](https://github.com/mementum/backtrader) | 1.9.78.123 · 2023-04-19 | [GPL-3.0](https://github.com/mementum/backtrader/blob/master/LICENSE) | Legacy compatibility only; stale default branch |
+| [FinRL-X / FinRL-Trading](https://github.com/AI4Finance-Foundation/FinRL-Trading) | v1.0.0 · 2026-03-25 | [Apache-2.0](https://github.com/AI4Finance-Foundation/FinRL-Trading/blob/master/LICENSE) | Research trial; compare simple baselines |
+| [OpenBB Open Data Platform](https://github.com/openbq-org/OpenBB) | openbb-v5.0.0 · 2026-09-30 | [Apache-2.0 current v5](https://github.com/openbq-org/OpenBB/blob/develop/LICENSE) | First read-only financial data layer |
+| [CCXT](https://github.com/ccxt/ccxt) | v4.5.91 · 2026-10-29 | [MIT](https://github.com/ccxt/ccxt/blob/master/LICENSE.txt) | Read-only crypto feed adapter if needed |
+| [Freqtrade](https://github.com/freqtrade/freqtrade) | 2026.9 · 2026-09-29 | [GPL-3.0](https://github.com/freqtrade/freqtrade/blob/develop/LICENSE) | Crypto-only offline experiments |
+| [Hummingbot](https://github.com/hummingbot/hummingbot) | v2.17.0 · 2026-09-22 | [Apache-2.0](https://github.com/hummingbot/hummingbot/blob/master/LICENSE) | Crypto paper/telemetry only after selection |
+| [Alpaca-py](https://github.com/alpacahq/alpaca-py) | v0.44.0 · 2026-08-11 | [Apache-2.0](https://github.com/alpacahq/alpaca-py/blob/master/LICENSE) | Future explicitly chosen paper-account adapter |
+| [VeighNa / vn.py](https://github.com/vnpy/vnpy) | 4.5.0 · 2026-10-06 | [MIT](https://github.com/vnpy/vnpy/blob/master/LICENSE) | Only after matching actual broker/market |
+| [ib_async](https://github.com/ib-api-reloaded/ib_async) | v2.0.1 · 2025-06-22 | [BSD-2-Clause](https://github.com/ib-api-reloaded/ib_async/blob/main/LICENSE) | Future IBKR reconciliation/paper adapter |
+
+## Important changes and exclusions
+
+- **OpenBB has moved:** the connected GitHub API resolves the former OpenBB-finance/OpenBB path to **openbq-org/OpenBB**. The v5 release records a change from AGPL-3.0-only to Apache-2.0. Its API latest-release pointer returned legacy tag ODP while a separate openbb-v5.0.0 release exists; deployment must pin the intended package set, not a generic latest URL. [v5 release and license migration](https://github.com/openbq-org/OpenBB/releases/tag/openbb-v5.0.0), [current license](https://github.com/openbq-org/OpenBB/blob/develop/LICENSE).
+- **Nautilus is in a major API transition:** rc8 was published **2026-10-29T04:55:25Z**, although its notes say 28 October UTC. Current latest docs are 2.x, while a plain non-prerelease package installation resolves to 1.x. Do not mix those examples or treat an RC as production qualified. [Release](https://github.com/nautechsystems/nautilus_trader/releases/tag/v2.0.0rc8), [version-specific installation](https://nautilustrader.io/docs/latest/getting_started/installation/).
+- **FinRL now points to FinRL-X:** classic FinRL remains an educational/research MIT project; the separate FinRL-Trading repository is Apache-2.0 and advertises a modular weight-based pipeline. Its production-oriented description is a publisher claim, not our independent validation. [Predecessor](https://github.com/AI4Finance-Foundation/FinRL), [FinRL-X](https://github.com/AI4Finance-Foundation/FinRL-Trading), [its license](https://github.com/AI4Finance-Foundation/FinRL-Trading/blob/master/LICENSE).
+- **VectorBT is not an unrestricted Apache default:** its current file includes Commons Clause sale restrictions. Backtesting.py is AGPL; Freqtrade and Backtrader use GPL. Keep exact product/distribution obligations under review; an external worker does not automatically resolve licensing. [VectorBT terms](https://github.com/polakowo/vectorbt/blob/master/LICENSE.md), [Backtesting.py terms](https://github.com/kernc/backtesting.py/blob/master/LICENSE.md), [Freqtrade terms](https://github.com/freqtrade/freqtrade/blob/develop/LICENSE), [Backtrader terms](https://github.com/mementum/backtrader/blob/master/LICENSE).
+- **Backtrader is a poor new default despite visibility:** the actual default-branch commit read through GitHub's API is dated **2023-04-19**; official PyPI's newest package has the same date. This supports deferring a new dependency, without claiming every fork or maintainer response was audited. LEAN has the opposite release-page trap: its old release tags should not obscure a verified master commit from today. [Backtrader commit](https://github.com/mementum/backtrader/commit/b853d7c90b6721476eb5a5ea3135224e33db1f14), [package](https://pypi.org/project/backtrader/1.9.78.123/), [LEAN commit](https://github.com/QuantConnect/Lean/commit/8f6000fba1c3f3f0b98bb6281883492d838590bf).
+
+## Candidate integration notes
+
+### LEAN engine
+
+Multi-asset event-driven historical simulation with explicit execution, fees and brokerage models. Engine and prepared local datasets can support disconnected backtests after separate packaging; the documented Lean CLI requires a paid organization and Docker. **Proposed adapter:** Pinned offline job taking an approved strategy template plus immutable local data and producing fills/equity/cost/assumption artifacts; no broker adapter loaded. **Recurring burden:** On-demand CPU and local historical-data storage; direct-engine integration has upfront engineering cost. CLI membership, vendor data and live operation can add recurring costs. These are engineering estimates, not measurements. [Source README](https://github.com/QuantConnect/Lean/blob/master/readme.md), [license](https://github.com/QuantConnect/Lean/blob/master/LICENSE).
+
+### NautilusTrader
+
+Deterministic event-driven simulation and common strategy interfaces for later paper execution. Historical replay can be local with preloaded data and instrument definitions. Live adapters require their venues and feeds. **Proposed adapter:** Separate offline replay worker first; compare stable-line semantics with fixtures before considering any paper adapter. **Recurring burden:** CPU replay and storage scale with tick/order-book history; live service would run continuously. No throughput or energy measurements were made. These are engineering estimates, not measurements. [Source README](https://github.com/nautechsystems/nautilus_trader/blob/develop/README.md), [license](https://github.com/nautechsystems/nautilus_trader/blob/develop/LICENSE), [version evidence](https://github.com/nautechsystems/nautilus_trader/releases/tag/v2.0.0rc8).
+
+### Qlib
+
+Offline factor pipelines, model comparison and walk-forward quantitative research on prepared datasets. Prepared data, features and locally trained models can be evaluated offline; data refresh and online services cannot. **Proposed adapter:** Data-only factor evaluation with approved models, explicit train/validation/test boundaries and a signed-off trusted-artifact policy; no executable model imports from web sources. **Recurring burden:** On-demand feature calculation and training; large experiments require bounded storage/CPU/GPU. No hosted model/API is inherently required for a local baseline. These are engineering estimates, not measurements. [Source README](https://github.com/microsoft/qlib/blob/main/README.md), [license](https://github.com/microsoft/qlib/blob/main/LICENSE), [version evidence](https://github.com/microsoft/qlib/releases/tag/v0.9.8).
+
+### VectorBT
+
+Vectorized parameter exploration and portfolio visualizations on cached arrays. Core array research can be local. Data downloads and external integrations still need connectivity. **Proposed adapter:** Optional research comparator only after product-license review; avoid bundling as the default commercial appliance engine. **Recurring burden:** On-demand CPU/RAM. Do not assume PRO functions are in the public package or that commercial use is automatically unrestricted. These are engineering estimates, not measurements. [Source README](https://github.com/polakowo/vectorbt/blob/master/README.md), [license](https://github.com/polakowo/vectorbt/blob/master/LICENSE.md), [version evidence](https://github.com/polakowo/vectorbt/releases/tag/v1.2.0).
+
+### Backtesting.py
+
+Small transparent bar-based strategy experiments and cost-aware reports. Local OHLCV data can be tested offline after dependencies are packaged. **Proposed adapter:** Fixed owner-approved strategy templates with commissions/spread, reserved test data and bounded outputs; never execute downloaded strategy code. **Recurring burden:** Lightweight experimental CPU workload relative to broad ML training; no measured memory/energy comparison is claimed. These are engineering estimates, not measurements. [Source README](https://github.com/kernc/backtesting.py/blob/master/README.md), [license](https://github.com/kernc/backtesting.py/blob/master/LICENSE.md), [version evidence](https://pypi.org/project/backtesting/0.6.6/).
+
+### Backtrader
+
+Compatibility with existing Backtrader strategies and CSV simulation examples. Local file-based simulation can be offline; historical/live feed plugins have their own services. **Proposed adapter:** Import-only migration target for an owner who already has strategies, not the default new integration. **Recurring burden:** No permanent service is needed for file backtests; maintenance burden is the main concern. These are engineering estimates, not measurements. [Source README](https://github.com/mementum/backtrader/blob/master/README.rst), [license](https://github.com/mementum/backtrader/blob/master/LICENSE), [version evidence](https://pypi.org/project/backtrader/1.9.78.123/).
+
+### FinRL-X / FinRL-Trading
+
+Compare modular financial ML/RL research pipelines and portfolio-weight contracts. Saved data/backtest stages can be local. Automatic providers, optional LLM preprocessing and Alpaca execution require their services. **Proposed adapter:** Offline frozen-dataset experiment runner, then paper-only comparison after an independently reviewed broker boundary. **Recurring burden:** Potentially substantial training and dependency/storage cost; start with CPU baselines and no hosted LLM. These are engineering estimates, not measurements. [Source README](https://github.com/AI4Finance-Foundation/FinRL-Trading/blob/master/README.md), [license](https://github.com/AI4Finance-Foundation/FinRL-Trading/blob/master/LICENSE), [version evidence](https://github.com/AI4Finance-Foundation/FinRL-Trading/releases/tag/v1.0.0).
+
+### OpenBB Open Data Platform
+
+Normalize financial data providers for local research and provenance-rich market reports. Previously saved local data can be analyzed offline; fresh provider requests, entitlements and optional hosted products need connectivity. **Proposed adapter:** Read-only provider ingestion into dated Parquet/CSV/JSON snapshots, hash/version/entitlement metadata and Ariadne research reports. **Recurring burden:** Software itself adds no mandatory model subscription; vendor data, hosted Workspace, API quotas and maintenance may add costs. These are engineering estimates, not measurements. [Source README](https://github.com/openbq-org/OpenBB/blob/develop/README.md), [license](https://github.com/openbq-org/OpenBB/blob/develop/LICENSE), [version evidence](https://github.com/openbq-org/OpenBB/releases/tag/openbb-v5.0.0).
+
+### CCXT
+
+Uniform cryptocurrency exchange market-data interfaces and later tightly scoped exchange adapters. Saved responses can be used offline, but this is an online exchange API library, not an offline market or backtester. **Proposed adapter:** Initially public read-only market-data snapshots, explicit exchange/symbol/timeframe and request budgets; no API keys or order methods exposed to the model. **Recurring burden:** Public API calls may have quotas; private trading has fees and possibly data charges. Adapters need continuing maintenance. These are engineering estimates, not measurements. [Source README](https://github.com/ccxt/ccxt/blob/master/README.md), [license](https://github.com/ccxt/ccxt/blob/master/LICENSE.txt), [version evidence](https://github.com/ccxt/ccxt/releases/tag/v4.5.91).
+
+### Freqtrade
+
+Crypto historical backtests, lookahead/recursive analysis and later dry-run comparison. Backtests need prepared historical data; dry/live operation requires exchange data and should not be described as disconnected. **Proposed adapter:** Offline vetted strategy fixtures plus lookahead/cost audits; later dry-run only if explicitly selected. **Recurring burden:** CPU and cached data for backtests; continuous live/dry feed work and optional ML increase resource needs. These are engineering estimates, not measurements. [Source README](https://github.com/freqtrade/freqtrade/blob/develop/README.md), [license](https://github.com/freqtrade/freqtrade/blob/develop/LICENSE), [version evidence](https://github.com/freqtrade/freqtrade/releases/tag/2026.9).
+
+### Hummingbot
+
+Crypto market-making/execution research and later controlled paper experiments. Its documented paper script uses live exchange data even without API keys. Disconnected replay needs a separately prepared path. **Proposed adapter:** Read-only execution telemetry/paper observation after explicit venue choice; no order authority in the present research. **Recurring burden:** Live market-making requires continuous compute/network and trading fees; simulations still have feed and operational costs. These are engineering estimates, not measurements. [Source README](https://github.com/hummingbot/hummingbot/blob/master/README.md), [license](https://github.com/hummingbot/hummingbot/blob/master/LICENSE), [version evidence](https://github.com/hummingbot/hummingbot/releases/tag/v2.17.0).
+
+### Alpaca-py
+
+Official Python SDK for later read-only broker data and explicitly chosen paper-account testing. Broker/paper/data APIs require Internet and credentials; only separately saved snapshots are offline. **Proposed adapter:** Read-only account snapshot first, then a dedicated paper credential/endpoint allowlist with bounded order intent and reconciliation. **Recurring burden:** SDK license fee is not the data/trading cost; account entitlements, data subscriptions, exchange/regulatory/trading fees may apply. These are engineering estimates, not measurements. [Source README](https://github.com/alpacahq/alpaca-py/blob/master/README.md), [license](https://github.com/alpacahq/alpaca-py/blob/master/LICENSE), [version evidence](https://github.com/alpacahq/alpaca-py/releases/tag/v0.44.0).
+
+### VeighNa / vn.py
+
+Windows-oriented multi-module trading workstation, CTA replay and controlled risk-manager research. Historical local backtests can be offline. Its local paper account simulates against a real-time feed, so that feed still needs connectivity. **Proposed adapter:** Read-only gateway data or local CTA backtest worker, with target-market compatibility established before a full workstation. **Recurring burden:** CPU workstation plus selected market-data/service needs; optional large distribution avoided until useful. These are engineering estimates, not measurements. [Source README](https://github.com/vnpy/vnpy/blob/master/README.md), [license](https://github.com/vnpy/vnpy/blob/master/LICENSE), [version evidence](https://github.com/vnpy/vnpy/releases/tag/4.5.0).
+
+### ib_async
+
+Community async client for later Interactive Brokers account/market-data reconciliation and paper testing. A running authenticated TWS or IB Gateway and brokerage connectivity are required for actual account/feed operations. **Proposed adapter:** Read-only broker reconciliation or separately approved paper account; no credentials, connection or execution enabled by this scan. **Recurring burden:** Additional broker process, session maintenance and possible data subscriptions; heavier than a simple file-based offline adapter. These are engineering estimates, not measurements. [Source README](https://github.com/ib-api-reloaded/ib_async/blob/main/README.md), [license](https://github.com/ib-api-reloaded/ib_async/blob/main/LICENSE), [version evidence](https://github.com/ib-api-reloaded/ib_async/releases/tag/v2.0.1).
+
+## Proposed workflow and acceptance evidence
+
+This is an implementation proposal, not work activated by the scan:
+
+1. Import a fixed historical dataset with its hash, vendor terms, UTC/exchange timestamps, session/calendar interpretation, split/dividend policy, delisted-symbol coverage and missing/stale records. Preserve a data-only snapshot; do not let a model download executable strategy packages.
+2. Establish an unoptimized baseline. Freeze training, validation and final holdout periods before tuning; use walk-forward comparisons and record all experiments rather than reporting only the best run.
+3. Run approved templates in an isolated no-network CPU worker. Bound rows/ticks, wall time, RAM, output and disk; model writes a proposal, deterministic code calculates fills and metrics. Store strategy/config/environment hashes and actual failure receipts.
+4. Include spread, commissions, slippage, partial/rejected orders, session boundaries and realistic delay assumptions. Bar backtests cannot establish tick-level execution behavior; financial ML/RL backtests do not prove a day-trading edge.
+5. Produce a concise dated research card with data coverage, period, assumptions, benchmark, drawdown/cost results and uncertainty. No buy/sell recommendation or implied guaranteed profit is established by this report.
+6. Only after explicit separate owner selection and review, add a paper credential/endpoint. Reconcile broker state before sending an intent; enforce order/notional/exposure budgets, stale-feed refusal and an independent stop. Keep paper/live credentials and authority structurally separate. Never auto-replay an uncertain order after outage.
+
+Alpaca explicitly documents that paper results omit effects including market impact, latency slippage and order-queue position. An attractive simulated result is therefore insufficient acceptance evidence for live trading. Its paper-only account also has particular data entitlements, rather than automatically granting every real-time feed. [Official paper specification](https://docs.alpaca.markets/us/docs/paper-trading).
+
+## Offline and operating-cost conclusions
+
+Historical replay, indicator calculation, factor research and report generation can run without Internet **after** their runtimes, datasets and dependencies are preserved. Fresh quotes, news, account balances and remote order execution require their connected services. Cached market data must retain its timestamp; a local model cannot make it current.
+
+Prefer a read-only ingestion stage and one on-demand engine over permanently running every bot and RL stack. FinRL-X/Qlib training can consume substantial compute; crypto market-making and broker gateways bring continuous operation and maintenance. These are qualitative engineering estimates: no RAM/VRAM, watt, monetary saving, fill quality or strategy-return benchmark was run here. Code licenses do not include market-data redistribution rights, broker eligibility or exchange services.
+
+IBKR's current download page lists stable API 1050.02 from September 9 and latest 1051.01 from September 29, 2026. Current broker marketing describes the latest API as GPL; this scan did not download its package or verify every bundled license. Old cached noncommercial-license descriptions should not be presented as the current download terms. ib_async implements the wire protocol without the ibapi package, but its BSD license does not license the broker's TWS/Gateway or market data. [Current official API downloads](https://download2.interactivebrokers.com/installers/tws-api/index.html), [broker API description](https://brokerage.ibkr.com/en/trading/ib-api.php), [community client requirements](https://github.com/ib-api-reloaded/ib_async/blob/main/README.md).
+
+## Evidence limits
+
+GitHub metadata, publisher README/license files, release/commit APIs and official project/broker documentation were inspected. Release dates unavailable through the connected metadata were obtained with read-only public GitHub/PyPI requests; initial failures and exact alternatives are recorded in JSON. No repository code, dependency tree, advisory set, strategy or downloaded model was executed/audited. Popularity, a verified commit signature or a recent release does not establish an absence of vulnerabilities. Windows/runtime fit remains a qualification requirement, especially around Nautilus 2.x wheels, .NET/Docker, Java gateways and optional ML packages.
+

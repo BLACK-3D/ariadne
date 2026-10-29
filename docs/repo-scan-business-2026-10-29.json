@@ -1,0 +1,593 @@
+{
+  "schema": 1,
+  "checked_at_utc": "2026-10-29T17:23:25Z",
+  "scope": "Ten primary-source business-system/workflow/document/AI repository candidates for Ariadne. Broad bounded review, not an exhaustive scan of all GitHub, a security audit or installation qualification.",
+  "method": [
+    "Read existing Ariadne capability documentation to distinguish installed features from genuinely missing integrations.",
+    "Used GitHub connector repository/file reads for canonical sources and license/README blob identities.",
+    "Read live unauthenticated official GitHub REST repository and releases/latest JSON; metadata contains no account credentials.",
+    "Read official deployment/offline documentation. Default branches are moving references; observed file blob IDs and release tags identify evidence."
+  ],
+  "limits": [
+    "No repository code, installer, workflow or skill was run; no models/dependencies installed.",
+    "No owner configurations, services, microphone, OS tasks or network policy were changed; E: was not accessed.",
+    "Activity and publisher security fixes are evidence of maintenance, not proof of safety.",
+    "Future deployment needs exact dependency/image/model closure, permissions, license review and disconnected qualification."
+  ],
+  "existing_baseline": "Ariadne already provides local business records, fixed office output/analytics/optimization workers, OCR/knowledge, reviewed connectors/MCP, fixed Node-RED routes, checked routines and ERPNext preparation. A prepared template is not a running external business service.",
+  "recommendation": "Keep Ariadne's engine and current deterministic tools. Qualify a read-first adapter to ONE business records system, compare ERPNext with Dolibarr, add dedicated CRM/document lifecycle only when the selected ERP lacks the needed workflow. Use selected integration pieces rather than another default agent/workflow platform.",
+  "candidates": [
+    {
+      "id": "business-erpnext",
+      "repo": "frappe/erpnext",
+      "name": "ERPNext",
+      "domain": "business",
+      "priority": 1,
+      "status": "qualify_adapter",
+      "best_use": "One operational system for sales, purchasing, inventory, manufacturing and accounting.",
+      "license": "GPL-3.0; upstream and dependency notices retained",
+      "license_notes": "Observed upstream license.txt header. Framework and each added app keep their own terms.",
+      "version": "v16.53.0",
+      "published_at": "2026-10-28T20:44:12Z",
+      "release_url": "https://github.com/frappe/erpnext/releases/tag/v16.53.0",
+      "offline": "Local operations after complete provisioning; payment gateways, remote email and fresh exchange rates still require their services.",
+      "runtime": "Linux/WSL/VM or container stack with Frappe, database and workers; not a native Windows plug-in.",
+      "existing_overlap": "Ariadne already has balanced local business records, fixed reports and an ERPNext preparation route. Preparation is not a running ERP installation.",
+      "advancement": "The observed release adds a BOM design workspace for STEP/CSV imports and design revision comparison: a useful bridge from Ariadne's CAD artifacts into manufacturing planning.",
+      "adapter": "Start with read-only customers/items/stock and dated document IDs; then approval-bound draft quotations and purchase requests. Posting, payment, deletion and delivery need separate explicit authority.",
+      "cost": "Engineering estimate: appreciable always-on database/queue/worker maintenance; no LLM required for routine ERP reads. Choose one ERP, not three.",
+      "requirements": "Owner company chart of accounts, test company and scoped API credentials; separate database/files/encryption-key backup and restore plan.",
+      "risks": [
+        "Ariadne's SQLite-only backup does not back up an external ERP database.",
+        "Versioned schema migrations and apps need pinned compatible versions.",
+        "Do not treat generated bookkeeping or tax reports as independently certified."
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/frappe/erpnext/blob/develop/README.md",
+          "role": "upstream_readme",
+          "git_blob_sha": "bb7a8bc2c33033e506dc5c15469aaacfe31ceee5",
+          "lines_read": "1-190"
+        },
+        {
+          "url": "https://github.com/frappe/erpnext/blob/develop/license.txt",
+          "role": "upstream_license",
+          "git_blob_sha": "f288702d2fa16d3cdf0035b15a9fcbc552cd88e7",
+          "lines_read": "1-75"
+        },
+        {
+          "url": "https://github.com/frappe/erpnext/releases/tag/v16.53.0",
+          "role": "release"
+        }
+      ],
+      "repo_url": "https://github.com/frappe/erpnext",
+      "maintenance": {
+        "archived": false,
+        "disabled": false,
+        "pushed_at": "2026-10-29T17:18:40Z",
+        "source": "https://api.github.com/repos/frappe/erpnext"
+      },
+      "release_metadata_source": "https://api.github.com/repos/frappe/erpnext/releases/latest",
+      "research_only": true,
+      "installed_by_this_scan": false,
+      "cost_basis": "Qualitative engineering estimate; no runtime/resource/energy benchmark conducted."
+    },
+    {
+      "id": "business-dolibarr",
+      "repo": "Dolibarr/dolibarr",
+      "name": "Dolibarr",
+      "domain": "business",
+      "priority": 2,
+      "status": "compare_erp_alternative",
+      "best_use": "Small-business CRM, quotes, invoices, orders, stock and manufacturing modules.",
+      "license": "GPL-3.0-or-later; dependency licenses separate",
+      "license_notes": "README explicitly permits GPL version 3 or later; COPYING observed.",
+      "version": "24.0.1",
+      "published_at": "2026-09-07T12:58:22Z",
+      "release_url": "https://github.com/Dolibarr/dolibarr/releases/tag/24.0.1",
+      "offline": "LAN/local records after PHP/server/database provisioning; external bank, mail and payment connectors remain connected functions.",
+      "runtime": "PHP web server and MariaDB/MySQL/PostgreSQL; official README offers DoliWamp for Windows and Docker alternatives.",
+      "existing_overlap": "Overlaps the proposed ERPNext system and Ariadne's lightweight business records.",
+      "advancement": "Windows packaging is a practical alternative when the owner values a conventional business application over a larger Frappe stack; actual resource advantage remains unmeasured.",
+      "adapter": "Read-only stock, counterparties and outstanding-document summaries first; validate API permissions before separately approved draft invoice creation.",
+      "cost": "Engineering estimate: additional web/database maintenance. Benchmark against ERPNext using the same invoicing/stock tasks before selecting.",
+      "requirements": "Test company, module choices, owner-created credentials and a coordinated database/documents backup.",
+      "risks": [
+        "Do not install both ERP alternatives without a concrete need.",
+        "Plug-in/module licenses and security state differ from core.",
+        "A recent push is not a security assessment."
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/Dolibarr/dolibarr/blob/develop/README.md",
+          "role": "upstream_readme",
+          "git_blob_sha": "7e8ebfc8b4c76e77ec1c582f7f4681aecb67746c",
+          "lines_read": "1-190"
+        },
+        {
+          "url": "https://github.com/Dolibarr/dolibarr/blob/develop/COPYING",
+          "role": "upstream_license",
+          "git_blob_sha": "e60008693e017bec1b4eb49c84be3898e26fcf2a",
+          "lines_read": "1-75"
+        },
+        {
+          "url": "https://github.com/Dolibarr/dolibarr/releases/tag/24.0.1",
+          "role": "release"
+        }
+      ],
+      "repo_url": "https://github.com/Dolibarr/dolibarr",
+      "maintenance": {
+        "archived": false,
+        "disabled": false,
+        "pushed_at": "2026-10-29T16:35:37Z",
+        "source": "https://api.github.com/repos/Dolibarr/dolibarr"
+      },
+      "release_metadata_source": "https://api.github.com/repos/Dolibarr/dolibarr/releases/latest",
+      "research_only": true,
+      "installed_by_this_scan": false,
+      "cost_basis": "Qualitative engineering estimate; no runtime/resource/energy benchmark conducted."
+    },
+    {
+      "id": "business-odoo",
+      "repo": "odoo/odoo",
+      "name": "Odoo Community",
+      "domain": "business",
+      "priority": 5,
+      "status": "defer_unless_selected",
+      "best_use": "Modular ERP/CRM and sales/stock/project workflows.",
+      "license": "Community core LGPL-3.0; Enterprise and add-ons have separate terms",
+      "license_notes": "Actual LICENSE file inspected; GitHub's detected NOASSERTION is not a substitute for the file. Community repository is not a grant to Enterprise features.",
+      "version": "20.0 (source series, FINAL)",
+      "published_at": null,
+      "release_url": null,
+      "offline": "Self-hosted core records can be local; external services, hosted AI and payment/email functionality are not disconnected capabilities.",
+      "runtime": "Observed release.py requires Python 3.12-3.14 and PostgreSQL >=16. Source exposes a Windows service name; exact Windows deployment not qualified here.",
+      "existing_overlap": "Substantial ERPNext/Dolibarr overlap; do not add as a third always-on business platform.",
+      "advancement": "Broad module ecosystem and new 20.0 source series; select for a specific required module rather than marketing breadth.",
+      "adapter": "A version-pinned service API wrapper with test records and owner-selected fields; no direct model SQL, application installation or generic administrator access.",
+      "cost": "Engineering estimate: database, module upgrades and migrations add operational work; some desired features or add-ons can require commercial licensing.",
+      "requirements": "Chosen Community modules, scoped service user and separate PostgreSQL/filestore recovery plan.",
+      "risks": [
+        "GitHub releases/latest returned 404: source 20.0 is observed, but no precise release timestamp was established.",
+        "Not every capability listed by Odoo marketing belongs to Community.",
+        "Source/dependency support on this specific Windows box remains untested."
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/odoo/odoo/blob/20.0/README.md",
+          "role": "upstream_readme",
+          "git_blob_sha": "ac3c04c8f4c53e75a25ec330143f870d2af9ae8b",
+          "lines_read": "1-190"
+        },
+        {
+          "url": "https://github.com/odoo/odoo/blob/20.0/LICENSE",
+          "role": "upstream_license",
+          "git_blob_sha": "12334e0fdd8d3412d5e1deed72220fcc03431ff2",
+          "lines_read": "1-75"
+        },
+        {
+          "url": "https://github.com/odoo/odoo/blob/20.0/odoo/release.py",
+          "role": "source_version_and_runtime",
+          "git_blob_sha": "bbdd875fd77cb24d5d04c01655e73bf9ad5c05da"
+        },
+        {
+          "url": "https://api.github.com/repos/odoo/odoo/releases/latest",
+          "role": "release_lookup_404"
+        }
+      ],
+      "repo_url": "https://github.com/odoo/odoo",
+      "maintenance": {
+        "archived": false,
+        "disabled": false,
+        "pushed_at": "2026-10-29T17:22:34Z",
+        "source": "https://api.github.com/repos/odoo/odoo"
+      },
+      "release_metadata_source": "https://api.github.com/repos/odoo/odoo/releases/latest",
+      "research_only": true,
+      "installed_by_this_scan": false,
+      "cost_basis": "Qualitative engineering estimate; no runtime/resource/energy benchmark conducted."
+    },
+    {
+      "id": "business-twenty",
+      "repo": "twentyhq/twenty",
+      "name": "Twenty",
+      "domain": "business",
+      "priority": 2,
+      "status": "qualify_crm_if_needed",
+      "best_use": "Structured CRM objects, opportunity pipelines and reviewable CRM app extensions.",
+      "license": "Mostly AGPL-3.0 with Twenty Application Exception; selected SDK/UI/app packages MIT; Enterprise-marked code commercial",
+      "license_notes": "LICENSE qualifications and the additional application-interface permission were read; this is not a claim every repository file is AGPL or MIT.",
+      "version": "twenty/v2.52.0",
+      "published_at": "2026-10-27T16:54:00Z",
+      "release_url": "https://github.com/twentyhq/twenty/releases/tag/twenty/v2.52.0",
+      "offline": "Local CRM objects and views after provisioning; provider account authorization, email/calendar sync and cloud AI need external services.",
+      "runtime": "Docker Compose server/worker, PostgreSQL and Redis. Upstream documents at least 2 GB RAM; that is a publisher minimum, not measured full-stack consumption.",
+      "existing_overlap": "Adds durable deal/company/contact pipelines beyond Ariadne's simpler contacts; may duplicate the selected ERP's CRM.",
+      "advancement": "Current README presents objects, views, workflows and agents as versioned application code, plus official app skills. The release includes changed application-account authorization and security dependency updates.",
+      "adapter": "Read selected company/deal objects through fixed REST/GraphQL endpoints; stage draft field changes with exact record IDs and revisions; require approval for outreach and destructive mutations.",
+      "cost": "Engineering estimate: extra persistent services and backups. No required model for CRUD; optional agent/provider usage has separate inference/API costs.",
+      "requirements": "Scoped API credentials, selected objects and preserved encryption key as well as database backup.",
+      "risks": [
+        "Official agent skills are research inputs, not automatically trusted authority or installed code.",
+        "Read current Enterprise/application-exception terms before bundling.",
+        "Email/calendar accounts require owner setup and connectivity."
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/twentyhq/twenty/blob/main/README.md",
+          "role": "upstream_readme",
+          "git_blob_sha": "4ae7858d549ee44177ca4f23d3a3ce357c2cd541",
+          "lines_read": "1-190"
+        },
+        {
+          "url": "https://github.com/twentyhq/twenty/blob/main/LICENSE",
+          "role": "upstream_license",
+          "git_blob_sha": "7f79939e3b656404b49a480db698955b93c7cf37",
+          "lines_read": "1-65"
+        },
+        {
+          "url": "https://docs.twenty.com/developers/self-host/capabilities/docker-compose",
+          "role": "official_deployment"
+        },
+        {
+          "url": "https://github.com/twentyhq/twenty/releases/tag/twenty/v2.52.0",
+          "role": "release"
+        }
+      ],
+      "repo_url": "https://github.com/twentyhq/twenty",
+      "maintenance": {
+        "archived": false,
+        "disabled": false,
+        "pushed_at": "2026-10-29T17:21:34Z",
+        "source": "https://api.github.com/repos/twentyhq/twenty"
+      },
+      "release_metadata_source": "https://api.github.com/repos/twentyhq/twenty/releases/latest",
+      "research_only": true,
+      "installed_by_this_scan": false,
+      "cost_basis": "Qualitative engineering estimate; no runtime/resource/energy benchmark conducted."
+    },
+    {
+      "id": "business-paperless",
+      "repo": "paperless-ngx/paperless-ngx",
+      "name": "Paperless-ngx",
+      "domain": "business",
+      "priority": 3,
+      "status": "qualify_document_lifecycle",
+      "best_use": "Managed invoice/receipt/contract inbox, OCR archive, tags and document lifecycle.",
+      "license": "GPL-3.0; bundled parser/OCR/dependency licenses separate",
+      "license_notes": "Observed upstream GPLv3 LICENSE; software license does not grant rights to uploaded documents.",
+      "version": "v3.3.4",
+      "published_at": "2026-10-22T22:26:39Z",
+      "release_url": "https://github.com/paperless-ngx/paperless-ngx/releases/tag/v3.3.4",
+      "offline": "Preloaded local ingestion/OCR/search can operate disconnected; mail ingestion and external enrichment cannot refresh without their sources.",
+      "runtime": "Docker Compose recommended; PostgreSQL recommended for new installations, queue and OCR dependencies. Optional Tika/Office support adds services.",
+      "existing_overlap": "Ariadne already extracts/OCRs/searches documents. New value is business document ownership, metadata, consumption queue and lifecycle, not another OCR engine alone.",
+      "advancement": "3.3.4 is a security maintenance release updating affected trust/dependency components; choose a patched pinned image rather than a convenient older tutorial.",
+      "adapter": "Read-only document ID/metadata and explicitly selected text snapshots into Ariadne with content hashes; reviewed tagging before any deletion or original-file replacement.",
+      "cost": "Engineering estimate: CPU OCR and document storage plus persistent queue/database. No LLM required; reuse current extraction where it meets the need.",
+      "requirements": "Owner-selected consume folder, access scopes, retention rules and coordinated database/media/classifier/config backups.",
+      "risks": [
+        "Ingested invoices may contain malicious instructions and sensitive records.",
+        "Do not treat OCR totals as verified accounting entries.",
+        "Exact offline and Windows-container behavior must be qualified after provisioning."
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/paperless-ngx/paperless-ngx/blob/dev/README.md",
+          "role": "upstream_readme",
+          "git_blob_sha": "f1e5141043dcb5e36b496c7ce71192d9e5e24aea",
+          "lines_read": "1-190"
+        },
+        {
+          "url": "https://github.com/paperless-ngx/paperless-ngx/blob/dev/LICENSE",
+          "role": "upstream_license",
+          "git_blob_sha": "733c072369ca77331f392c40da7404c85c36542c",
+          "lines_read": "1-75"
+        },
+        {
+          "url": "https://github.com/paperless-ngx/paperless-ngx/blob/dev/docs/setup.md",
+          "role": "official_deployment_source",
+          "git_blob_sha": "d3905f50db64847c48b8318dd7d73e132b081267"
+        },
+        {
+          "url": "https://github.com/paperless-ngx/paperless-ngx/releases/tag/v3.3.4",
+          "role": "release"
+        }
+      ],
+      "repo_url": "https://github.com/paperless-ngx/paperless-ngx",
+      "maintenance": {
+        "archived": false,
+        "disabled": false,
+        "pushed_at": "2026-10-29T17:15:59Z",
+        "source": "https://api.github.com/repos/paperless-ngx/paperless-ngx"
+      },
+      "release_metadata_source": "https://api.github.com/repos/paperless-ngx/paperless-ngx/releases/latest",
+      "research_only": true,
+      "installed_by_this_scan": false,
+      "cost_basis": "Qualitative engineering estimate; no runtime/resource/energy benchmark conducted."
+    },
+    {
+      "id": "business-activepieces",
+      "repo": "activepieces/activepieces",
+      "name": "Activepieces",
+      "domain": "business",
+      "priority": 4,
+      "status": "qualify_selected_pieces_not_second_default_engine",
+      "best_use": "Reusable business integration pieces exposed as narrowly selected workflow/MCP operations.",
+      "license": "MIT community code outside explicit Enterprise paths; Enterprise code commercial; third-party component terms separate",
+      "license_notes": "Actual rootLICENSE overrides an oversimplified MIT badge. Recommended upstream installer can choose Enterprise edition; free versus licensed feature set must be frozen.",
+      "version": "0.92.3-hotfix.2",
+      "published_at": "2026-10-28T21:50:17Z",
+      "release_url": "https://github.com/activepieces/activepieces/releases/tag/0.92.3-hotfix.2",
+      "offline": "Local pieces and preloaded runtime can operate locally; SaaS pieces still require provider credentials and connectivity. Network-gapped claims require checking the selected edition and piece closure.",
+      "runtime": "Current official guide: Docker Compose 2, PostgreSQL, Redis, app/worker; Windows via WSL2; publisher minimum 2 vCPU / 4 GB RAM, not a measured Ariadne budget.",
+      "existing_overlap": "Ariadne already has fixed Node-RED routes, connectors, schedules and checked routines. Reuse specific pieces only when they add a missing integration.",
+      "advancement": "Pieces can be exposed as MCP tools. Latest observed hotfix fixes an unauthenticated webhook-triggered API-process crash, making exact patch selection material.",
+      "adapter": "Freeze a small tool/schema allowlist; keep provider secrets out of prompts; reuse Ariadne approvals and no-replay receipts instead of inheriting auto-retries blindly.",
+      "cost": "Engineering estimate: four service roles, database/queue storage and upgrade work. Prefer existing Node-RED/fixed adapters unless a needed piece earns the overhead.",
+      "requirements": "Reviewed Community-only build or clearly selected edition, encryption keys, scoped provider credentials and database-volume backups.",
+      "risks": [
+        "Do not pipe the upstream install script into a shell as part of this research.",
+        "Upstream defaults can launch multiple workers and collide with Ariadne port8080.",
+        "Backing up only the install folder omits PostgreSQL Docker-volume state."
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/activepieces/activepieces/blob/main/README.md",
+          "role": "upstream_readme",
+          "git_blob_sha": "a0b8adff34d2909d02480a2ed61a13b4e87a2ce4"
+        },
+        {
+          "url": "https://github.com/activepieces/activepieces/blob/main/LICENSE",
+          "role": "upstream_license",
+          "git_blob_sha": "73e0a2f7acf13c780655de40183b06a0a93e091b",
+          "lines_read": "1-75"
+        },
+        {
+          "url": "https://www.activepieces.com/docs/install/options/docker-compose",
+          "role": "official_deployment"
+        },
+        {
+          "url": "https://github.com/activepieces/activepieces/releases/tag/0.92.3-hotfix.2",
+          "role": "release"
+        }
+      ],
+      "repo_url": "https://github.com/activepieces/activepieces",
+      "maintenance": {
+        "archived": false,
+        "disabled": false,
+        "pushed_at": "2026-10-29T16:51:43Z",
+        "source": "https://api.github.com/repos/activepieces/activepieces"
+      },
+      "release_metadata_source": "https://api.github.com/repos/activepieces/activepieces/releases/latest",
+      "research_only": true,
+      "installed_by_this_scan": false,
+      "cost_basis": "Qualitative engineering estimate; no runtime/resource/energy benchmark conducted."
+    },
+    {
+      "id": "business-invoiceninja",
+      "repo": "invoiceninja/invoiceninja",
+      "name": "Invoice Ninja",
+      "domain": "business",
+      "priority": 6,
+      "status": "optional_owner_service_not_default_bundle",
+      "best_use": "Quotes, invoicing, time/expense/project records and client billing portal.",
+      "license": "Elastic License2.0, source-available; not a permissive/OSI-open-source default",
+      "license_notes": "ELv2 restricts providing substantial functionality as a hosted/managed service and removing protected notices/license mechanisms. Additional commercial embedding/branding questions need explicit terms.",
+      "version": "v5.13.50",
+      "published_at": "2026-10-21T22:46:24Z",
+      "release_url": "https://github.com/invoiceninja/invoiceninja/releases/tag/v5.13.50",
+      "offline": "Local draft billing records/PDFs after provisioning; actual payment processing, delivery and remote client access require their networks/services.",
+      "runtime": "Laravel/PHP self-hosted server/VM or Docker and database; Windows desktop client is not the complete server stack.",
+      "existing_overlap": "Invoicing may already belong to the chosen ERP; this is a narrower alternative, not a reason for two ledgers.",
+      "advancement": "Current release has scheduler/API fixes; mature API could support draft quote/invoice production.",
+      "adapter": "Owner-managed optional endpoint for read-only invoices and approval-bound draft quotes. Sending, charging cards, refunds and invoice finalization remain distinct actions.",
+      "cost": "Engineering estimate: PHP/database/queue administration; optional branding/commercial terms and payment-provider fees are separate from model cost.",
+      "requirements": "Owner company/tax settings, scoped API token, test customer and preserved application encryption secret.",
+      "risks": [
+        "Do not label the whole app MIT/open-source because a client component has different terms.",
+        "No hosted resale/wrapping assumption for an appliance used by anyone.",
+        "Exact offline PDF renderer closure still needs qualification."
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/invoiceninja/invoiceninja/blob/v5-stable/README.md",
+          "role": "upstream_readme",
+          "git_blob_sha": "8def0bfb993a0fba8a4c3b8ebdfa184dce3b1734",
+          "lines_read": "1-190"
+        },
+        {
+          "url": "https://github.com/invoiceninja/invoiceninja/blob/v5-stable/LICENSE",
+          "role": "upstream_license",
+          "git_blob_sha": "5410e799d11eefb257268594a3c9eb4e69496f38",
+          "lines_read": "1-75"
+        },
+        {
+          "url": "https://github.com/invoiceninja/invoiceninja/releases/tag/v5.13.50",
+          "role": "release"
+        }
+      ],
+      "repo_url": "https://github.com/invoiceninja/invoiceninja",
+      "maintenance": {
+        "archived": false,
+        "disabled": false,
+        "pushed_at": "2026-10-29T03:03:02Z",
+        "source": "https://api.github.com/repos/invoiceninja/invoiceninja"
+      },
+      "release_metadata_source": "https://api.github.com/repos/invoiceninja/invoiceninja/releases/latest",
+      "research_only": true,
+      "installed_by_this_scan": false,
+      "cost_basis": "Qualitative engineering estimate; no runtime/resource/energy benchmark conducted."
+    },
+    {
+      "id": "business-n8n",
+      "repo": "n8n-io/n8n",
+      "name": "n8n",
+      "domain": "business",
+      "priority": 7,
+      "status": "defer_default_distribution",
+      "best_use": "Owner-operated business workflow canvas and many service integrations.",
+      "license": "Sustainable Use License; Enterprise-marked files separately licensed",
+      "license_notes": "Current license permits own internal business or non-commercial/personal use; distribution/provision to others is restricted to free non-commercial purposes under those terms. Not a blanket permissive appliance redistribution license.",
+      "version": "n8n@2.45.6",
+      "published_at": "2026-10-29T08:30:41Z",
+      "release_url": "https://github.com/n8n-io/n8n/releases/tag/n8n%402.45.6",
+      "offline": "Locally provisioned engine and local nodes can run disconnected; provider APIs, live SaaS triggers and external AI are connected dependencies.",
+      "runtime": "Docker or self-hosted Node deployment, persistent data and optional scaled workers/database; exact selected architecture must be pinned.",
+      "existing_overlap": "Duplicates Ariadne routines/schedules plus existing Node-RED and connector administration.",
+      "advancement": "Latest observed patch is today; extensive AI/workflow integrations are useful discovery material, but breadth does not overcome license or maintenance constraints.",
+      "adapter": "If owner selects it separately, expose specific reviewed read operations and bounded commands through fixed endpoints; keep Ariadne approval as the authority boundary.",
+      "cost": "Engineering estimate: another service, secret store and workflow execution history; optional Enterprise/API costs. No measured advantage over existing routines established.",
+      "requirements": "Chosen licensing arrangement, provider credentials, encryption-key backup and reviewed node supply chain.",
+      "risks": [
+        "Many integrations and AI nodes need Internet/API accounts.",
+        "Automatic retries can duplicate consequential external actions.",
+        "Community node code is not implicitly trusted by repository popularity."
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/n8n-io/n8n/blob/master/README.md",
+          "role": "upstream_readme",
+          "git_blob_sha": "567d03f771487fd0be47cb5ac764d359cb281d2a",
+          "lines_read": "1-190"
+        },
+        {
+          "url": "https://github.com/n8n-io/n8n/blob/master/LICENSE.md",
+          "role": "upstream_license",
+          "git_blob_sha": "f85f59baa906530c26cee26e0c9ddd6bd5f86dbd",
+          "lines_read": "1-75"
+        },
+        {
+          "url": "https://github.com/n8n-io/n8n/releases/tag/n8n%402.45.6",
+          "role": "release"
+        }
+      ],
+      "repo_url": "https://github.com/n8n-io/n8n",
+      "maintenance": {
+        "archived": false,
+        "disabled": false,
+        "pushed_at": "2026-10-29T17:21:51Z",
+        "source": "https://api.github.com/repos/n8n-io/n8n"
+      },
+      "release_metadata_source": "https://api.github.com/repos/n8n-io/n8n/releases/latest",
+      "research_only": true,
+      "installed_by_this_scan": false,
+      "cost_basis": "Qualitative engineering estimate; no runtime/resource/energy benchmark conducted."
+    },
+    {
+      "id": "business-windmill",
+      "repo": "windmill-labs/windmill",
+      "name": "Windmill",
+      "domain": "business",
+      "priority": 6,
+      "status": "source_only_evaluation_or_owner_managed_service",
+      "best_use": "Versioned internal scripts, forms, API jobs and reviewed code workflows.",
+      "license": "Non-Enterprise source generally AGPLv3; clients/OpenAPI Apache-2.0; proprietary Enterprise portions; prebuilt Community images/binaries have additional restrictions",
+      "license_notes": "Actual LICENSE states prebuilt Community includes non-public/proprietary material and restricts selling, wrapping, managed service and commercial embedding absent agreement. A non-Enterprise source build is a different licensing route.",
+      "version": "v1.853.1",
+      "published_at": "2026-10-29T12:03:46Z",
+      "release_url": "https://github.com/windmill-labs/windmill/releases/tag/v1.853.1",
+      "offline": "Cached code, language runtimes, packages and local targets can be local; Git sync, remote packages, SaaS and hosted AI remain external.",
+      "runtime": "Server, workers and persistent database; explicit language/package cache and isolated worker boundaries required.",
+      "existing_overlap": "A second workflow scheduler/code execution authority alongside Ariadne and existing fixed workers.",
+      "advancement": "Current docs describe AI building in workspace forks with review/promotion and separated workers; latest patch includes MCP runnable fixes.",
+      "adapter": "Take the review-before-promotion pattern; evaluate only a preapproved typed internal job endpoint. Never grant an LLM a generic Bash/PowerShell resource by default.",
+      "cost": "Engineering estimate: service/database/worker and multi-language cache maintenance; hosted/commercial features add separate recurring obligations.",
+      "requirements": "Explicit source/build or product license choice, separate worker identities, scoped resource secrets and backups.",
+      "risks": [
+        "Do not redistribute or rebrand a downloaded Community image as unrestricted AGPL software.",
+        "Script sandboxing still depends on worker deployment configuration.",
+        "Adding it merely for agents duplicates existing lifecycle/approval surfaces."
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/windmill-labs/windmill/blob/main/README.md",
+          "role": "upstream_readme",
+          "git_blob_sha": "df877e2c0f7440f357a7b7cf899eea588523bd43",
+          "lines_read": "1-190"
+        },
+        {
+          "url": "https://github.com/windmill-labs/windmill/blob/main/LICENSE",
+          "role": "upstream_license",
+          "git_blob_sha": "7e682e7dd1847ade63925074626bdb2a49c1e627",
+          "lines_read": "1-75"
+        },
+        {
+          "url": "https://github.com/windmill-labs/windmill/releases/tag/v1.853.1",
+          "role": "release"
+        }
+      ],
+      "repo_url": "https://github.com/windmill-labs/windmill",
+      "maintenance": {
+        "archived": false,
+        "disabled": false,
+        "pushed_at": "2026-10-29T17:21:13Z",
+        "source": "https://api.github.com/repos/windmill-labs/windmill"
+      },
+      "release_metadata_source": "https://api.github.com/repos/windmill-labs/windmill/releases/latest",
+      "research_only": true,
+      "installed_by_this_scan": false,
+      "cost_basis": "Qualitative engineering estimate; no runtime/resource/energy benchmark conducted."
+    },
+    {
+      "id": "business-lightrag",
+      "repo": "HKUDS/LightRAG",
+      "name": "LightRAG",
+      "domain": "business",
+      "priority": 5,
+      "status": "benchmark_only",
+      "best_use": "Relationship-aware answers over a sufficiently complex business document corpus.",
+      "license": "MIT code; selected models/dependencies/data have separate terms",
+      "license_notes": "Model/code licenses differ; official offline extras are not a grant for model weights or imported business records.",
+      "version": "v1.5.7",
+      "published_at": "2026-09-02T07:23:55Z",
+      "release_url": "https://github.com/HKUDS/LightRAG/releases/tag/v1.5.7",
+      "offline": "Possible with local LLM/embedding/storage and complete package/tokenizer caches. Defaults or dynamically installed providers must be replaced/prefetched deliberately.",
+      "runtime": "Python/API service or Docker; official offline group excludes heavy transformers/Torch/CUDA dependencies and recommends separating expensive parsing services.",
+      "existing_overlap": "Ariadne already has lexical/hybrid knowledge, provenance and rich parsing. Add graph extraction only if a measured relationship-query failure justifies it.",
+      "advancement": "Upstream has role-specific LLM configuration, contexts/citation support and an end-user workspace; useful isolation/evaluation ideas for business knowledge.",
+      "adapter": "Run a separate benchmark over a copied non-sensitive corpus; compare answer evidence and total ingestion/query model calls against the existing index before any integration.",
+      "cost": "Engineering estimate: graph extraction and regeneration add LLM work, storage and re-index cost; local inference still uses electricity/compute. Savings not established.",
+      "requirements": "Pinned local model/tokenizer assets, citation-preserving corpus permissions and cache closure.",
+      "risks": [
+        "Dynamic pip installation or tokenizer downloads can break an otherwise local deployment.",
+        "Wrong/omitted relationships can produce confident business answers.",
+        "Default cloud providers and unauthenticated compatible routes must not be inherited silently."
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/HKUDS/LightRAG/blob/main/README.md",
+          "role": "upstream_readme",
+          "git_blob_sha": "63359639ba73a039fbac15784a34efb77f5b0beb",
+          "lines_read": "1-190"
+        },
+        {
+          "url": "https://github.com/HKUDS/LightRAG/blob/main/LICENSE",
+          "role": "upstream_license",
+          "git_blob_sha": "ff0c29b4790f767e8abdc14f43ca0495330e89e4",
+          "lines_read": "1-75"
+        },
+        {
+          "url": "https://github.com/HKUDS/LightRAG/blob/main/docs/OfflineDeployment.md",
+          "role": "official_offline_guide",
+          "git_blob_sha": "a8f8fa3de36a16dd0a61acede63de7ea75cb3bc0"
+        },
+        {
+          "url": "https://github.com/HKUDS/LightRAG/releases/tag/v1.5.7",
+          "role": "release"
+        }
+      ],
+      "repo_url": "https://github.com/HKUDS/LightRAG",
+      "maintenance": {
+        "archived": false,
+        "disabled": false,
+        "pushed_at": "2026-10-27T18:08:12Z",
+        "source": "https://api.github.com/repos/HKUDS/LightRAG"
+      },
+      "release_metadata_source": "https://api.github.com/repos/HKUDS/LightRAG/releases/latest",
+      "research_only": true,
+      "installed_by_this_scan": false,
+      "cost_basis": "Qualitative engineering estimate; no runtime/resource/energy benchmark conducted."
+    }
+  ]
+}

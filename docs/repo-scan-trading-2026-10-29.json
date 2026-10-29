@@ -1,0 +1,621 @@
+{
+  "schema": 1,
+  "checked_at_utc": "2026-10-29T17:25:31Z",
+  "scope": "14 ranked trading repositories plus the classic FinRL predecessor checked through primary repositories, exact license blobs, release metadata and documentation. Broad capability scan, not an exhaustive scan of GitHub, source-code security audit, financial recommendation or trading authorization.",
+  "coverage": {
+    "ranked_candidates": 14,
+    "additional_predecessor": "AI4Finance-Foundation/FinRL",
+    "all_metadata_archived_false": true,
+    "release_dates_unavailable": [
+      "LEAN current engine identified by actual master commit rather than legacy release tags"
+    ],
+    "lookup_failures": "Initial public API calls for four repositories failed with URLError; specific-tag/commit retries succeeded. Backtesting.py and Backtrader had no GitHub release entries, so official PyPI metadata was used. QuantConnect getting-started primary-domain fetch timed out; official lean.io mirror and authentication page were read."
+  },
+  "actions": {
+    "installed": false,
+    "models_run": false,
+    "accounts_created": false,
+    "broker_connected": false,
+    "trades_placed": false,
+    "owner_configuration_changed": false,
+    "E_accessed": false
+  },
+  "candidates": [
+    {
+      "id": "lean",
+      "repo": "QuantConnect/Lean",
+      "name": "LEAN engine",
+      "domain": "trading",
+      "priority": 2,
+      "status": "conditional",
+      "best_use": "Multi-asset event-driven historical simulation with explicit execution, fees and brokerage models.",
+      "license": "Apache-2.0 engine; QuantConnect CLI/account/data services have separate requirements.",
+      "offline": "Engine and prepared local datasets can support disconnected backtests after separate packaging; the documented Lean CLI requires a paid organization and Docker.",
+      "existing_overlap": "Ariadne has exact tables and local records, not a market-simulation engine.",
+      "risks": [
+        "Do not equate the open-source engine with free CLI/cloud service access.",
+        "Data subscriptions and brokerage terms remain separate.",
+        "Master development is active; old GitHub release-page tags do not identify the current build."
+      ],
+      "deployment": "CPU/.NET engine. Current source readme describes .NET 10 and Windows/Linux development routes. Existing Ariadne documentation records Docker as uninstalled; this scan did not repeat the host inventory or provision dependencies.",
+      "cost": "On-demand CPU and local historical-data storage; direct-engine integration has upfront engineering cost. CLI membership, vendor data and live operation can add recurring costs.",
+      "adapter": "Pinned offline job taking an approved strategy template plus immutable local data and producing fills/equity/cost/assumption artifacts; no broker adapter loaded.",
+      "release": null,
+      "activity": {
+        "commit": "8f6000fba1c3f3f0b98bb6281883492d838590bf",
+        "committed_at": "2026-10-29T16:48:07Z",
+        "url": "https://github.com/QuantConnect/Lean/commit/8f6000fba1c3f3f0b98bb6281883492d838590bf"
+      },
+      "repository_url": "https://github.com/QuantConnect/Lean",
+      "checked_at_utc": "2026-10-29T17:25:31Z",
+      "repository_archived": false,
+      "installed_by_scan": false,
+      "sources": [
+        "https://github.com/QuantConnect/Lean",
+        "https://github.com/QuantConnect/Lean/blob/master/readme.md",
+        "https://github.com/QuantConnect/Lean/blob/master/LICENSE",
+        "https://github.com/QuantConnect/Lean/commit/8f6000fba1c3f3f0b98bb6281883492d838590bf",
+        "https://www.lean.io/docs/v2/lean-cli/key-concepts/getting-started"
+      ],
+      "provenance": {
+        "readme_blob_sha": "b352780b83e4da76837cdac623d3d36597639852",
+        "license_blob_sha": "6faed93d21a1a9551b11434e87c9000a393d73f2",
+        "metadata_source": "GitHub connected get_repo; public GitHub release/commit API and official PyPI for explicitly labeled package versions"
+      }
+    },
+    {
+      "id": "nautilus",
+      "repo": "nautechsystems/nautilus_trader",
+      "name": "NautilusTrader",
+      "domain": "trading",
+      "priority": 2,
+      "status": "experimental",
+      "best_use": "Deterministic event-driven simulation and common strategy interfaces for later paper execution.",
+      "license": "LGPL-3.0 license text; current README identifies LGPL-3.0-only compatibility.",
+      "offline": "Historical replay can be local with preloaded data and instrument definitions. Live adapters require their venues and feeds.",
+      "existing_overlap": "Adds trading-specific clocks, orders, fills and reconciliation beyond Ariadne's general task worker.",
+      "risks": [
+        "Newest observed 2.0.0rc8 is a prerelease; upstream explicitly discourages release candidates for real-capital production.",
+        "Current latest docs describe 2.x while unqualified normal install selects stable 1.x; APIs differ.",
+        "Windows Server CI support does not qualify this particular Windows desktop."
+      ],
+      "deployment": "Current 2.x docs specify Python 3.13–3.14 and Windows x64/Server 2022 CI; pinned wheels and all dependencies need appliance qualification.",
+      "cost": "CPU replay and storage scale with tick/order-book history; live service would run continuously. No throughput or energy measurements were made.",
+      "adapter": "Separate offline replay worker first; compare stable-line semantics with fixtures before considering any paper adapter.",
+      "release": {
+        "version": "v2.0.0rc8",
+        "published_at": "2026-10-29T04:55:25Z",
+        "prerelease": true,
+        "url": "https://github.com/nautechsystems/nautilus_trader/releases/tag/v2.0.0rc8",
+        "note": "Release notes say 28 October UTC, while publication metadata says 29 October. Stable 1.x remains separately available."
+      },
+      "repository_url": "https://github.com/nautechsystems/nautilus_trader",
+      "checked_at_utc": "2026-10-29T17:25:31Z",
+      "repository_archived": false,
+      "installed_by_scan": false,
+      "sources": [
+        "https://github.com/nautechsystems/nautilus_trader",
+        "https://github.com/nautechsystems/nautilus_trader/blob/develop/README.md",
+        "https://github.com/nautechsystems/nautilus_trader/blob/develop/LICENSE",
+        "https://github.com/nautechsystems/nautilus_trader/releases/tag/v2.0.0rc8",
+        "https://nautilustrader.io/docs/latest/getting_started/installation/"
+      ],
+      "provenance": {
+        "readme_blob_sha": "eaa6f0ff8457ea0512895fd353655ca6f664a282",
+        "license_blob_sha": "5550e2db15f239ea8d3cf54bfa3b035eab8d3174",
+        "metadata_source": "GitHub connected get_repo; public GitHub release/commit API and official PyPI for explicitly labeled package versions"
+      }
+    },
+    {
+      "id": "qlib",
+      "repo": "microsoft/qlib",
+      "name": "Qlib",
+      "domain": "trading",
+      "priority": 1,
+      "status": "recommended_for_qualification",
+      "best_use": "Offline factor pipelines, model comparison and walk-forward quantitative research on prepared datasets.",
+      "license": "MIT core; datasets and model/dependency assets have separate terms.",
+      "offline": "Prepared data, features and locally trained models can be evaluated offline; data refresh and online services cannot.",
+      "existing_overlap": "Adds financial-feature/model evaluation to Ariadne's existing exact analytics and document reports.",
+      "risks": [
+        "Version 0.9.8 contains security hardening for executable recorder artifacts and configuration-driven local imports.",
+        "Untrusted serialized models, local Python configurations and arbitrary feature expressions must remain blocked.",
+        "Research performance does not establish a profitable day-trading strategy."
+      ],
+      "deployment": "Python worker, CPU baseline before optional GPU. Dependency and model artifacts must be pinned separately from Ariadne's server environment.",
+      "cost": "On-demand feature calculation and training; large experiments require bounded storage/CPU/GPU. No hosted model/API is inherently required for a local baseline.",
+      "adapter": "Data-only factor evaluation with approved models, explicit train/validation/test boundaries and a signed-off trusted-artifact policy; no executable model imports from web sources.",
+      "release": {
+        "version": "v0.9.8",
+        "published_at": "2026-10-08T10:58:43Z",
+        "prerelease": false,
+        "url": "https://github.com/microsoft/qlib/releases/tag/v0.9.8"
+      },
+      "repository_url": "https://github.com/microsoft/qlib",
+      "checked_at_utc": "2026-10-29T17:25:31Z",
+      "repository_archived": false,
+      "installed_by_scan": false,
+      "sources": [
+        "https://github.com/microsoft/qlib",
+        "https://github.com/microsoft/qlib/blob/main/README.md",
+        "https://github.com/microsoft/qlib/blob/main/LICENSE",
+        "https://github.com/microsoft/qlib/releases/tag/v0.9.8"
+      ],
+      "provenance": {
+        "readme_blob_sha": "a6963f6e40bd9ebee7dd2b5c88df94fe73a67dd4",
+        "license_blob_sha": "9e841e7a26e4eb057b24511e7b92d42b257a80e5",
+        "metadata_source": "GitHub connected get_repo; public GitHub release/commit API and official PyPI for explicitly labeled package versions"
+      }
+    },
+    {
+      "id": "vectorbt",
+      "repo": "polakowo/vectorbt",
+      "name": "VectorBT",
+      "domain": "trading",
+      "priority": 4,
+      "status": "deferred_license",
+      "best_use": "Vectorized parameter exploration and portfolio visualizations on cached arrays.",
+      "license": "Apache-2.0 WITH Commons Clause; this is a sale-restricting source-available condition, not an unrestricted permissive default.",
+      "offline": "Core array research can be local. Data downloads and external integrations still need connectivity.",
+      "existing_overlap": "Adds financial strategy simulation/plots; basic exact aggregations are already present.",
+      "risks": [
+        "Commons Clause restricts selling products/services deriving substantial value from the software; review the exact proposed business distribution.",
+        "PRO is a separate offering.",
+        "Large parameter sweeps can consume RAM and encourage overfitting."
+      ],
+      "deployment": "Python/NumPy/Numba, with optional Rust kernels; Windows wheels/dependencies need qualification.",
+      "cost": "On-demand CPU/RAM. Do not assume PRO functions are in the public package or that commercial use is automatically unrestricted.",
+      "adapter": "Optional research comparator only after product-license review; avoid bundling as the default commercial appliance engine.",
+      "release": {
+        "version": "v1.2.0",
+        "published_at": "2026-10-19T13:03:14Z",
+        "prerelease": false,
+        "url": "https://github.com/polakowo/vectorbt/releases/tag/v1.2.0"
+      },
+      "repository_url": "https://github.com/polakowo/vectorbt",
+      "checked_at_utc": "2026-10-29T17:25:31Z",
+      "repository_archived": false,
+      "installed_by_scan": false,
+      "sources": [
+        "https://github.com/polakowo/vectorbt",
+        "https://github.com/polakowo/vectorbt/blob/master/README.md",
+        "https://github.com/polakowo/vectorbt/blob/master/LICENSE.md",
+        "https://github.com/polakowo/vectorbt/releases/tag/v1.2.0"
+      ],
+      "provenance": {
+        "readme_blob_sha": "dde730f3668dfb6c05e063c0181e8cf26f961c39",
+        "license_blob_sha": "1ecf7675862c3caede8c26bed7150c6c41036d45",
+        "metadata_source": "GitHub connected get_repo; public GitHub release/commit API and official PyPI for explicitly labeled package versions"
+      }
+    },
+    {
+      "id": "backtesting_py",
+      "repo": "kernc/backtesting.py",
+      "name": "Backtesting.py",
+      "domain": "trading",
+      "priority": 3,
+      "status": "conditional_license",
+      "best_use": "Small transparent bar-based strategy experiments and cost-aware reports.",
+      "license": "AGPL-3.0 license text; combined/distributed/service product obligations need review.",
+      "offline": "Local OHLCV data can be tested offline after dependencies are packaged.",
+      "existing_overlap": "Provides fills/strategy simulation absent from current table tools, but not a broker execution service.",
+      "risks": [
+        "AGPL obligations differ from Ariadne's MIT license; a worker boundary does not itself settle licensing.",
+        "Bar-level assumptions omit microstructure/latency realism.",
+        "No GitHub release entries were present; PyPI is the version source used here."
+      ],
+      "deployment": "Official PyPI requires Python >=3.9; CPU worker and dependency wheels require Windows qualification.",
+      "cost": "Lightweight experimental CPU workload relative to broad ML training; no measured memory/energy comparison is claimed.",
+      "adapter": "Fixed owner-approved strategy templates with commissions/spread, reserved test data and bounded outputs; never execute downloaded strategy code.",
+      "release": {
+        "version": "0.6.6",
+        "published_at": "2026-07-22T14:39:23.626152Z",
+        "prerelease": false,
+        "url": "https://pypi.org/project/backtesting/0.6.6/",
+        "source": "official PyPI metadata"
+      },
+      "repository_url": "https://github.com/kernc/backtesting.py",
+      "checked_at_utc": "2026-10-29T17:25:31Z",
+      "repository_archived": false,
+      "installed_by_scan": false,
+      "sources": [
+        "https://github.com/kernc/backtesting.py",
+        "https://github.com/kernc/backtesting.py/blob/master/README.md",
+        "https://github.com/kernc/backtesting.py/blob/master/LICENSE.md",
+        "https://pypi.org/project/backtesting/0.6.6/",
+        "https://kernc.github.io/backtesting.py/doc/backtesting/"
+      ],
+      "provenance": {
+        "readme_blob_sha": "d9b511b02c93b00fb454d51e3a7e011653e41b6d",
+        "license_blob_sha": "cba6f6a15a4cc3ba212e9e9059f7243e2d171090",
+        "metadata_source": "GitHub connected get_repo; public GitHub release/commit API and official PyPI for explicitly labeled package versions"
+      }
+    },
+    {
+      "id": "backtrader",
+      "repo": "mementum/backtrader",
+      "name": "Backtrader",
+      "domain": "trading",
+      "priority": 4,
+      "status": "deferred_maintenance",
+      "best_use": "Compatibility with existing Backtrader strategies and CSV simulation examples.",
+      "license": "GPL-3.0 license text.",
+      "offline": "Local file-based simulation can be offline; historical/live feed plugins have their own services.",
+      "existing_overlap": "Adds strategy simulation, but duplicates the role of a newly selected backtest engine.",
+      "risks": [
+        "Observed default-branch commit is dated April 2023; not archived does not mean actively maintained.",
+        "Old Python/broker examples require compatibility review.",
+        "Do not prefer it for a new general appliance merely because it is widely referenced."
+      ],
+      "deployment": "Python CPU library; actual modern interpreter/dependency compatibility unqualified.",
+      "cost": "No permanent service is needed for file backtests; maintenance burden is the main concern.",
+      "adapter": "Import-only migration target for an owner who already has strategies, not the default new integration.",
+      "release": {
+        "version": "1.9.78.123",
+        "published_at": "2023-04-19T14:13:18.842786Z",
+        "prerelease": false,
+        "url": "https://pypi.org/project/backtrader/1.9.78.123/",
+        "source": "official PyPI metadata"
+      },
+      "activity": {
+        "commit": "b853d7c90b6721476eb5a5ea3135224e33db1f14",
+        "committed_at": "2023-04-19T14:13:08Z",
+        "url": "https://github.com/mementum/backtrader/commit/b853d7c90b6721476eb5a5ea3135224e33db1f14"
+      },
+      "repository_url": "https://github.com/mementum/backtrader",
+      "checked_at_utc": "2026-10-29T17:25:31Z",
+      "repository_archived": false,
+      "installed_by_scan": false,
+      "sources": [
+        "https://github.com/mementum/backtrader",
+        "https://github.com/mementum/backtrader/blob/master/README.rst",
+        "https://github.com/mementum/backtrader/blob/master/LICENSE",
+        "https://pypi.org/project/backtrader/1.9.78.123/",
+        "https://github.com/mementum/backtrader/commit/b853d7c90b6721476eb5a5ea3135224e33db1f14"
+      ],
+      "provenance": {
+        "readme_blob_sha": "56c664e45365dbd7e87b664d38a3c90e4831735d",
+        "license_blob_sha": "ef7e7efc09c9d471c391f05b9567966928085840",
+        "metadata_source": "GitHub connected get_repo; public GitHub release/commit API and official PyPI for explicitly labeled package versions"
+      }
+    },
+    {
+      "id": "finrl_x",
+      "repo": "AI4Finance-Foundation/FinRL-Trading",
+      "name": "FinRL-X / FinRL-Trading",
+      "domain": "trading",
+      "priority": 3,
+      "status": "experimental",
+      "best_use": "Compare modular financial ML/RL research pipelines and portfolio-weight contracts.",
+      "license": "Apache-2.0 in this separate repository; classic FinRL is MIT and remains educational/research software.",
+      "offline": "Saved data/backtest stages can be local. Automatic providers, optional LLM preprocessing and Alpaca execution require their services.",
+      "existing_overlap": "A research framework to evaluate against simpler deterministic baselines; not a replacement for Ariadne's authority and receipt system.",
+      "risks": [
+        "Upstream describes production-oriented capabilities, but no independent qualification was performed here.",
+        "Portfolio-weight examples are not proof of intraday execution performance or returns.",
+        "Optional LLM/provider calls and broad model dependencies can raise cost and authority."
+      ],
+      "deployment": "Python 3.11+ advertised; uses a bt-based backtest layer. GPU requirements depend on the selected training experiment.",
+      "cost": "Potentially substantial training and dependency/storage cost; start with CPU baselines and no hosted LLM.",
+      "adapter": "Offline frozen-dataset experiment runner, then paper-only comparison after an independently reviewed broker boundary.",
+      "release": {
+        "version": "v1.0.0",
+        "published_at": "2026-03-25T08:24:51Z",
+        "prerelease": false,
+        "url": "https://github.com/AI4Finance-Foundation/FinRL-Trading/releases/tag/v1.0.0"
+      },
+      "repository_url": "https://github.com/AI4Finance-Foundation/FinRL-Trading",
+      "checked_at_utc": "2026-10-29T17:25:31Z",
+      "repository_archived": false,
+      "installed_by_scan": false,
+      "sources": [
+        "https://github.com/AI4Finance-Foundation/FinRL-Trading",
+        "https://github.com/AI4Finance-Foundation/FinRL-Trading/blob/master/README.md",
+        "https://github.com/AI4Finance-Foundation/FinRL-Trading/blob/master/LICENSE",
+        "https://github.com/AI4Finance-Foundation/FinRL-Trading/releases/tag/v1.0.0",
+        "https://github.com/AI4Finance-Foundation/FinRL"
+      ],
+      "provenance": {
+        "readme_blob_sha": "c624724b88486a063396d4121e4de2505cd21446",
+        "license_blob_sha": "b5c453fe4002c1909510001bcc4fcea30be70a85",
+        "metadata_source": "GitHub connected get_repo; public GitHub release/commit API and official PyPI for explicitly labeled package versions"
+      }
+    },
+    {
+      "id": "openbb",
+      "repo": "openbq-org/OpenBB",
+      "name": "OpenBB Open Data Platform",
+      "domain": "trading",
+      "priority": 1,
+      "status": "recommended_for_qualification",
+      "best_use": "Normalize financial data providers for local research and provenance-rich market reports.",
+      "license": "Current repository Apache-2.0; v5 notes explicitly record migration from AGPL-3.0-only. Data/vendor/Workspace terms are separate.",
+      "offline": "Previously saved local data can be analyzed offline; fresh provider requests, entitlements and optional hosted products need connectivity.",
+      "existing_overlap": "Adds finance-specific provider schemas instead of rebuilding every market-data adapter; existing Ariadne tables/reports can consume bounded exports.",
+      "risks": [
+        "Canonical repository moved from OpenBB-finance/OpenBB to openbq-org/OpenBB.",
+        "OpenBB's broader suite/stewardship announcement is not evidence that every hosted feature is an offline Apache artifact.",
+        "GitHub latest release selector returned legacy ODP, while a separate openbb-v5.0.0 release exists: pin the exact package set."
+      ],
+      "deployment": "Python data layer; fetch only a minimal set of reviewed providers in a separate worker. Do not add a second general AI frontend by default.",
+      "cost": "Software itself adds no mandatory model subscription; vendor data, hosted Workspace, API quotas and maintenance may add costs.",
+      "adapter": "Read-only provider ingestion into dated Parquet/CSV/JSON snapshots, hash/version/entitlement metadata and Ariadne research reports.",
+      "release": {
+        "version": "openbb-v5.0.0",
+        "published_at": "2026-09-30T01:50:34Z",
+        "prerelease": false,
+        "url": "https://github.com/openbq-org/OpenBB/releases/tag/openbb-v5.0.0",
+        "note": "API /releases/latest returned tag ODP, published 2026-09-30T01:47:43Z; selected major version is explicitly identified rather than inferred from that pointer."
+      },
+      "repository_url": "https://github.com/openbq-org/OpenBB",
+      "checked_at_utc": "2026-10-29T17:25:31Z",
+      "repository_archived": false,
+      "installed_by_scan": false,
+      "sources": [
+        "https://github.com/openbq-org/OpenBB",
+        "https://github.com/openbq-org/OpenBB/blob/develop/README.md",
+        "https://github.com/openbq-org/OpenBB/blob/develop/LICENSE",
+        "https://github.com/openbq-org/OpenBB/releases/tag/openbb-v5.0.0",
+        "https://openbb.co/"
+      ],
+      "provenance": {
+        "readme_blob_sha": "20a11786e8936c866511f18ed17f00e2619a2272",
+        "license_blob_sha": "8e8cca33304520693be306cad3b55cba0c358676",
+        "metadata_source": "GitHub connected get_repo; public GitHub release/commit API and official PyPI for explicitly labeled package versions"
+      }
+    },
+    {
+      "id": "ccxt",
+      "repo": "ccxt/ccxt",
+      "name": "CCXT",
+      "domain": "trading",
+      "priority": 2,
+      "status": "conditional",
+      "best_use": "Uniform cryptocurrency exchange market-data interfaces and later tightly scoped exchange adapters.",
+      "license": "MIT core; individual exchange/data terms remain separate.",
+      "offline": "Saved responses can be used offline, but this is an online exchange API library, not an offline market or backtester.",
+      "existing_overlap": "Adds venue-specific normalization beyond generic HTTP integration; public-web GET tools cannot substitute for a complete market-data adapter.",
+      "risks": [
+        "Market data can be delayed/incomplete and exchange APIs/rate limits change.",
+        "Live order/cancel/private-account calls must remain separate from read-only ingestion.",
+        "Cryptocurrency venue availability and product eligibility must be checked for the operator."
+      ],
+      "deployment": "Python/Node and other clients; qualify only one language and a small exchange allowlist.",
+      "cost": "Public API calls may have quotas; private trading has fees and possibly data charges. Adapters need continuing maintenance.",
+      "adapter": "Initially public read-only market-data snapshots, explicit exchange/symbol/timeframe and request budgets; no API keys or order methods exposed to the model.",
+      "release": {
+        "version": "v4.5.91",
+        "published_at": "2026-10-29T15:05:19Z",
+        "prerelease": false,
+        "url": "https://github.com/ccxt/ccxt/releases/tag/v4.5.91"
+      },
+      "repository_url": "https://github.com/ccxt/ccxt",
+      "checked_at_utc": "2026-10-29T17:25:31Z",
+      "repository_archived": false,
+      "installed_by_scan": false,
+      "sources": [
+        "https://github.com/ccxt/ccxt",
+        "https://github.com/ccxt/ccxt/blob/master/README.md",
+        "https://github.com/ccxt/ccxt/blob/master/LICENSE.txt",
+        "https://github.com/ccxt/ccxt/releases/tag/v4.5.91",
+        "https://github.com/ccxt/ccxt/wiki/Manual"
+      ],
+      "provenance": {
+        "readme_blob_sha": "0e2275a9b7a41ca911f219432dec84d71bfe4340",
+        "license_blob_sha": "4cc1253c79b58fa72a3d4626d95aa7fff70f6f84",
+        "metadata_source": "GitHub connected get_repo; public GitHub release/commit API and official PyPI for explicitly labeled package versions"
+      }
+    },
+    {
+      "id": "freqtrade",
+      "repo": "freqtrade/freqtrade",
+      "name": "Freqtrade",
+      "domain": "trading",
+      "priority": 3,
+      "status": "conditional_crypto",
+      "best_use": "Crypto historical backtests, lookahead/recursive analysis and later dry-run comparison.",
+      "license": "GPL-3.0 license text.",
+      "offline": "Backtests need prepared historical data; dry/live operation requires exchange data and should not be described as disconnected.",
+      "existing_overlap": "Adds a crypto-specific strategy/test lifecycle; avoid duplicating a general multi-asset engine without a concrete crypto use case.",
+      "risks": [
+        "Does not supply a US-equity day-trading platform.",
+        "Strategies/configurations are executable authority and need review.",
+        "FreqAI/hyperoptimization can add substantial compute and overfitting risk."
+      ],
+      "deployment": "README advertises Python 3.12+ across Windows/macOS/Linux, with Docker optional; actual package assets unqualified here.",
+      "cost": "CPU and cached data for backtests; continuous live/dry feed work and optional ML increase resource needs.",
+      "adapter": "Offline vetted strategy fixtures plus lookahead/cost audits; later dry-run only if explicitly selected.",
+      "release": {
+        "version": "2026.9",
+        "published_at": "2026-09-29T17:06:05Z",
+        "prerelease": false,
+        "url": "https://github.com/freqtrade/freqtrade/releases/tag/2026.9"
+      },
+      "repository_url": "https://github.com/freqtrade/freqtrade",
+      "checked_at_utc": "2026-10-29T17:25:31Z",
+      "repository_archived": false,
+      "installed_by_scan": false,
+      "sources": [
+        "https://github.com/freqtrade/freqtrade",
+        "https://github.com/freqtrade/freqtrade/blob/develop/README.md",
+        "https://github.com/freqtrade/freqtrade/blob/develop/LICENSE",
+        "https://github.com/freqtrade/freqtrade/releases/tag/2026.9",
+        "https://www.freqtrade.io/en/stable/backtesting/"
+      ],
+      "provenance": {
+        "readme_blob_sha": "3d1a903ce1c76f32e5d3e7fc12f0e5c4845f2308",
+        "license_blob_sha": "9cecc1d4669ee8af2ca727a5d8cde10cd8b2d7cc",
+        "metadata_source": "GitHub connected get_repo; public GitHub release/commit API and official PyPI for explicitly labeled package versions"
+      }
+    },
+    {
+      "id": "hummingbot",
+      "repo": "hummingbot/hummingbot",
+      "name": "Hummingbot",
+      "domain": "trading",
+      "priority": 3,
+      "status": "conditional_crypto",
+      "best_use": "Crypto market-making/execution research and later controlled paper experiments.",
+      "license": "Apache-2.0 core; gateway/connector/dependency and venue terms still need exact-artifact review.",
+      "offline": "Its documented paper script uses live exchange data even without API keys. Disconnected replay needs a separately prepared path.",
+      "existing_overlap": "Execution-specific controls differ from Ariadne's general mission scheduler; it is not a new conversational brain.",
+      "risks": [
+        "Market-making/HFT positioning does not prove latency or profitable behavior on this home PC.",
+        "A no-key paper mode still contacts a venue.",
+        "Installing a full bot/connector stack expands secrets, network and maintenance scope."
+      ],
+      "deployment": "Source/CLI or Docker routes documented; qualify an isolated worker and only required connectors, not a permanent default daemon.",
+      "cost": "Live market-making requires continuous compute/network and trading fees; simulations still have feed and operational costs.",
+      "adapter": "Read-only execution telemetry/paper observation after explicit venue choice; no order authority in the present research.",
+      "release": {
+        "version": "v2.17.0",
+        "published_at": "2026-09-22T08:55:11Z",
+        "prerelease": false,
+        "url": "https://github.com/hummingbot/hummingbot/releases/tag/v2.17.0"
+      },
+      "repository_url": "https://github.com/hummingbot/hummingbot",
+      "checked_at_utc": "2026-10-29T17:25:31Z",
+      "repository_archived": false,
+      "installed_by_scan": false,
+      "sources": [
+        "https://github.com/hummingbot/hummingbot",
+        "https://github.com/hummingbot/hummingbot/blob/master/README.md",
+        "https://github.com/hummingbot/hummingbot/blob/master/LICENSE",
+        "https://github.com/hummingbot/hummingbot/releases/tag/v2.17.0",
+        "https://hummingbot.org/installation/"
+      ],
+      "provenance": {
+        "readme_blob_sha": "20dadd44364c91a25448716ebb92e142797794da",
+        "license_blob_sha": "e998fcfee5d9d1ba105679b6a755d10fa68cdc97",
+        "metadata_source": "GitHub connected get_repo; public GitHub release/commit API and official PyPI for explicitly labeled package versions"
+      }
+    },
+    {
+      "id": "alpaca",
+      "repo": "alpacahq/alpaca-py",
+      "name": "Alpaca-py",
+      "domain": "trading",
+      "priority": 2,
+      "status": "paper_only_future",
+      "best_use": "Official Python SDK for later read-only broker data and explicitly chosen paper-account testing.",
+      "license": "Apache-2.0 SDK; broker account, market-data entitlements and service terms are separate.",
+      "offline": "Broker/paper/data APIs require Internet and credentials; only separately saved snapshots are offline.",
+      "existing_overlap": "Would add an actual broker connection; existing generic HTTP connectors do not provide its order reconciliation semantics.",
+      "risks": [
+        "Paper and live credentials/endpoints must be structurally separated.",
+        "Paper fills omit market impact, latency slippage and queue position, among other effects.",
+        "Account/data eligibility and feeds must be confirmed; a free software license does not grant comprehensive realtime data."
+      ],
+      "deployment": "Official SDK requires Python 3.10+; isolated adapter, no local broker software required by this SDK.",
+      "cost": "SDK license fee is not the data/trading cost; account entitlements, data subscriptions, exchange/regulatory/trading fees may apply.",
+      "adapter": "Read-only account snapshot first, then a dedicated paper credential/endpoint allowlist with bounded order intent and reconciliation.",
+      "release": {
+        "version": "v0.44.0",
+        "published_at": "2026-08-11T10:11:55Z",
+        "prerelease": false,
+        "url": "https://github.com/alpacahq/alpaca-py/releases/tag/v0.44.0"
+      },
+      "repository_url": "https://github.com/alpacahq/alpaca-py",
+      "checked_at_utc": "2026-10-29T17:25:31Z",
+      "repository_archived": false,
+      "installed_by_scan": false,
+      "sources": [
+        "https://github.com/alpacahq/alpaca-py",
+        "https://github.com/alpacahq/alpaca-py/blob/master/README.md",
+        "https://github.com/alpacahq/alpaca-py/blob/master/LICENSE",
+        "https://github.com/alpacahq/alpaca-py/releases/tag/v0.44.0",
+        "https://docs.alpaca.markets/us/docs/paper-trading"
+      ],
+      "provenance": {
+        "readme_blob_sha": "24563a8a5313f1c1aec2fe813811005af80b676f",
+        "license_blob_sha": "424a4eb4bfde404ddfc5e0ff2a3d020b5a7063e2",
+        "metadata_source": "GitHub connected get_repo; public GitHub release/commit API and official PyPI for explicitly labeled package versions"
+      }
+    },
+    {
+      "id": "vnpy",
+      "repo": "vnpy/vnpy",
+      "name": "VeighNa / vn.py",
+      "domain": "trading",
+      "priority": 3,
+      "status": "conditional_market_fit",
+      "best_use": "Windows-oriented multi-module trading workstation, CTA replay and controlled risk-manager research.",
+      "license": "MIT core; gateways, broker APIs, data feeds and optional distributions retain their own terms.",
+      "offline": "Historical local backtests can be offline. Its local paper account simulates against a real-time feed, so that feed still needs connectivity.",
+      "existing_overlap": "A complete trading workstation duplicates UI/orchestration; prefer a small adapter only for an actual supported broker/market need.",
+      "risks": [
+        "Do not assume its gateway set matches the operator's US-equity account.",
+        "Full desktop distribution adds components and maintenance beyond Ariadne.",
+        "Broker/data terms and submodule versions need qualification."
+      ],
+      "deployment": "Upstream lists Windows 11+/Server 2022+, Ubuntu 22.04+ and recommends Python 3.13; framework license does not validate packaged installer provenance.",
+      "cost": "CPU workstation plus selected market-data/service needs; optional large distribution avoided until useful.",
+      "adapter": "Read-only gateway data or local CTA backtest worker, with target-market compatibility established before a full workstation.",
+      "release": {
+        "version": "4.5.0",
+        "published_at": "2026-10-06T09:58:41Z",
+        "prerelease": false,
+        "url": "https://github.com/vnpy/vnpy/releases/tag/4.5.0"
+      },
+      "repository_url": "https://github.com/vnpy/vnpy",
+      "checked_at_utc": "2026-10-29T17:25:31Z",
+      "repository_archived": false,
+      "installed_by_scan": false,
+      "sources": [
+        "https://github.com/vnpy/vnpy",
+        "https://github.com/vnpy/vnpy/blob/master/README.md",
+        "https://github.com/vnpy/vnpy/blob/master/LICENSE",
+        "https://github.com/vnpy/vnpy/releases/tag/4.5.0"
+      ],
+      "provenance": {
+        "readme_blob_sha": "64eefd38fcb83a24b74ce6b1429b6ed6f58acc25",
+        "license_blob_sha": "2325eb27b15b3dcf1ed510c3ac314285f6bdcaa0",
+        "metadata_source": "GitHub connected get_repo; public GitHub release/commit API and official PyPI for explicitly labeled package versions"
+      }
+    },
+    {
+      "id": "ib_async",
+      "repo": "ib-api-reloaded/ib_async",
+      "name": "ib_async",
+      "domain": "trading",
+      "priority": 3,
+      "status": "paper_only_future",
+      "best_use": "Community async client for later Interactive Brokers account/market-data reconciliation and paper testing.",
+      "license": "BSD-2-Clause wrapper; TWS/Gateway, brokerage and market-data agreements remain separate.",
+      "offline": "A running authenticated TWS or IB Gateway and brokerage connectivity are required for actual account/feed operations.",
+      "existing_overlap": "A broker-specific protocol client adds semantics not supplied by generic local HTTP tools.",
+      "risks": [
+        "It is a community client, not the official IBKR SDK.",
+        "README says it implements the wire protocol without ibapi, but this does not relicense TWS/Gateway or data.",
+        "The latest published tag observed is 2025; check current maintenance/API compatibility before adopting.",
+        "Current broker marketing describes its latest official API as GPL; exact downloaded packages, Gateway and data terms still need review. This scan did not download those artifacts."
+      ],
+      "deployment": "Python 3.10+ plus a separate TWS/Gateway Java application; upstream suggests at least 4 GB Java memory for bulk-data use, not a measured Ariadne requirement.",
+      "cost": "Additional broker process, session maintenance and possible data subscriptions; heavier than a simple file-based offline adapter.",
+      "adapter": "Read-only broker reconciliation or separately approved paper account; no credentials, connection or execution enabled by this scan.",
+      "release": {
+        "version": "v2.0.1",
+        "published_at": "2025-06-22T16:58:29Z",
+        "prerelease": false,
+        "url": "https://github.com/ib-api-reloaded/ib_async/releases/tag/v2.0.1"
+      },
+      "repository_url": "https://github.com/ib-api-reloaded/ib_async",
+      "checked_at_utc": "2026-10-29T17:25:31Z",
+      "repository_archived": false,
+      "installed_by_scan": false,
+      "sources": [
+        "https://github.com/ib-api-reloaded/ib_async",
+        "https://github.com/ib-api-reloaded/ib_async/blob/main/README.md",
+        "https://github.com/ib-api-reloaded/ib_async/blob/main/LICENSE",
+        "https://github.com/ib-api-reloaded/ib_async/releases/tag/v2.0.1",
+        "https://www.interactivebrokers.com/docs/",
+        "https://interactivebrokers.github.io/index.html"
+      ],
+      "provenance": {
+        "readme_blob_sha": "713f058a2d1c241d1c2dd7e2e1d14bcba5622bab",
+        "license_blob_sha": "d115e2bdc8602a8b62ae53d6b876552424b0b7ba",
+        "metadata_source": "GitHub connected get_repo; public GitHub release/commit API and official PyPI for explicitly labeled package versions"
+      }
+    }
+  ]
+}

@@ -1,5 +1,7 @@
 # Ariadne — local AI in a box
 
+The [29 October capability radar](docs/CAPABILITY_RADAR_2026_10_29.md) adds a primary-source scan of **49 business, trading, device/control and AI candidates**, with offline requirements, license constraints, recurring-cost considerations and concrete integration workflows. These are researched proposals, separate from installed capabilities. The dated report is also saved as a local daily-brief addendum.
+
 Version 0.13 adds **checked private backups**: double-click **Backup Ariadne.cmd** to create a new owner-state archive, verify every member hash and check each SQLite snapshot before publishing it. Verification runs offline without a model and leaves Ariadne running. This is a standalone utility; an already running server can keep its current version until its next deliberate restart. See [backup scope and verification limits](docs/CHECKED_BACKUPS_0_13.md).
 
 Version 0.12 adds the **Signal Room interface**, a **1080×1350 one-page daily brief** with local PNG/SVG export and printing, and a **Windows background host that continues after the launcher or Codex closes**. Double-click Start to launch or reopen the verified host; use Stop Ariadne.cmd for explicit shutdown. See [interface research](docs/SIGNAL_ROOM_0_12.md), [daily signal](docs/DAILY_SIGNAL_0_12.md) and [independent hosting](docs/INDEPENDENT_HOST_0_12.md).

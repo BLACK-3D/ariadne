@@ -1,0 +1,262 @@
+{
+  "schema": 1,
+  "checked_at_utc": "2026-10-29T17:25:48Z",
+  "scope": "Eleven AI model/runtime/adapter/evaluation candidates checked through publisher model cards, primary documentation, GitHub metadata and selected license/release files. Not an exhaustive vulnerability audit or runtime benchmark.",
+  "candidates": [
+    {
+      "id": "core-ollama",
+      "name": "Ollama",
+      "repo": "ollama/ollama",
+      "domain": "ai_core",
+      "best_use": "Qualify the small upstream runtime update before comparing new local voice models.",
+      "license": "MIT runtime; each model has separate terms.",
+      "offline": "Local inference after all model/runtime assets are cached; cloud models excluded.",
+      "status": "existing_runtime_update_candidate",
+      "priority": "P1",
+      "existing_overlap": "Ariadne already owns a pinned Ollama runtime; do not install a second always-on server.",
+      "version": "v0.40.13",
+      "release_date": "2026-10-28",
+      "advancement": "Official release adds LFM3 audio/omni on Windows and Linux; this supersedes the previous Apple-only limitation.",
+      "risks": [
+        "Upgrade must preserve host ownership, storage confinement and model policy.",
+        "No latency or power improvement measured."
+      ],
+      "sources": [
+        "https://github.com/ollama/ollama/releases/tag/v0.40.13",
+        "https://github.com/ollama/ollama/blob/main/LICENSE"
+      ]
+    },
+    {
+      "id": "core-llamacpp",
+      "name": "llama.cpp",
+      "repo": "ggml-org/llama.cpp",
+      "domain": "ai_core",
+      "best_use": "A separate experimental branch for streaming speech and new architectures.",
+      "license": "MIT runtime; model/codec terms are separate.",
+      "offline": "Local CPU/GPU inference with pinned model, projector and codec assets.",
+      "status": "conditional_qualification",
+      "priority": "P2",
+      "existing_overlap": "Current Ollama already provides local inference; a second backend needs a demonstrated missing capability.",
+      "version": "v0.8.0",
+      "release_date": "2026-10-28",
+      "advancement": "LFM3 support and experimental streaming audio/realtime/TTS routes.",
+      "risks": [
+        "Experimental APIs and additional adapter surface.",
+        "No replacement of accepted Cori voice without listening/latency evidence."
+      ],
+      "sources": [
+        "https://github.com/ggml-org/llama.cpp/releases/tag/v0.8.0",
+        "https://github.com/ggml-org/llama.cpp/blob/master/LICENSE"
+      ]
+    },
+    {
+      "id": "core-qwen35",
+      "name": "Qwen3.5-9B",
+      "repo": "Qwen/Qwen3.5-9B",
+      "domain": "ai_core",
+      "best_use": "Compare grounded document/image interpretation and tool use on existing checked Ariadne tasks.",
+      "license": "Apache-2.0 weights, as shown in publisher card/license.",
+      "offline": "Yes after exact weights, tokenizer and image assets are cached.",
+      "status": "existing_asset_evaluation",
+      "priority": "P1",
+      "existing_overlap": "Ariadne already provisions Qwen3.5; interface modality support and end-to-end tests remain separate.",
+      "version": "Publisher model snapshot; latest revision not enumerated in this scan",
+      "release_date": null,
+      "advancement": "Image/text model with local serving routes; extend the application input path rather than merely downloading another model.",
+      "risks": [
+        "Publisher benchmarks do not establish local task success.",
+        "Vision support in a model does not automatically enable images in Ariadne."
+      ],
+      "sources": [
+        "https://huggingface.co/Qwen/Qwen3.5-9B",
+        "https://huggingface.co/Qwen/Qwen3.5-9B/blob/3770784d47152821ff8b46455b3abc794854235b/LICENSE"
+      ]
+    },
+    {
+      "id": "core-gemma4",
+      "name": "Gemma 4 12B Unified",
+      "repo": "google/gemma-4-12B",
+      "domain": "ai_core",
+      "best_use": "A controlled multimodal challenger for local text/image/audio understanding.",
+      "license": "Apache-2.0 on the current publisher card; do not apply older Gemma-family terms by assumption.",
+      "offline": "Potentially complete after provisioning; verify the selected backend supports every required modality.",
+      "status": "conditional_qualification",
+      "priority": "P2",
+      "existing_overlap": "An alternative to the current controller, not another resident model.",
+      "version": "Gemma 4 12B Unified model card",
+      "release_date": null,
+      "advancement": "Unified text/image/audio/video-input model; outputs text and supports function calling.",
+      "risks": [
+        "No 16-GB complete-pipeline fit or latency measured.",
+        "Publisher examples use both gemma-4-12B and -it identifiers; pin the exact resolved artifact before provisioning."
+      ],
+      "sources": [
+        "https://huggingface.co/google/gemma-4-12B"
+      ]
+    },
+    {
+      "id": "core-nemotron-bolt",
+      "name": "Nemotron 3.5 Bolt E4B",
+      "repo": "nvidia/NVIDIA-Nemotron-3.5-Bolt-E4B-4GB",
+      "domain": "ai_core",
+      "best_use": "A candidate for concise, responsive local tool routing.",
+      "license": "OpenMDW-1.1; retain exact model and dependency notices.",
+      "offline": "Yes in a qualified local runtime; currently documented text input/output.",
+      "status": "conditional_qualification",
+      "priority": "P2",
+      "existing_overlap": "Compare against current controller on identical tasks; preserve current voice stack.",
+      "version": "Publisher GGUF model",
+      "release_date": "2026-10-23",
+      "advancement": "Tool-use-focused small model; official Q4_K_M artifact listed as 6.18 GB despite the repository's 4GB name.",
+      "risks": [
+        "Effective parameter count is not memory usage.",
+        "Publisher evaluation results are not Ariadne measurements.",
+        "Speculative drafter adds assets and memory."
+      ],
+      "sources": [
+        "https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Bolt-E4B-4GB",
+        "https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Bolt-E4B-4GB/blob/main/Nemotron-3.5-Bolt-E4B-Q4_K_M.gguf"
+      ]
+    },
+    {
+      "id": "core-lfm3",
+      "name": "LFM3 text and Omni",
+      "repo": "LiquidAI/LFM3-Omni-2B",
+      "domain": "ai_core",
+      "best_use": "Compare an integrated offline voice/vision loop and a small text router.",
+      "license": "LFM Open License 1.0, with a commercial revenue threshold; not an unrestricted Apache model.",
+      "offline": "Local GGUF route exists; all codec/projector/runtime assets and speech modes need qualification.",
+      "status": "license_and_runtime_qualification",
+      "priority": "P2",
+      "existing_overlap": "Could overlap ASR/controller/TTS; no current voice or microphone setting changed.",
+      "version": "LFM3-Omni-2B and LFM3-1.7B",
+      "release_date": null,
+      "advancement": "Windows/Linux route now reported by Ollama v0.40.13. Omni takes multimodal input and produces text/speech; publisher marks it non-reasoning.",
+      "risks": [
+        "Model-card Transformers examples request remote code; do not execute it automatically.",
+        "License section 5 and exact deployment entity must be reviewed before business distribution.",
+        "No voice quality, interruptibility or energy advantage measured."
+      ],
+      "sources": [
+        "https://huggingface.co/LiquidAI/LFM3-Omni-2B",
+        "https://huggingface.co/LiquidAI/LFM3-1.7B",
+        "https://www.liquid.ai/lfm-license",
+        "https://github.com/ollama/ollama/releases/tag/v0.40.13"
+      ]
+    },
+    {
+      "id": "core-cli-anything",
+      "name": "CLI-Anything",
+      "repo": "HKUDS/CLI-Anything",
+      "domain": "ai_core",
+      "best_use": "Reuse selected source-reviewed JSON command adapters for applications Ariadne cannot yet operate.",
+      "license": "Apache-2.0 framework; each application, harness and service retains separate terms.",
+      "offline": "Only selected local-app harnesses after their dependencies are cached; many catalog entries use online services.",
+      "status": "selected_adapter_review",
+      "priority": "P1",
+      "existing_overlap": "Ariadne already has fixed CAD/office/media adapters; add only missing operations.",
+      "version": "v0.4.0",
+      "release_date": "2026-06-25",
+      "advancement": "Capability discovery and preflight across CLI workflows; useful design/source reference for checked app operations.",
+      "risks": [
+        "The hub installs third-party code; no global skill/registry auto-install.",
+        "Source review and file/network/approval boundaries remain necessary."
+      ],
+      "sources": [
+        "https://github.com/HKUDS/CLI-Anything/releases/tag/v0.4.0",
+        "https://github.com/HKUDS/CLI-Anything/blob/main/README.md",
+        "https://github.com/HKUDS/CLI-Anything/blob/main/LICENSE"
+      ]
+    },
+    {
+      "id": "core-promptfoo",
+      "name": "Promptfoo",
+      "repo": "promptfoo/promptfoo",
+      "domain": "ai_core",
+      "best_use": "A fixed local regression suite for business tool calls, refusal of unauthorized writes and document grounding.",
+      "license": "MIT core; hosted/enterprise features and providers require separate review.",
+      "offline": "Local Ollama chat providers and deterministic assertions can run locally; exclude hosted graders, remote probes and telemetry.",
+      "status": "selected_evaluation_candidate",
+      "priority": "P1",
+      "existing_overlap": "Complements existing deterministic unit/output checks; does not replace them.",
+      "version": "0.125.1",
+      "release_date": "2026-10-25",
+      "advancement": "Local chat/tool-call tests and configurable local grading; chat endpoint is needed for tool assertions.",
+      "risks": [
+        "Evaluation configs and custom scripts are executable inputs.",
+        "Model-graded assertions cost local inference and are weaker than exact checks for arithmetic/artifact integrity.",
+        "Offline/telemetry behavior still needs native qualification."
+      ],
+      "sources": [
+        "https://github.com/promptfoo/promptfoo/releases/tag/0.125.1",
+        "https://github.com/promptfoo/promptfoo/blob/main/LICENSE",
+        "https://www.promptfoo.dev/docs/providers/ollama/"
+      ]
+    },
+    {
+      "id": "core-inspect",
+      "name": "Inspect AI",
+      "repo": "UKGovernmentBEIS/inspect_ai",
+      "domain": "ai_core",
+      "best_use": "More complex multi-turn/agent evaluations when the small fixed suite is insufficient.",
+      "license": "MIT.",
+      "offline": "Supports Ollama/local providers; each selected dataset, scorer and sandbox must also be local.",
+      "status": "conditional_evaluation_candidate",
+      "priority": "P2",
+      "existing_overlap": "Alternative evaluation harness, not a second production agent framework.",
+      "version": "Current README/LICENSE snapshot; latest release not verified",
+      "release_date": null,
+      "advancement": "Agent, tool-use and multi-turn evaluation components with local model providers.",
+      "risks": [
+        "Curated eval tasks may need external data, tools or additional authority.",
+        "Pin task code and output budgets before running it."
+      ],
+      "sources": [
+        "https://github.com/UKGovernmentBEIS/inspect_ai",
+        "https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/LICENSE",
+        "https://inspect.aisi.org.uk/providers.html"
+      ]
+    },
+    {
+      "id": "core-fara",
+      "name": "Fara1.5 computer-use models",
+      "repo": "microsoft/fara",
+      "domain": "ai_core",
+      "best_use": "A screenshot-grounded action proposal worker for a dedicated, constrained browser.",
+      "license": "MIT repository code; verify the exact selected model-weight terms separately.",
+      "offline": "Local weights are offered; the quick-start Foundry endpoint is online. Qualify a local serving path, browser assets and local target apps separately.",
+      "status": "research_preview_qualification",
+      "priority": "P2",
+      "existing_overlap": "Ariadne already exposes bounded local browser operations; this adds visual action inference, not new authority.",
+      "version": "Fara1.5 family: 4B, 9B, 27B",
+      "release_date": "2026-07-22",
+      "advancement": "Native screenshot-to-mouse/keyboard browser agents; repository recommends WSL2 for Windows.",
+      "risks": ["Keep an isolated browser profile and action approvals; web content cannot grant permissions.", "Do not assume benchmark performance implies reliable general Windows desktop operation.", "GPU/runtime memory and local-model support are unqualified on this box."],
+      "sources": ["https://github.com/microsoft/fara/blob/main/README.md", "https://github.com/microsoft/fara/blob/main/LICENSE", "https://www.microsoft.com/en-us/research/articles/fara1-5-computer-use-agent/"]
+    },
+    {
+      "id": "core-vllm",
+      "name": "vLLM",
+      "repo": "vllm-project/vllm",
+      "domain": "ai_core",
+      "best_use": "A later throughput backend if measured simultaneous business workloads justify it.",
+      "license": "Apache-2.0 runtime; model licenses separate.",
+      "offline": "Local inference with all weights/dependencies cached; native Windows appliance packaging not qualified here.",
+      "status": "defer_until_measured_need",
+      "priority": "P3",
+      "existing_overlap": "Current installation uses one local inference worker; a second server is not automatically beneficial.",
+      "version": "v0.32.0 observed on official homepage; latest GitHub release not independently enumerated",
+      "release_date": "2026-10-18",
+      "advancement": "Current release emphasizes lower-precision KV cache and serving improvements.",
+      "risks": [
+        "High-throughput claims are not measurements on this PC.",
+        "More CUDA/PyTorch/serving maintenance; no evidence of lower lifecycle cost for one user."
+      ],
+      "sources": [
+        "https://vllm.ai/",
+        "https://github.com/vllm-project/vllm/blob/main/LICENSE",
+        "https://docs.vllm.ai/en/latest/getting_started/installation/"
+      ]
+    }
+  ]
+}
