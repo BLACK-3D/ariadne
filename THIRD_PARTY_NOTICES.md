@@ -91,3 +91,9 @@ The bundled FEMA, CDC and FoodSafety.gov documents remain attributed to their or
 # Ariadne 0.6 timezone data
 
 `ariadne/resources/briefing/America_Chicago.tzif` is the IANA America/Chicago record from the cached Python tzdata 2026.6 distribution. Bundled attribution and Apache-2.0 license are in `ariadne/resources/briefing/`. This small local asset supplies DST-aware daily timing on Windows without a runtime dependency download.
+
+# Fast offline speech (0.11)
+
+The optional Piper 1.8.0 engine is GPL-3.0-or-later; its source revision, package hashes and full COPYING notice are retained in `config/speech-assets.json` and `runtime/media/piper/notices/`. Upstream source: https://github.com/OHF-Voice/piper1-gpl/tree/639388b6317fc4731e91d53da42aea68fd4166ff. Piper's and its dependencies' wheel notices remain in the isolated `runtime/media/piper-python` installation. Pathvalidate 3.3.1 is MIT licensed. These components retain their own licenses.
+
+Cori medium is a preset British English voice. Its pinned upstream model card states it was trained from scratch on approximately 24 hours of public-domain LibriVox recordings. The card and model configuration are retained with the local model; no voice cloning, owner recording, or runtime download is involved. Model source: https://huggingface.co/rhasspy/piper-voices/tree/3001aba6a7e29fca16fd6174d4fac367951b7929/en/en_GB/cori/medium.

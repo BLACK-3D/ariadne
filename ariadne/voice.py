@@ -11,6 +11,8 @@ from pathlib import Path
 class Voice:
     def __init__(self, settings):
         self.settings = settings
+        from .speech_runtime import NaturalSpeech
+        self.natural = NaturalSpeech(settings.data_dir)
         self.windows_speech = None
         if os.name == "nt":
             executable = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32/WindowsPowerShell/v1.0/powershell.exe"
@@ -31,16 +33,45 @@ class Voice:
             profile = load_profile(s.data_dir)
             sherpa = backend_status(profile, "sherpa")["ready"]
             kokoro = backend_status(profile, "kokoro")["ready"]
+            fast_speech = backend_status(profile, "piper")["ready"]
         except (ValueError, OSError):
-            sherpa = kokoro = False
+            sherpa = kokoro = fast_speech = False
         whisper = bool(s.whisper_bin and s.whisper_model and Path(s.whisper_bin).is_file() and Path(s.whisper_model).is_file())
         piper = bool(s.piper_bin and s.piper_model and Path(s.piper_bin).is_file() and Path(s.piper_model).is_file())
         system = bool(self.windows_speech or piper)
-        return {"transcription": bool(sherpa or whisper), "speech": bool(kokoro or system),
+        from .speech_runtime import SPEECH_VOICES
+        return {"transcription": bool(sherpa or whisper), "speech": bool(kokoro or fast_speech or system),
                 "transcription_backend": "sherpa-streaming" if sherpa else "whisper.cpp" if whisper else None,
-                "speech_backend": "piper" if piper else "windows-sapi" if self.windows_speech else "kokoro" if kokoro else None,
-                "speech_backends": (["system"] if system else []) + (["natural"] if kokoro else []),
-                "latency_note": "Natural Kokoro speech uses a cold CPU worker; measured 19.8 seconds for a short sentence on this host. System speech is the default when available."}
+                "speech_backend": "piper" if piper else "windows-sapi" if self.windows_speech else "piper-neural" if fast_speech else "kokoro" if kokoro else None,
+                "speech_backends": (["system"] if system else []) + (["natural"] if kokoro or fast_speech else []),
+                "default_voice": "cori" if fast_speech else "af_heart",
+                "voice_presets": [item for item in SPEECH_VOICES if (fast_speech if item.get("backend") == "piper" else kokoro)],
+                "natural_runtime": self.natural.status(),
+                "latency_note": "Natural speech reuses a local CPU model after warm-up. No cloud service or GPU is required."}
+
+    def warm(self, *, voice=None, speed=1.12):
+        voice = voice or self.status()["default_voice"]
+        return self.natural.warm(voice=voice, speed=speed)
+
+    def reset_natural(self):
+        """An explicit owner preference action may recover a failed worker."""
+        if self.natural.status()["state"] == "error":
+            from .speech_runtime import NaturalSpeech
+            self.natural.close()
+            self.natural = NaturalSpeech(self.settings.data_dir)
+
+    def close(self):
+        self.natural.close()
+
+    def play(self, text, *, backend="natural", voice=None, speed=1.12):
+        """Synchronous PC playback; WakeService keeps its microphone muted."""
+        if os.name != "nt":
+            raise ValueError("Direct PC speech playback is available on Windows only.")
+        from .media_tools import validate_generated_wav
+        audio = self.speak(text, backend=backend, voice=voice, speed=speed)
+        validate_generated_wav(audio)
+        import winsound
+        winsound.PlaySound(audio, winsound.SND_MEMORY | winsound.SND_NODEFAULT)
 
     def transcribe(self, audio, *, cancelled=None):
         if not self.status()["transcription"]:
@@ -70,19 +101,16 @@ class Voice:
             except (OSError, subprocess.TimeoutExpired):
                 raise ValueError("Local transcription failed or timed out") from None
 
-    def speak(self, text, *, backend="system", cancelled=None):
-        from .media_tools import _text, load_profile, run_media
+    def speak(self, text, *, backend="system", voice=None, speed=1.12, cancelled=None):
+        from .media_tools import _text
         _text(text, "text", 2000)
-        if not self.status()["speech"]:
-            raise ValueError("Local Piper binary and voice model are not configured")
         if backend not in {"system", "natural"}:
             raise ValueError("Speech backend must be system or natural.")
         if backend == "natural":
-            if "natural" not in self.status()["speech_backends"]:
-                raise ValueError("Pinned local Kokoro natural speech has not been provisioned.")
-            import base64
-            result = run_media({"action": "kokoro", "profile": load_profile(self.settings.data_dir), "text": text}, cancelled=cancelled)
-            return base64.b64decode(result["data"], validate=True)
+            voice = voice or self.status()["default_voice"]
+            return self.natural.synthesize(text, voice=voice, speed=speed, cancelled=cancelled)
+        if not self.status()["speech"]:
+            raise ValueError("Local Piper binary and voice model are not configured")
         with tempfile.TemporaryDirectory(prefix="voice-", dir=self.settings.data_dir) as directory:
             output = Path(directory) / "speech.wav"
             try:

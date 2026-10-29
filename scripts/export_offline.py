@@ -26,11 +26,11 @@ SOURCE_DIRS = ("ariadne", "scripts", "tests")
 SOURCE_FILES = {"LICENSE", "README.md", "THIRD_PARTY_NOTICES.md", "pyproject.toml", "Dockerfile", "compose.yaml",
     "compose.provision.yaml", "Start Ariadne.cmd", "start.ps1", "start.sh", ".gitignore", ".dockerignore"}
 CONFIG_FILES = {"engineering-assets.json", "knowledge-model-assets.json", "knowledge-wheels-manifest.json", "ocr-wheels-manifest.json",
-    "production-assets.json", "production-blender-assets.json", "mcp.example.json", "connectors.example.json", "box-profiles.json", "public-models.json"}
+    "production-assets.json", "production-blender-assets.json", "mcp.example.json", "connectors.example.json", "box-profiles.json", "public-models.json", "speech-assets.json"}
 DOCS = {"ARCHITECTURE.md", "ANALYTICS_0_3.md", "OCR_0_3.md", "MCP_0_3.md", "KNOWLEDGE_0_4.md", "MEDIA_0_4.md", "PRODUCTION_0_4.md", "PORTABLE_0_4.md", "DELIVERY_0_4.md",
-    "DIFFERENTIAL_REVIEW_0_4_SHARED.md", "REVIEW_0_4_EXTENSIONS.md", "REVIEW_PORTABLE_PYTHON_0_4.md", "SURVIVAL_0_5.md", "SURVIVAL-SOURCES.md", "WORKFLOWS_0_5.md", "AGENTS_0_6.md", "DAILY-BRIEFING.md", "WAKE_VOICE.md", "INTERNET.md", "COMMAND_CENTER_0_8.md", "OFFLINE_ROUTINES_0_9.md", "OFFLINE_AUTONOMY_0_10.md", "BUILD_FROM_SOURCE.md", "GITHUB_SOURCE.md"}
+    "DIFFERENTIAL_REVIEW_0_4_SHARED.md", "REVIEW_0_4_EXTENSIONS.md", "REVIEW_PORTABLE_PYTHON_0_4.md", "SURVIVAL_0_5.md", "SURVIVAL-SOURCES.md", "WORKFLOWS_0_5.md", "AGENTS_0_6.md", "DAILY-BRIEFING.md", "WAKE_VOICE.md", "INTERNET.md", "COMMAND_CENTER_0_8.md", "OFFLINE_ROUTINES_0_9.md", "OFFLINE_AUTONOMY_0_10.md", "FAST_VOICE_0_11.md", "BUILD_FROM_SOURCE.md", "GITHUB_SOURCE.md"}
 RUNTIME_DIRS = ("runtime/python", "runtime/ollama", "runtime/whisper", "runtime/ocr/models", "runtime/ocr/wheels", "runtime/ocr/notices",
-    "runtime/media/python", "runtime/media/flux-python", "runtime/media/kokoro", "runtime/media/sherpa", "runtime/media/silero",
+    "runtime/media/python", "runtime/media/flux-python", "runtime/media/piper-python", "runtime/media/piper", "runtime/media/kokoro", "runtime/media/sherpa", "runtime/media/silero",
     "runtime/media/diarization", "runtime/media/flux", "runtime/media/licenses", "runtime/media/wheels", "runtime/media/flux-wheels",
     "runtime/knowledge/python", "runtime/knowledge/model", "runtime/knowledge/docling-models", "runtime/knowledge/kiwix",
     "runtime/knowledge/library", "runtime/knowledge/notices", "runtime/knowledge/wheels", "runtime/wheels", "runtime/downloads/mcp",
@@ -45,7 +45,7 @@ EXCLUDED = ["All owner databases, pairing/API tokens, credentials, MCP/HTTP regi
     "Unknown/custom model tags, unreferenced model blobs and unreviewed model metadata; only the pinned public-model catalog is exported",
     "Generated native extraction logs and local pip direct_url metadata from Ariadne-installed optional package environments"]
 OPTIONAL_PACKAGE_BINS = frozenset(prefix + "/bin" for prefix in ("runtime/knowledge/python", "runtime/media/python",
-    "runtime/media/flux-python", "runtime/production/python", "runtime/production/blender-python", "runtime/automation/python"))
+    "runtime/media/flux-python", "runtime/media/piper-python", "runtime/production/python", "runtime/production/blender-python", "runtime/automation/python"))
 PUBLIC_MODEL_TAGS = frozenset({"qwen3.5:9b", "qwen3:8b", "qwen3:4b"})
 NOTICE_ASSETS = frozenset({"ollama/LICENSE", "whisper/LICENSE.whisper.cpp", "whisper/LICENSE.llama.cpp",
     "whisper/LICENSE.SDL2", "whisper/LICENSE.Whisper-model", "whisper/WHISPER_MODEL_CARD.md"})
@@ -232,7 +232,7 @@ def _walk(root, relative):
                 if rel in {"runtime/production/7zip/extract.log", "runtime/production/qgis/extract.log", "runtime/production/kicad/extract.log"}:
                     continue
                 if (entry.name == "direct_url.json" and path.parent.name.endswith(".dist-info")
-                        and rel.startswith(("runtime/automation/python/", "runtime/production/python/", "runtime/production/blender-python/"))):
+                        and rel.startswith(("runtime/automation/python/", "runtime/production/python/", "runtime/production/blender-python/", "runtime/media/piper-python/"))):
                     continue
                 if rel in OPTIONAL_PACKAGE_BINS and rel != "runtime/knowledge/python/bin":
                     continue  # Unused pip console wrappers embed the original build interpreter path.

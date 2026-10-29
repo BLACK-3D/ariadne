@@ -133,13 +133,15 @@ class Store:
             out["isolated_outputs"] = bool(out["isolated_outputs"])
         return out
 
-    def new_run(self, prompt, session_id=None, checks=None, workflow_id=None, agent_id=None, isolated_outputs=False):
+    def new_run(self, prompt, session_id=None, checks=None, workflow_id=None, agent_id=None, isolated_outputs=False, interaction="normal"):
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
-            run_id = self._insert_run(db, prompt, session_id, checks, workflow_id, agent_id, isolated_outputs)
+            run_id = self._insert_run(db, prompt, session_id, checks, workflow_id, agent_id, isolated_outputs, interaction)
         return self.run(run_id)
 
-    def _insert_run(self, db, prompt, session_id=None, checks=None, workflow_id=None, agent_id=None, isolated_outputs=False):
+    def _insert_run(self, db, prompt, session_id=None, checks=None, workflow_id=None, agent_id=None, isolated_outputs=False, interaction="normal"):
+        if type(interaction) is not str or interaction not in {"normal", "voice"}:
+            raise ValueError("Interaction must be normal or voice.")
         from .agents import resolve_agent
         agent_id = resolve_agent(prompt, agent_id)
         run_id, session_id = ident(), session_id or ident()
@@ -163,8 +165,17 @@ class Store:
         db.execute("INSERT INTO runs(id,session_id,title,prompt,status,created_at,updated_at,context,agent_id) VALUES (?,?,?,?,?,?,?,?,?)",
                    (run_id, session_id, prompt[:90], prompt, "queued", stamp, stamp, json.dumps(context), agent_id))
         db.execute("INSERT INTO events(run_id,kind,data,created_at) VALUES (?,?,?,?)", (run_id, "queued", json.dumps({"message": "Mission queued for local execution.", "agent_id": agent_id}), stamp))
+        if interaction == "voice":
+            # Commit the trusted input channel with the queued run. A separate
+            # post-queue event races the worker's ordinary scheduler polling.
+            db.execute("INSERT INTO events(run_id,kind,data,created_at) VALUES (?,?,?,?)", (run_id, "voice_command", json.dumps({"wake_word": "Ariadne", "agent_id": agent_id}), stamp))
         db.execute("UPDATE runs SET checks=?,verification_status=?,workflow_id=?,isolated_outputs=?,output_prefix=? WHERE id=?", (json.dumps(checks or []), "pending" if checks else "not_requested", workflow_id, int(isolated_outputs), output_prefix, run_id))
         return run_id
+
+    def is_voice_run(self, run_id):
+        """Read the trusted channel marker; prompt text cannot set reply style."""
+        with self.connect() as db:
+            return db.execute("SELECT 1 FROM events WHERE run_id=? AND kind='voice_command' LIMIT 1", (run_id,)).fetchone() is not None
 
     def run(self, run_id):
         with self.connect() as db:

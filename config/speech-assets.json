@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "platform": "Windows x64, CPython 3.9+ stable ABI; existing media ONNX Runtime required",
+  "engine": {"name": "piper-tts", "version": "1.8.0", "license": "GPL-3.0-or-later", "source_revision": "639388b6317fc4731e91d53da42aea68fd4166ff", "source": "https://github.com/OHF-Voice/piper1-gpl/tree/639388b6317fc4731e91d53da42aea68fd4166ff"},
+  "voice": {"name": "Cori medium", "language": "en-gb", "model_revision": "3001aba6a7e29fca16fd6174d4fac367951b7929", "training_data": "Public-domain LibriVox recordings; trained from scratch, as stated in the retained upstream model card"},
+  "assets": [
+    {"path": "runtime/media/piper/wheels/piper_tts-1.8.0-cp39-abi3-win_amd64.whl", "bytes": 34119688, "sha256": "5da9bfdb05dfe15da3536859d422e605483ffa6d2b3ec2c5b9593bae6b5aa6a4", "url": "https://files.pythonhosted.org/packages/12/9c/c736d1961cf9ce0655278731b9430df41892ca2ded7b09dabcb340612158/piper_tts-1.8.0-cp39-abi3-win_amd64.whl"},
+    {"path": "runtime/media/piper/wheels/pathvalidate-3.3.1-py3-none-any.whl", "bytes": 24305, "sha256": "5263baab691f8e1af96092fa5137ee17df5bdfbd6cff1fcac4d6ef4bc2e1735f", "url": "https://files.pythonhosted.org/packages/9a/70/875f4a23bfc4731703a5835487d0d2fb999031bd415e7d17c0ae615c18b7/pathvalidate-3.3.1-py3-none-any.whl"},
+    {"path": "runtime/media/piper/en_GB-cori-medium.onnx", "bytes": 63531379, "sha256": "1899f98e5fb8310154f3c2973f4b8a929ba7245e722b3d3a85680b833d95f10d", "url": "https://huggingface.co/rhasspy/piper-voices/resolve/3001aba6a7e29fca16fd6174d4fac367951b7929/en/en_GB/cori/medium/en_GB-cori-medium.onnx"},
+    {"path": "runtime/media/piper/en_GB-cori-medium.onnx.json", "bytes": 4966, "sha256": "e262c16d7f192f69d4edd6b4ef8a5915379e67495fcc402f1ab15eeb33da3d36", "url": "https://huggingface.co/rhasspy/piper-voices/resolve/3001aba6a7e29fca16fd6174d4fac367951b7929/en/en_GB/cori/medium/en_GB-cori-medium.onnx.json"},
+    {"path": "runtime/media/piper/notices/Cori-MODEL_CARD", "bytes": 474, "sha256": "38d76dfde845837b184668f8bab1c6426ad740b1af0fcebc349037822739e536", "url": "https://huggingface.co/rhasspy/piper-voices/resolve/3001aba6a7e29fca16fd6174d4fac367951b7929/en/en_GB/cori/medium/MODEL_CARD"},
+    {"path": "runtime/media/piper/notices/Piper-COPYING", "bytes": 35148, "sha256": "0ae0485a5bd37a63e63603596417e4eb0e653334fa6c7f932ca3a0e85d4af227", "url": "https://raw.githubusercontent.com/OHF-Voice/piper1-gpl/639388b6317fc4731e91d53da42aea68fd4166ff/COPYING"}
+  ],
+  "profile": {
+    "model": {"path": "runtime/media/piper/en_GB-cori-medium.onnx", "sha256": "1899f98e5fb8310154f3c2973f4b8a929ba7245e722b3d3a85680b833d95f10d"},
+    "config": {"path": "runtime/media/piper/en_GB-cori-medium.onnx.json", "sha256": "e262c16d7f192f69d4edd6b4ef8a5915379e67495fcc402f1ab15eeb33da3d36"}
+  }
+}

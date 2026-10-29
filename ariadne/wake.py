@@ -415,17 +415,34 @@ class WakeService:
     def response_text(run):
         status = run.get("status")
         if status == "waiting_approval":
-            return "Ariadne needs your approval. Please review the pending action in the mission console."
+            return "Ariadne needs your approval. Review the pending action in the console."
         if status != "completed":
-            return "Ariadne stopped this mission. Please review its activity and status in the console."
+            return "I couldn't finish that mission. Review its status in the console."
+        if run.get("verification_status") == "failed":
+            return "Output checks failed. Review the result in the console."
         context = run.get("context", [])
         for message in reversed(context if isinstance(context, list) else []):
             if isinstance(message, dict) and message.get("role") == "assistant" and not message.get("tool_calls"):
                 content = message.get("content")
                 if isinstance(content, str) and content.strip():
                     text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", " ", content)
-                    return text[:900] + (". The full result is available in the console." if len(text) > 900 else "")
-        return "Ariadne completed the mission. Its result is available in the console."
+                    text = re.sub(r"```[\s\S]*?(?:```|$)", " Code is in the console. ", text)
+                    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)
+                    text = re.sub(r"https?://\S+", "link in the console", text)
+                    text = re.sub(r"(?m)^\s*(?:#{1,6}\s+|[-*+][ \t]+(?=[^\s\d.])|\d+\.\s+)", "", text)
+                    text = re.sub(r"(?<!\w)(\*\*|__)(.+?)\1(?!\w)", r"\2", text)
+                    text = " ".join(text.replace("`", "").split())
+                    words = text.split()
+                    if len(text) > 420 or len(words) > 65:
+                        brief = " ".join(words[:65])[:420]
+                        if len(brief) < len(text) and len(brief) > 1 and not text[len(brief)].isspace():
+                            brief = brief.rsplit(" ", 1)[0] or brief
+                        sentences = list(re.finditer(r"[.!?](?=\s|$)", brief))
+                        if sentences and sentences[-1].end() >= 80:
+                            brief = brief[:sentences[-1].end()]
+                        return brief.rstrip(" .,;:!?") + ". Full result in the console."
+                    return text or "The result is in the console."
+        return "The mission is complete. Its result is in the console."
 
     def _watch_run(self, run_id, lease):
         try:

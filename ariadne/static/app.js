@@ -118,7 +118,7 @@ const state = {
   selectedId: null, sessionId: null, view: "missions", creating: false,
   statusTimer: null, runTimer: null, runRequest: 0, renderKey: "", eventOpen: new Set(),
   editor: null, directory: ".", fileRequest: 0, recording: null, transcribing: false,
-  speechUrl: null, speechButton: null, refreshingStatus: false,
+  speechUrl: null, speechButton: null, speechRequest: 0, speechPreferenceRequest: 0, speechPreferenceConfirmed: 0, speechPreferencesSaving: false, refreshingStatus: false,
   catalog: null, knowledgeTab: "documents", sources: [], sourceId: null,
   sourceDirectory: ".", sourceRequest: 0, sourcePreviewRequest: 0, preview: null,
   workflows: [], workflowToRun: null, workflowLaunching: false, uploading: false, uploadFile: null,
@@ -222,15 +222,22 @@ function renderStatus(status) {
 }
 async function refreshStatus({quiet = false} = {}) {
   if (!state.authenticated || state.refreshingStatus) return;
+  const token = state.token, speechPreferenceConfirmed = state.speechPreferenceConfirmed;
   state.refreshingStatus = true;
   try {
     const status = await api("/status");
+    if (!state.authenticated || state.token !== token) return;
+    // A status request begun before a confirmed preference write can carry the
+    // earlier voice snapshot. Preserve only the newer, server-confirmed values.
+    if (state.speechPreferenceConfirmed !== speechPreferenceConfirmed && state.status) {
+      for (const key of ["speech_backend", "speech_voice", "speech_speed"]) if (Object.hasOwn(state.status, key)) status[key] = state.status[key];
+    }
     const previousActive = state.status?.active_runs;
     state.status = status;
     renderStatus(status);
     if (status.active_runs || previousActive !== status.active_runs) await loadRuns();
   } catch (error) {
-    if (state.authenticated) {
+    if (state.authenticated && state.token === token) {
       const badge = $("#connection-badge");
       badge.className = "connection-badge warning";
       badge.replaceChildren(node("i"), document.createTextNode("Server unreachable"));
@@ -279,6 +286,9 @@ function lockSession(message = "") {
   state.runRequest += 1;
   if (state.recording) stopRecording(true);
   stopSpeech();
+  state.speechPreferenceRequest += 1;
+  state.speechPreferenceConfirmed = 0;
+  state.speechPreferencesSaving = false;
   if (state.artifactUrl) { URL.revokeObjectURL(state.artifactUrl); state.artifactUrl = null; }
   $("#pairing-overlay").hidden = false;
   $(".app-shell").inert = true;
@@ -479,7 +489,7 @@ function renderRun(detail, firstRender) {
       const actions = node("div", "message-actions");
       actions.append(iconButton("copy", "Copy response", () => copyText(message.content)));
       if (state.status?.voice?.speech) {
-        const speakButton = iconButton("volume", message.content.length > 4000 ? "Read the first 4,000 characters aloud locally" : "Read aloud locally");
+        const speakButton = iconButton("volume", message.content.length > 2000 ? "Read the first 2,000 characters aloud locally" : "Read aloud locally");
         speakButton.addEventListener("click", () => speak(message.content, speakButton));
         actions.append(speakButton);
       }
@@ -1003,8 +1013,63 @@ function renderSettings() {
   $("#save-model").disabled = !models.length;
   facts($("#runtime-facts"), [["Model runtime", status.ollama?.available ? "Ollama connected" : "Unavailable", !status.ollama?.available], ["Installed models", String(models.length)], ["Step limit per mission", String(status.max_steps || "—")]]);
   facts($("#voice-facts"), [["Transcription", status.voice?.transcription ? "Configured · local" : "Not configured", !status.voice?.transcription], ["Speech output", status.voice?.speech ? "Configured · local" : "Not configured", !status.voice?.speech]]);
-  $("#speech-backend").value = status.speech_backend || "system";
+  renderSpeechPreferences();
   facts($("#access-facts"), [["Autonomy", status.paused ? "Paused" : "Enabled", status.paused], ["Active missions", String(status.active_runs ?? "—")], ["Browser access", "Paired for this tab"]]);
+}
+function renderSpeechPreferences() {
+  const status = state.status;
+  if (!status) return;
+  const backend = $("#speech-backend"), voice = $("#speech-voice"), speed = $("#speech-speed"), preview = $("#speech-preview");
+  const available = Array.isArray(status.voice?.speech_backends) ? status.voice.speech_backends : [];
+  const presets = (Array.isArray(status.voice?.voice_presets) ? status.voice.voice_presets : []).filter(item => typeof item?.id === "string" && typeof item?.name === "string");
+  const signature = JSON.stringify([status.speech_backend, status.speech_voice, status.speech_speed, status.voice?.default_voice, presets]);
+  if (!state.speechPreferencesSaving && voice.dataset.signature !== signature) {
+    backend.value = status.speech_backend || (available.includes("natural") ? "natural" : "system");
+    clear(voice);
+    for (const preset of presets) {
+      const option = node("option", "", preset.name); option.value = preset.id; voice.append(option);
+    }
+    if (!presets.length) { const option = node("option", "", "Natural voices unavailable"); option.value = ""; voice.append(option); }
+    voice.value = status.speech_voice || status.voice?.default_voice || "cori";
+    speed.value = Number.isFinite(status.speech_speed) ? String(status.speech_speed) : "1.12";
+    voice.dataset.signature = signature;
+  }
+  for (const option of backend.options) option.disabled = !available.includes(option.value);
+  const busy = state.speechPreferencesSaving || !state.authenticated;
+  backend.disabled = busy || !status.voice?.speech;
+  voice.disabled = busy || backend.value !== "natural" || !available.includes("natural");
+  speed.disabled = voice.disabled;
+  preview.disabled = busy || !status.voice?.speech || (state.speechButton === preview && !state.speechUrl);
+  const runtimeLabels = {idle:"Natural voice starts locally on demand.", warming:"Preparing the local neural voice…", ready:"Local neural voice ready.", error:"Natural voice is unavailable. Review voice status or choose system speech."};
+  $("#speech-runtime").textContent = backend.value === "natural" ? runtimeLabels[status.voice?.natural_runtime?.state] || "Natural speech uses local CPU inference." : "System speech uses the configured local speech adapter.";
+}
+async function saveSpeechPreferences({quiet = false} = {}) {
+  if (!state.authenticated || state.speechPreferencesSaving) return false;
+  const speed = Number($("#speech-speed").value);
+  if (!Number.isFinite(speed) || speed < 0.85 || speed > 1.30) { toast("Choose a speech pace from 0.85 to 1.30.", true); return false; }
+  const request = ++state.speechPreferenceRequest, token = state.token;
+  const body = {backend:$("#speech-backend").value, voice:$("#speech-voice").value || state.status?.speech_voice || state.status?.voice?.default_voice || "cori", speed};
+  state.speechPreferencesSaving = true;
+  renderSpeechPreferences();
+  try {
+    const result = await api("/voice/preferences", {method:"PUT", body});
+    if (!state.authenticated || state.token !== token || state.speechPreferenceRequest !== request) return false;
+    Object.assign(state.status, result);
+    state.speechPreferenceConfirmed = request;
+    $("#speech-voice").dataset.signature = "";
+    if (!quiet) toast(result.speech_warning || "Voice and pace saved for PC and browser speech.", Boolean(result.speech_warning));
+    return true;
+  } catch (error) {
+    if (state.authenticated && state.token === token && state.speechPreferenceRequest === request) { $("#speech-voice").dataset.signature = ""; toast(error.message, true); }
+    return false;
+  } finally {
+    if (state.speechPreferenceRequest === request) { state.speechPreferencesSaving = false; renderSpeechPreferences(); }
+  }
+}
+async function previewSpeech() {
+  const control = $("#speech-preview");
+  if (state.speechButton === control) { stopSpeech(); return; }
+  if (await saveSpeechPreferences({quiet:true})) await speak("I’m Ariadne. Ready when you are.", control);
 }
 async function saveModel(event) {
   event.preventDefault();
@@ -1111,38 +1176,53 @@ async function toMonoWav(arrayBuffer) {
   return new Blob([buffer], {type:"audio/wav"});
 }
 function stopSpeech() {
+  state.speechRequest += 1;
   clearInterval(state.speechMuteTimer);
   const player = $("#speech-player");
   player.pause(); player.removeAttribute("src");
   if (state.speechUrl) URL.revokeObjectURL(state.speechUrl);
   state.speechUrl = null;
-  if (state.speechButton) { state.speechButton.disabled = false; state.speechButton.replaceChildren(icon("volume")); }
+  if (state.speechButton) {
+    const control = state.speechButton;
+    control.disabled = false;
+    control.replaceChildren(icon("volume"));
+    if (control.id === "speech-preview") control.append(node("span", "", "Preview voice"));
+    control.title = control.dataset.speechIdleTitle || "Read aloud locally";
+    control.setAttribute("aria-label", control.title);
+  }
   state.speechButton = null;
 }
 async function speak(text, control) {
   if (state.speechButton === control) { stopSpeech(); return; }
   stopSpeech();
+  const request = state.speechRequest, token = state.token;
+  const current = () => state.authenticated && state.token === token && state.speechRequest === request && state.speechButton === control;
+  if (!control.dataset.speechIdleTitle) control.dataset.speechIdleTitle = control.title || (control.id === "speech-preview" ? "Preview voice" : "Read aloud locally");
   control.disabled = true; state.speechButton = control;
   try {
     const audio = await api("/voice/speak", {method:"POST", body:{text:text.slice(0, 2000)}, blob:true});
-    if (!state.authenticated || state.speechButton !== control) return;
+    if (!current()) return;
     state.speechUrl = URL.createObjectURL(audio);
     const player = $("#speech-player"); player.src = state.speechUrl;
     if (state.status?.wake?.active) {
-      state.status.wake = await api("/voice/wake/suppress", {method:"POST", body:{seconds:10}});
-      if (!state.authenticated || state.speechButton !== control || !state.speechUrl) return;
+      const wake = await api("/voice/wake/suppress", {method:"POST", body:{seconds:10}});
+      if (!current() || !state.speechUrl) return;
+      state.status.wake = wake;
       renderWakeStatus(state.status.wake);
       state.speechMuteTimer = setInterval(async () => {
-        if (!state.authenticated || player.paused) return;
-        try { state.status.wake = await api("/voice/wake/suppress", {method:"POST", body:{seconds:10}}); renderWakeStatus(state.status.wake); }
-        catch { stopSpeech(); }
+        if (!current() || player.paused) return;
+        try { const wake = await api("/voice/wake/suppress", {method:"POST", body:{seconds:10}}); if (current()) { state.status.wake = wake; renderWakeStatus(wake); } }
+        catch { if (current()) stopSpeech(); }
       }, 6000);
     }
-    if (!state.authenticated || state.speechButton !== control || !state.speechUrl) return;
+    if (!current() || !state.speechUrl) return;
     await player.play();
+    if (!current()) return;
     control.disabled = false; control.replaceChildren(icon("stop"));
+    if (control.id === "speech-preview") control.append(node("span", "", "Stop preview"));
     control.title = "Stop speech playback";
-  } catch (error) { if (state.authenticated) toast(error.message, true); stopSpeech(); }
+    control.setAttribute("aria-label", "Stop speech playback");
+  } catch (error) { if (current()) { toast(error.message, true); stopSpeech(); } }
 }
 
 function syncKnowledgeTab() {
@@ -2586,10 +2666,10 @@ $("#refresh-files").addEventListener("click", loadFiles);
 $("#refresh-connectors").addEventListener("click", loadConnectors);
 $("#refresh-status").addEventListener("click", () => refreshStatus());
 $("#model-form").addEventListener("submit", saveModel);
-$("#speech-backend").addEventListener("change", async event => {
-  try { await api("/voice/preferences", {method:"PUT", body:{backend:event.target.value}}); await refreshStatus(); toast("Speech preference saved."); }
-  catch (error) { event.target.value = state.status?.speech_backend || "system"; toast(error.message, true); }
-});
+$("#speech-backend").addEventListener("change", () => saveSpeechPreferences());
+$("#speech-voice").addEventListener("change", () => saveSpeechPreferences());
+$("#speech-speed").addEventListener("change", () => saveSpeechPreferences());
+$("#speech-preview").addEventListener("click", previewSpeech);
 $("#copy-pull").addEventListener("click", () => copyText("ollama pull qwen3:4b"));
 $("#voice-record").addEventListener("click", toggleRecording);
 $("#speech-player").addEventListener("ended", stopSpeech);

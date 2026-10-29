@@ -51,6 +51,31 @@ class PortableExportReviewTests(unittest.TestCase):
             self.assertEqual(sum(path.startswith("data/models/manifests/") for path in archive.namelist()), 3)
             self.assertEqual(sum(path.startswith("data/models/blobs/") for path in archive.namelist()), 3)
 
+    def test_fast_voice_pack_keeps_repair_assets_but_excludes_local_pip_metadata(self):
+        public = {
+            "config/speech-assets.json": b'{"schema":1,"assets":[]}',
+            "docs/FAST_VOICE_0_11.md": b"Offline speech repair instructions.",
+            "runtime/media/piper/en_GB-cori-medium.onnx": b"synthetic public speech model",
+            "runtime/media/piper/wheels/piper-test.whl": b"synthetic verified wheel cache",
+            "runtime/media/piper/notices/Piper-COPYING": b"retained upstream notice",
+            "runtime/media/piper-python/piper/voice.py": b"# synthetic installed runtime\n",
+        }
+        excluded = {
+            "runtime/media/piper-python/piper_tts-1.8.0.dist-info/direct_url.json",
+            "runtime/media/piper-python/bin/piper.exe",
+        }
+        for name, payload in {**public, **{name: b"PRIVATE_LOCAL_BUILD_PATH_SENTINEL" for name in excluded}}.items():
+            target = self.root / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(payload)
+        export(self.output, self.root)
+        with zipfile.ZipFile(self.output) as archive:
+            self.assertTrue(set(public) <= set(archive.namelist()))
+            self.assertFalse(excluded & set(archive.namelist()))
+            for name, payload in public.items():
+                self.assertEqual(archive.read(name), payload)
+            self.assertFalse(any(b"PRIVATE_LOCAL_BUILD_PATH_SENTINEL" in archive.read(name) for name in archive.namelist()))
+
     def test_changed_reviewed_public_manifest_refuses_before_archive_publication(self):
         path = self.root / self.catalog()["models"][0]["manifest"]["path"]
         original = path.read_bytes()

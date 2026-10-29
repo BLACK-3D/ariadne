@@ -1,5 +1,7 @@
 # Ariadne — local AI in a box
 
+Version 0.11 adds **quick offline Cori speech**, a reusable CPU speech worker, voice and pace controls shared by PC wake replies and browser playback, and concise spoken answers. Existing system speech and four slower Kokoro presets remain available. See [voice operation and measurements](docs/FAST_VOICE_0_11.md).
+
 Version 0.10 adds **three local-only specialist agents**, six checked offline workflows with a new output folder per run, and verified structural comparisons between saved routine reports. The full portable exporter pins public model assets and excludes private model metadata. See [offline autonomy and portable operation](docs/OFFLINE_AUTONOMY_0_10.md).
 
 Version 0.9 adds **offline routines**: saved sequences of fixed reports, opt-in recurrence, durable step receipts and explicit artifact verification, with no model calls inside a routine. AI workflows can retain their selected specialist, and workflow schedules freeze instructions, output checks and specialist selection. See [offline routines and checked schedules](docs/OFFLINE_ROUTINES_0_9.md).
@@ -177,7 +179,7 @@ Environment variables are read at server startup. Defaults are portable; model c
 | `ARIADNE_WHISPER_BIN` / `ARIADNE_WHISPER_MODEL` | Optional whisper.cpp executable/model |
 | `ARIADNE_PIPER_BIN` / `ARIADNE_PIPER_MODEL` | Optional Piper executable/ONNX voice |
 
-`data/voice-config.json` supplies provisioned voice paths unless an environment override is present. Windows uses installed local SAPI voices if Piper is absent. Other platforms need Piper or another implemented adapter. Microphone capture requires a supported browser on localhost or HTTPS. It is push-to-talk with a time limit, not an always-listening wake word. Uploaded voice is temporary and removed after processing. Check voice/model licenses before distributing those optional components.
+`data/voice-config.json` supplies fallback CLI adapter paths unless an environment override is present. The optional fast speech pack adds the pinned Cori neural voice through `data/media-config.json`; the same saved voice and pace apply to PC wake replies and browser playback. Windows system speech remains available. The opt-in PC wake listener operates with the browser closed; browser push-to-talk remains separate. Uploaded push-to-talk audio is temporary. See [voice setup](docs/WAKE_VOICE.md) and [fast speech provisioning](docs/FAST_VOICE_0_11.md).
 
 For a trusted LAN, set `ARIADNE_HOST=0.0.0.0`, add the server IP/name to `ARIADNE_ALLOWED_HOSTS`, use Waitress, and place HTTPS in front of it. Bind port 8080 to loopback behind that proxy. The proxy must preserve the original Host header; origin checks require a same-origin host. Do not port-forward the bearer-token server to the public internet. This is a single-owner appliance: separate users need separate instances and state directories. It has no tenant isolation, account roles or enterprise identity provider.
 
@@ -263,7 +265,7 @@ Release qualification and delivery: [0.3 receipt](docs/DELIVERY_0_3.md).
 
 The qualified Windows box includes Qwen3.5:9b vision/tool use, Sherpa streaming speech, Kokoro natural speech, Silero voice detection, anonymous speaker segmentation, FLUX.2-klein image generation, Docling layout/table extraction, BGE hybrid retrieval, two compact Kiwix reference libraries and Monty bounded computation. Office, optimization, CAD, rendering, PCB, GIS and media tools use fixed structured inputs rather than arbitrary shell commands. Six starter workflows cover business documents, reference briefs and engineering artifacts alongside the existing checked workflows.
 
-System speech remains the default: measured short-sentence latency was about 1.2 seconds versus 19.8 seconds for a cold Kokoro worker on this PC. One qualified 512-pixel FLUX image took 189 seconds. These are individual local measurements, not throughput guarantees. The full box was built for Windows x64 on 64 GiB RAM and an NVIDIA RTX 5060 Ti with 16 GiB VRAM; CUDA image generation requires a compatible installed driver. It is not a cross-platform disk image.
+System speech was the default in 0.4: measured short-sentence latency was about 1.2 seconds versus 19.8 seconds for a cold Kokoro worker on this PC. Version 0.11 introduces the faster Cori option and a warm speech worker; see its separate measurements. One qualified 512-pixel FLUX image took 189 seconds. These are individual local measurements, not throughput guarantees. The full box was built for Windows x64 on 64 GiB RAM and an NVIDIA RTX 5060 Ti with 16 GiB VRAM; CUDA image generation requires a compatible installed driver. It is not a cross-platform disk image.
 
 The factory Node-RED service exposes only health and event echo routes; its editor and palette installation are disabled. Owners can register additional local applications in the console. The pinned ERPNext recipe is included, but Docker/Linux prerequisites and ERP container images are not installed on this host. Local business records work without ERPNext. MCP servers, owner application connections and Docker code execution require their separate owner configuration.
 

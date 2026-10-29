@@ -38,6 +38,8 @@ Run only the packs you need, using the same project Python. Provisioning downloa
 .\.venv\Scripts\python.exe scripts/provision_voice.py
 ```
 
+**Fast Cori speech output** ([setup and pinned dependencies](FAST_VOICE_0_11.md)): after installing the existing media dependencies, run `scripts/provision_speech.py --download --install`, then `scripts/provision_speech.py --configure` while the server is stopped. Cached installation and verification work without network access. This add-on's pinned wheel set targets Windows x64.
+
 **CPU OCR** ([details](OCR_0_3.md)); its models are extracted from the verified RapidOCR wheel:
 
 ```powershell

@@ -1,6 +1,6 @@
 """Finite offline media operations over immutable workspace snapshots.
 
-Optional libraries run in short-lived resource-limited workers. These limits
+Optional libraries run in bounded workers; speech reuses one owned CPU process. These limits
 are not an OS sandbox. No microphone, camera, URL, arbitrary code or voice
 cloning is exposed by this interface.
 """
@@ -25,13 +25,14 @@ from .config import _allowed_path
 
 ROOT = Path(__file__).resolve().parents[1]
 MEDIA_PYTHON = ROOT / "runtime" / "media" / "python"
+PIPER_PYTHON = ROOT / "runtime" / "media" / "piper-python"
 FLUX_PYTHON = ROOT / "runtime" / "media" / "flux-python"
 NAMES = {"media_inspect_image", "media_transcribe", "media_speak", "media_vad", "media_diarize", "media_generate_image"}
 MAX_IMAGE = 8_000_000
 MAX_AUDIO = 3_000_000
-PACKAGES = {"kokoro": ("kokoro-onnx", "0.6.1"), "sherpa": ("sherpa-onnx", "2.0.1"),
+PACKAGES = {"kokoro": ("kokoro-onnx", "0.6.1"), "piper": ("piper-tts", "1.8.0"), "sherpa": ("sherpa-onnx", "2.0.1"),
             "silero": ("onnxruntime", "1.31.1"), "diarization": ("sherpa-onnx", "2.0.1"), "flux": ("diffusers", "0.42.1")}
-ASSET_KEYS = {"kokoro": {"model", "voices"}, "silero": {"model"},
+ASSET_KEYS = {"kokoro": {"model", "voices"}, "piper": {"model", "config"}, "silero": {"model"},
               "sherpa": {"encoder", "decoder", "joiner", "tokens"}, "diarization": {"segmentation", "embedding"}, "flux": {"manifest"}}
 _GATE = threading.BoundedSemaphore(1)
 
@@ -95,7 +96,8 @@ def backend_status(profile, backend, *, verify=False):
     package, version = PACKAGES[backend]
     result = {"ready": False, "package": package, "required_version": version, "backend": backend}
     try:
-        local = [d for d in importlib.metadata.distributions(path=[str(FLUX_PYTHON if backend == "flux" else MEDIA_PYTHON)])
+        package_path = FLUX_PYTHON if backend == "flux" else PIPER_PYTHON if backend == "piper" else MEDIA_PYTHON
+        local = [d for d in importlib.metadata.distributions(path=[str(package_path)])
                  if d.metadata["Name"].lower().replace("_", "-") == package.lower()]
         installed = local[0].version if local else importlib.metadata.version(package)
         result["installed_version"] = installed
@@ -176,6 +178,26 @@ class MediaTools:
         self.registry = registry
         self.model_resolver = lambda: self.registry.settings.model
         self._voice = None
+        self._voice_lock = threading.RLock()
+        self._closed = False
+
+    def _voice_adapter(self):
+        """Share one speech worker across discovery, approval and execution."""
+        with self._voice_lock:
+            if self._closed:
+                raise ValueError("Media speech has been closed.")
+            if self._voice is None:
+                from .voice import Voice
+                self._voice = Voice(self.registry.settings)
+            return self._voice
+
+    def close(self):
+        """Close the owned adapter once; retain a failed handle for cleanup."""
+        with self._voice_lock:
+            self._closed = True
+            if self._voice is not None:
+                self._voice.close()
+                self._voice = None
 
     def status(self):
         try:
@@ -198,7 +220,7 @@ class MediaTools:
             schema("media_diarize", "Assign anonymous speaker labels and timestamps to an existing WAV with locally provisioned segmentation and embedding models. Labels are approximate and never identify people.", {"path": path}, ["path"]),
             schema("media_speak", "Create a WAV from text with local Kokoro or configured OS/Piper speech. Uses preset speech only; no cloning. Existing output is never replaced.",
                 {"text": {"type": "string", "maxLength": 2000}, "output": path,
-                 "backend": {"type": "string", "enum": ["system", "natural"], "description": "Natural Kokoro uses a slower cold CPU worker; system uses configured OS/Piper."}}, ["text", "output"]),
+                 "backend": {"type": "string", "enum": ["system", "natural"], "description": "Natural Kokoro reuses a bounded CPU worker; system uses configured OS/Piper."}}, ["text", "output"]),
             schema("media_generate_image", "Generate one PNG using a provisioned local FLUX.2-klein-4B pipeline. No downloads at runtime. Expensive optional GPU task; existing output is never replaced.",
                 {"prompt": {"type": "string", "maxLength": 2000}, "output": path,
                  "width": {"type": "integer", "minimum": 256, "maximum": 1024}, "height": {"type": "integer", "minimum": 256, "maximum": 1024},
@@ -207,10 +229,7 @@ class MediaTools:
             profile = load_profile(self.registry.settings.data_dir)
         except (OSError, ValueError):
             profile = {"backends": {}}
-        from .voice import Voice
-        if self._voice is None:
-            self._voice = Voice(self.registry.settings)
-        voice = self._voice.status()
+        voice = self._voice_adapter().status()
         known_vision = self.model_resolver().split(":", 1)[0].lower() in {"qwen3.5", "gemma4", "llava", "minicpm-v", "qwen3-vl", "qwen2.5vl"}
         available = {"media_inspect_image": known_vision, "media_transcribe": voice["transcription"],
             "media_speak": voice["speech"], "media_vad": backend_status(profile, "silero")["ready"],
@@ -226,16 +245,17 @@ class MediaTools:
     def fingerprint_material(self, name, args):
         material = {"profile": load_profile(self.registry.settings.data_dir), "model": self.model_resolver()}
         material["implementation"] = {name: self._identity(Path(__file__).with_name(name), maximum=2_000_000)
-            for name in ("voice.py", "media_tools.py", "_media_worker.py", "model.py", "worker.py", "_worker_bootstrap.py")}
+            for name in ("voice.py", "speech_runtime.py", "_speech_worker.py", "media_tools.py", "_media_worker.py", "model.py", "worker.py", "_worker_bootstrap.py")}
         if name in {"media_speak", "media_generate_image"}:
             material["output_exists"] = self.registry._path(args.get("output", "")).exists()
             if name == "media_speak":
-                from .voice import Voice
-                voice = Voice(self.registry.settings)
+                voice = self._voice_adapter()
                 status = voice.status()
                 requested = args.get("backend", "natural" if "natural" in status["speech_backends"] else "system")
-                route = "kokoro" if requested == "natural" else status["speech_backend"]
+                route = ("piper-neural" if status.get("default_voice") == "cori" else "kokoro") if requested == "natural" else status["speech_backend"]
                 execution = {"requested": requested, "route": route,
+                    "voice": status.get("default_voice", "af_heart") if requested == "natural" else None,
+                    "speed": 1.12 if requested == "natural" else None,
                     "configured_piper_bin": self.registry.settings.piper_bin,
                     "configured_piper_model": self.registry.settings.piper_model,
                     "sapi_executable": voice.windows_speech}
@@ -367,8 +387,7 @@ class MediaTools:
                         result = run_media({"action": "sherpa", "profile": profile,
                             "data": base64.b64encode(audio).decode("ascii")}, cancelled=cancelled)
                         return {"ok": True, "text": result["text"], "partials": result["partials"], "backend": "sherpa-streaming", "input": snapshot, **info}
-                    from .voice import Voice
-                    text = Voice(self.registry.settings).transcribe(audio, cancelled=cancelled)
+                    text = self._voice_adapter().transcribe(audio, cancelled=cancelled)
                     return {"ok": True, "text": text, "input": snapshot, **info}
                 result = run_media({"action": "diarization" if name == "media_diarize" else "vad", "profile": load_profile(self.registry.settings.data_dir),
                     "data": base64.b64encode(audio).decode("ascii")}, cancelled=cancelled)
@@ -377,8 +396,7 @@ class MediaTools:
                 _object(args, {"text", "output", "backend"}, {"text", "output"})
                 text = _text(args["text"], "text", 2000)
                 self._output(args["output"], ".wav")
-                from .voice import Voice
-                voice = Voice(self.registry.settings)
+                voice = self._voice_adapter()
                 backend = args.get("backend", "natural" if "natural" in voice.status()["speech_backends"] else "system")
                 data = voice.speak(text, backend=backend, cancelled=cancelled)
                 validate_generated_wav(data)

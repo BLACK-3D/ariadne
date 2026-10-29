@@ -55,12 +55,13 @@ class Application:
         self.engine.internet_provider = self.internet_call
         self.engine.internet_enabled = lambda: self.internet.config()["enabled"]
         from .briefing import BriefingService
-        from .wake import WakeService, windows_speak_response
+        from .wake import WakeService
         self.briefing = BriefingService(settings, self.store, self.engine.tools)
         self.engine.briefing_provider = self.briefing_read
         self.wake_voice = WakeService(settings, self.submit_voice, blocked=self.voice_blocked,
-                                      get_run=self.store.run, speak=windows_speak_response,
+                                      get_run=self.store.run, speak=self.speak_on_pc,
                                       on_spoken_stop=self.disable_wake_startup)
+        self.engine.tools.media._voice = self.voice
         seed_workflows(self.store)
         self.static = Path(__file__).parent / "static"
         self.status_cache, self.status_at = None, 0
@@ -72,6 +73,7 @@ class Application:
 
     def start_services(self):
         self.briefing.start()
+        self.warm_voice()
         preferences = self.store.setting("wake_preferences", {})
         if isinstance(preferences, dict) and preferences.get("enabled") is True:
             try:
@@ -85,6 +87,32 @@ class Application:
     def wake_status(self):
         preferences = self.store.setting("wake_preferences", {})
         return {**self.wake_voice.status(), "auto_start": isinstance(preferences, dict) and preferences.get("enabled") is True}
+
+    def speech_preferences(self):
+        from .speech_runtime import DEFAULT_VOICE, DEFAULT_SPEED, validate_speech_options
+        saved = self.store.setting("speech_preferences", None)
+        if not isinstance(saved, dict):
+            voice_status = self.voice.status()
+            backend = self.store.setting("speech_backend", None)
+            if backend is None:
+                backend = "natural" if "natural" in voice_status["speech_backends"] else "system"
+            saved = {"backend": backend, "voice": voice_status.get("default_voice", DEFAULT_VOICE), "speed": DEFAULT_SPEED}
+        if saved.get("backend") not in {"system", "natural"}:
+            raise ValueError("Invalid saved speech backend. Review voice preferences.")
+        voice, speed = validate_speech_options(saved.get("voice", DEFAULT_VOICE), saved.get("speed", DEFAULT_SPEED))
+        return {"backend": saved["backend"], "voice": voice, "speed": speed}
+
+    def warm_voice(self):
+        try:
+            preferences = self.speech_preferences()
+            if preferences["backend"] == "natural":
+                self.voice.warm(voice=preferences["voice"], speed=preferences["speed"])
+        except (ValueError, OSError):
+            logging.getLogger("ariadne").warning("Natural voice could not warm; inspect voice settings")
+
+    def speak_on_pc(self, text):
+        with self.voice_lock:
+            self.voice.play(text, **self.speech_preferences())
 
     def location_status(self):
         value = self.store.setting("device_location", None)
@@ -105,7 +133,10 @@ class Application:
             try:
                 self.briefing.stop()
             finally:
-                self.internet.stop()
+                try:
+                    self.internet.stop()
+                finally:
+                    self.voice.close()
 
     def internet_call(self, action, arguments):
         """Supply compact, dated public evidence to the local model."""
@@ -160,8 +191,7 @@ class Application:
         if self.voice_blocked():
             raise ValueError("Ariadne is paused or a mission is active; voice requests are held")
         profile = self.engine.agents.select(command, "auto")
-        run = self.store.new_run(command, agent_id=profile["id"])
-        self.store.event(run["id"], "voice_command", {"wake_word": "Ariadne", "agent_id": profile["id"]})
+        run = self.store.new_run(command, agent_id=profile["id"], interaction="voice")
         self.engine.wake.set()
         return self.public_run(run)
 
@@ -302,8 +332,9 @@ class Application:
                       "ollama": self.status_cache, "paused": self.engine.is_paused(),
                       "active_runs": sum(r["status"] in {"running", "queued", "waiting_approval"} for r in self.store.runs()),
                       "max_steps": self.settings.max_steps, "workspace": str(self.settings.workspace), "voice": self.voice.status(),
-                      "speech_backend": self.store.setting("speech_backend", "system"),
                       "wake": self.wake_status()}
+            speech = self.speech_preferences()
+            result.update(speech_backend=speech["backend"], speech_voice=speech["voice"], speech_speed=speech["speed"])
             result["routines"] = self.routines.status()
             from .network_policy import network_policy_status
             result["network_policy"] = network_policy_status()
@@ -710,23 +741,34 @@ class Application:
             finally:
                 self.voice_lock.release()
         elif parts == ["voice", "speak"] and method == "POST":
-            text = text_field(self.body(env), "text", 4000)
+            text = text_field(self.body(env), "text", 2000)
             if not self.voice_lock.acquire(blocking=False):
                 raise HTTPError(429, "Another voice operation is in progress")
             try:
-                backend = self.store.setting("speech_backend", "system")
-                audio = self.voice.speak(text) if backend == "system" else self.voice.speak(text, backend=backend)
+                audio = self.voice.speak(text, **self.speech_preferences())
                 return 200, audio, "audio/wav"
             finally:
                 self.voice_lock.release()
         elif parts == ["voice", "preferences"] and method == "PUT":
             data = self.body(env)
-            if set(data) != {"backend"} or data["backend"] not in {"system", "natural"}:
+            if not {"backend"} <= set(data) <= {"backend", "voice", "speed"} or data["backend"] not in {"system", "natural"}:
                 raise ValueError("Choose system or natural speech.")
-            if data["backend"] == "natural" and not self.engine.tools.media.status().get("backends", {}).get("kokoro", {}).get("ready"):
+            if data["backend"] == "natural" and "natural" not in self.voice.status()["speech_backends"]:
                 raise ValueError("Natural speech assets are not ready.")
-            self.store.set_setting("speech_backend", data["backend"])
-            result = {"speech_backend": data["backend"]}
+            from .speech_runtime import validate_speech_options
+            current = self.speech_preferences()
+            voice, speed = validate_speech_options(data.get("voice", current["voice"]), data.get("speed", current["speed"]))
+            if data["backend"] == "natural" and voice not in {item["id"] for item in self.voice.status()["voice_presets"]}:
+                raise ValueError("The selected natural voice is not installed. Choose an available preset.")
+            self.store.set_setting("speech_preferences", {"backend": data["backend"], "voice": voice, "speed": speed})
+            result = {"speech_backend": data["backend"], "speech_voice": voice, "speech_speed": speed}
+            if data["backend"] == "natural":
+                try:
+                    self.voice.reset_natural()
+                    self.voice.warm(voice=voice, speed=speed)
+                except (ValueError, OSError):
+                    result["speech_warning"] = "Voice settings saved, but the natural voice could not warm. Review voice status."
+                    logging.getLogger("ariadne").warning("Natural voice could not warm after saving preferences")
         else:
             raise HTTPError(404, "API route not found")
         return status, result, "application/json"
