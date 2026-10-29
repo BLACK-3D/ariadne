@@ -13,6 +13,9 @@ __pycache__/
 /redteam-fixture-*/
 /.data-test-*/
 /.recovery-test-*/
+/.backup-integrity-*/
+/.backup-review-*/
+/.workflow-schedule-review-*/
 /dist/
 /backups/
 *.egg-info/

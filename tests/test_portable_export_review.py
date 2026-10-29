@@ -80,12 +80,16 @@ class PortableExportReviewTests(unittest.TestCase):
         public = {
             "Start Ariadne.cmd": b"@echo off\r\nrem synthetic start\r\n",
             "Stop Ariadne.cmd": b"@echo off\r\nrem synthetic stop\r\n",
+            "Backup Ariadne.cmd": b"@echo off\r\nrem synthetic checked backup\r\n",
             "scripts/host.py": b"# fixed background host\n",
             "scripts/windows_host.py": b"# local process identity and detach\n",
             "scripts/stop_host.ps1": b"# explicit local shutdown\n",
+            "scripts/backup_box.py": b"# checked private owner snapshot\n",
+            "scripts/backup_box.ps1": b"# synchronous private backup launcher\n",
             "docs/INDEPENDENT_HOST_0_12.md": b"Background start and stop instructions.",
             "docs/SIGNAL_ROOM_0_12.md": b"Offline interface design decisions.",
             "docs/DAILY_SIGNAL_0_12.md": b"One-page local briefing instructions.",
+            "docs/CHECKED_BACKUPS_0_13.md": b"Private backup verification and recovery limits.",
         }
         for name, payload in public.items():
             target = self.root / name

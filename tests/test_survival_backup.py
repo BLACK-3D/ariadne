@@ -7,6 +7,7 @@ import sqlite3
 import tempfile
 import unittest
 import zipfile
+from urllib.parse import parse_qs, urlsplit
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -61,7 +62,7 @@ class SurvivalBackupTests(unittest.TestCase):
         restored = self.root / "restored"
         restored.mkdir()
         with zipfile.ZipFile(destination) as archive:
-            self.assertEqual(set(archive.namelist()), set(self.backup.DATABASES))
+            self.assertEqual(set(archive.namelist()), set(self.backup.DATABASES) | {"BACKUP-MANIFEST.json"})
             self.assertIsNone(archive.testzip())
             for name in self.backup.DATABASES:
                 target = restored / name
@@ -95,7 +96,7 @@ class SurvivalBackupTests(unittest.TestCase):
         (self.root / "runtime" / "engine.bin").write_bytes(b"RUNTIME_MUST_NOT_BE_DUPLICATED")
         destination = self.run_backup()
         with zipfile.ZipFile(destination) as archive:
-            self.assertEqual(set(archive.namelist()), set(self.backup.DATABASES) | set(private) | {"workspace/owner-report.md"})
+            self.assertEqual(set(archive.namelist()), set(self.backup.DATABASES) | set(private) | {"workspace/owner-report.md", "BACKUP-MANIFEST.json"})
             for name, payload in private.items():
                 self.assertEqual(archive.read(name), payload)
             self.assertEqual(archive.read("workspace/owner-report.md"), b"Keep this work product")
@@ -105,7 +106,7 @@ class SurvivalBackupTests(unittest.TestCase):
         self.database("ariadne.sqlite3")
         destination = self.run_backup()
         with zipfile.ZipFile(destination) as archive:
-            self.assertEqual(archive.namelist(), ["ariadne.sqlite3"])
+            self.assertEqual(set(archive.namelist()), {"ariadne.sqlite3", "BACKUP-MANIFEST.json"})
         for name in self.backup.DATABASES[1:]:
             self.assertFalse((self.data / name).exists())
             for suffix in self.backup.SQLITE_SIDECARS:
@@ -131,7 +132,7 @@ class SurvivalBackupTests(unittest.TestCase):
         def connect(*args, **kwargs):
             self.assertTrue(expected <= checked, "SQLite opened before all source/sidecar guards")
             if kwargs.get("uri"):
-                self.assertTrue(args[0].endswith("?mode=ro"))
+                self.assertEqual(parse_qs(urlsplit(args[0]).query).get("mode"), ["ro"])
             return real_connect(*args, **kwargs)
         with mock.patch.object(self.backup, "_allowed_path", side_effect=allowed), mock.patch.object(self.backup.sqlite3, "connect", side_effect=connect):
             self.run_backup()

@@ -1,5 +1,7 @@
 # Ariadne — local AI in a box
 
+Version 0.13 adds **checked private backups**: double-click **Backup Ariadne.cmd** to create a new owner-state archive, verify every member hash and check each SQLite snapshot before publishing it. Verification runs offline without a model and leaves Ariadne running. This is a standalone utility; an already running server can keep its current version until its next deliberate restart. See [backup scope and verification limits](docs/CHECKED_BACKUPS_0_13.md).
+
 Version 0.12 adds the **Signal Room interface**, a **1080×1350 one-page daily brief** with local PNG/SVG export and printing, and a **Windows background host that continues after the launcher or Codex closes**. Double-click Start to launch or reopen the verified host; use Stop Ariadne.cmd for explicit shutdown. See [interface research](docs/SIGNAL_ROOM_0_12.md), [daily signal](docs/DAILY_SIGNAL_0_12.md) and [independent hosting](docs/INDEPENDENT_HOST_0_12.md).
 
 The 0.12.1 host uses the fixed Windows CIM broker and verifies that the host is outside all Windows jobs before starting services. A successful breakaway alone is insufficient when a caller belongs to nested jobs.
@@ -194,15 +196,15 @@ Once provisioned, local inference and voice work without internet. Power the PC 
 
 Queued work and pending approvals survive restarts. A mission that was running when the process stopped is marked **interrupted** and is not automatically replayed, since an external action could have succeeded just before the outage. Inspect its trail and start a focused follow-up. An in-progress approved action can be marked **uncertain**; check the connected system before retrying it. External actions do not have exactly-once guarantees unless their adapters implement idempotency.
 
-Stop the application before backing up when you need a consistent database-and-workspace pair, then run:
+Double-click **Backup Ariadne.cmd** for a newly named, verified private archive under `backups/`. Ariadne can stay running. Stop it deliberately first when you need a coordinated database-and-workspace pair. The command interface is also available:
 
 ```powershell
 python scripts/backup.py ${BOX}\backups\ariadne-backup.zip
 ```
 
-Use a new destination outside `data/workspace`. The script creates a SQLite backup plus regular workspace files and private configuration. It does not duplicate large models or external connector secrets. Preserve `data/models`, runtime binaries, licenses and the provisioning manifest separately for a fully disconnected reinstall. Protect and encrypt backups using your normal disk/backup tools; the application does not encrypt them.
+Use a new destination outside `data/workspace`. The script snapshots the seven known SQLite databases, includes regular workspace files and allowlisted private configuration, then reads back the archive and checks its hashes and database integrity. Each database is consistent individually; a live backup is not one global transaction. It does not duplicate large models or external connector secrets. Preserve `data/models`, runtime binaries, licenses and the provisioning manifest separately for a fully disconnected reinstall. Protect and encrypt backups using your normal disk/backup tools; the application does not encrypt them.
 
-To restore, stop the server, preserve the current data folder, inspect/extract your own backup into a fresh allowed data directory, copy back model/runtime assets, and launch with `ARIADNE_DATA_DIR` pointing there. Avoid extracting an untrusted archive. Never restore over a running server. Historical missions and events are retained; archive old state deliberately as it grows.
+See [checked backups](docs/CHECKED_BACKUPS_0_13.md) for offline verification and recovery constraints. There is no automatic restore. Stop the server, preserve current state, verify a trusted archive and inspect it in a fresh allowed directory before attempting recovery. Saved schedules, queued work, credentials and microphone preferences remain potentially active data; review them and uncertain actions before starting a recovered installation. Absolute capability paths and the fixed local flow data path require separate relocation handling. Never restore over a running server.
 
 ## Operating cost and evidence
 

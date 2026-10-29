@@ -1,99 +1,72 @@
-"""Create a consistent local backup. Stop missions before restoring it."""
+"""Create or verify a checked private local backup; never restore or replay work."""
 import argparse
+import json
 import os
-import sqlite3
-import stat
-import sys
-import time
-import zipfile
 from pathlib import Path
-from tempfile import TemporaryDirectory
-from contextlib import closing
+import sqlite3  # Retained for callers that instrument snapshot database opens.
+import sys
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from ariadne.config import load_settings, _allowed_path
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+from ariadne.config import Settings, _allowed_path
+from ariadne import backup
+
+DATABASES = backup.DATABASES
+SQLITE_SIDECARS = backup.SQLITE_SIDECARS
+MANIFEST_NAME = backup.MANIFEST_NAME
 
 
-DATABASES = ("ariadne.sqlite3", "business.sqlite3", "survival.sqlite3", "books.sqlite3", "procedures.sqlite3", "briefing.sqlite3", "internet.sqlite3")
-SQLITE_SIDECARS = ("-journal", "-wal", "-shm")
+def load_settings():
+    """Read locations without bootstrapping a token or application state."""
+    return Settings(data_dir=_allowed_path(os.environ.get("ARIADNE_DATA_DIR", "data")))
 
 
 def _regular_file(path):
-    """Reject linked or special SQLite inputs, including SQLite-opened sidecars."""
-    path = _allowed_path(path)
-    try:
-        info = path.lstat()
-    except FileNotFoundError:
-        return path, False
-    if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
-        raise ValueError("Backup database and sidecars must be regular files without links")
-    return path, True
+    return backup.regular_file(path, path_guard=_allowed_path)
 
 
 def _database_path(path):
-    database, present = _regular_file(path)
-    for suffix in SQLITE_SIDECARS:
-        _regular_file(database.with_name(database.name + suffix))
-    return database, present
+    return backup.database_path(path, path_guard=_allowed_path)
 
 
 def _snapshot_database(source, destination):
-    # Recheck immediately before SQLite opens either file. Read-only mode prevents
-    # a disappeared optional source from becoming a newly created empty database.
-    source, present = _database_path(source)
-    if not present:
-        raise ValueError("Database changed during backup; retry after writes settle")
-    destination, _ = _database_path(destination)
-    with closing(sqlite3.connect(source.as_uri() + "?mode=ro", uri=True)) as live, closing(sqlite3.connect(destination)) as saved:
-        live.backup(saved)
+    return backup.snapshot_database(source, destination, path_guard=_allowed_path)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("destination", help="New .zip path on an allowed disk; contains private data")
+    parser.add_argument("destination", nargs="?", help="New .zip path on an allowed disk; contains private data")
+    parser.add_argument("--verify", metavar="ARCHIVE", help="Verify without restoring or starting anything")
+    parser.add_argument("--temp-root", help="Existing allowed folder for temporary SQLite verification copies")
+    parser.add_argument("--json", action="store_true", help="Print counts and hashes, never private contents")
     args = parser.parse_args()
-    destination = _allowed_path(args.destination)
-    if destination.exists():
-        raise SystemExit("Refusing to overwrite an existing backup")
-    settings = load_settings()
-    if destination.is_relative_to(settings.workspace):
-        raise SystemExit("Backup destination must be outside the workspace to avoid archiving itself.")
-    # Preflight every known database and its journal/WAL/SHM before opening any
-    # SQLite connection. Missing optional databases remain absent.
-    databases = []
-    for name in DATABASES:
-        source, present = _database_path(settings.data_dir / name)
-        if present:
-            databases.append((name, source))
-    if not any(name == "ariadne.sqlite3" for name, _ in databases):
-        raise SystemExit("No database yet. Start the application first.")
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    with TemporaryDirectory(prefix="backup-", dir=settings.data_dir) as temp:
-        snapshots = []
-        for name, source in databases:
-            snapshot = Path(temp) / name
-            _snapshot_database(source, snapshot)
-            snapshots.append((name, snapshot))
-        with zipfile.ZipFile(destination, "x", compression=zipfile.ZIP_DEFLATED) as archive:
-            for name, snapshot in snapshots:
-                archive.write(snapshot, name)
-            for name in ("server.token", "connectors.json", "provision-manifest.json", "voice-config.json", "mcp.json", "ocr-config.json", "media-config.json", "knowledge-config.json", "automation-config.json", "flows.token", "knowledge-vectors.json", "erpnext/bootstrap.env"):
-                file = _allowed_path(settings.data_dir / name)
-                if file.is_file() and not file.is_symlink():
-                    info = file.stat()
-                    if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
-                        raise ValueError("Backup configuration must be a regular file without links")
-                    archive.write(file, name)
-            for directory, folders, files in os.walk(settings.workspace, followlinks=False):
-                folders[:] = [name for name in folders if not (Path(directory, name).lstat().st_file_attributes & 0x400 if os.name == "nt" else Path(directory, name).is_symlink())]
-                for name in files:
-                    file = Path(directory, name)
-                    info = file.lstat()
-                    if not stat.S_ISREG(info.st_mode) or info.st_nlink > 1 or stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
-                        continue
-                    archive.write(_allowed_path(file), "workspace/" + file.relative_to(settings.workspace).as_posix())
-    print(f"Created {destination}. Keep it private. Models are separate and are not duplicated.")
+    if bool(args.destination) == bool(args.verify):
+        parser.error("Choose either a new destination or --verify ARCHIVE.")
+    if args.temp_root and not args.verify:
+        parser.error("--temp-root applies only to verification.")
+    if args.verify:
+        receipt = backup.verify_backup(args.verify, args.temp_root, path_guard=_allowed_path)
+    else:
+        destination = _allowed_path(args.destination)
+        if destination.exists():
+            raise SystemExit("Refusing to overwrite an existing backup")
+        settings = load_settings()
+        if destination.is_relative_to(settings.workspace):
+            raise SystemExit("Backup destination must be outside the workspace to avoid archiving itself.")
+        receipt = backup.create_backup(destination, settings, path_guard=_allowed_path)
+    if args.json:
+        print(json.dumps(receipt, ensure_ascii=True, allow_nan=False, indent=2))
+    else:
+        print("Verified private backup: " + str(receipt["member_count"]) + " files; " + str(receipt["database_count"]) + " SQLite snapshots.")
+        print("SHA-256: " + receipt["archive_sha256"])
+        for warning in receipt["warnings"]:
+            print(warning)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except ValueError as error:
+        raise SystemExit(str(error)) from None
+    except OSError:
+        raise SystemExit("Backup could not complete because a file was unavailable or storage access failed. No success was recorded.") from None
