@@ -71,12 +71,25 @@ _INITIAL_HANDOFF_CHECKS = [{"kind": "file_exists", "path": "{{run_dir}}/handoff.
                            {"kind": "json_valid", "path": "{{run_dir}}/evidence.json"}]
 
 
+OPERATIONS_STARTERS = [
+    {"name": "Business cash and stock review", "agent_id": "business", "isolated_outputs": True,
+     "prompt": "Use business_ops action snapshot with a new safe request_id to inspect actual local records without changing them. Do not infer a cash total unless the owner explicitly identifies cash accounts. Read the returned report. Save {{run_dir}}/review.md in at most 150 words with actual source revision, report path/hash, stock exceptions and missing-data limits. No ledger changes, invoice posting, customer contact or purchases. Read back the saved review.",
+     "checks": [{"kind": "file_exists", "path": "{{run_dir}}/review.md"}]},
+    {"name": "Historical strategy qualification", "agent_id": "market_research", "isolated_outputs": True,
+     "prompt": "Use only the owner's supplied historical CSV path and metadata JSON path. If either is missing, save {{run_dir}}/study.md as a concise intake checklist; never invent data or claim a backtest ran. Otherwise call market_research audit, then study only if the data passes and study assumptions are explicitly present. Use new request IDs, read actual artifacts and save {{run_dir}}/study.md with dataset hashes, audit gaps, costs, walk-forward and reserved holdout results. No broker, live data, orders or parameter tuning using the holdout. Synthetic data must be labeled. Read the review back.",
+     "checks": [{"kind": "file_exists", "path": "{{run_dir}}/study.md"}]},
+    {"name": "Local device evidence handoff", "agent_id": "local_controls", "isolated_outputs": True,
+     "prompt": "Read home_control catalog and status only. Save {{run_dir}}/devices.md in at most 150 words identifying actual configured coverage, observation time, stale/unavailable states and proposed owner checks. Missing configuration means no connected-device coverage. Do not refresh, apply actions, alter configuration or infer physical state from old data. Cite exact returned source identities. Read the file back.",
+     "checks": [{"kind": "file_exists", "path": "{{run_dir}}/devices.md"}]},
+]
+
+
 def seed_workflows(store):
     with store.connect() as db:
         db.execute("BEGIN IMMEDIATE")
         import json
         from .store import ident, now
-        for key, items in (("starter_workflows_0_2", STARTERS), ("starter_workflows_0_4", EXPANDED_STARTERS), ("starter_workflows_0_5", SURVIVAL_STARTERS), ("starter_workflows_0_10", OFFLINE_STARTERS)):
+        for key, items in (("starter_workflows_0_2", STARTERS), ("starter_workflows_0_4", EXPANDED_STARTERS), ("starter_workflows_0_5", SURVIVAL_STARTERS), ("starter_workflows_0_10", OFFLINE_STARTERS), ("starter_workflows_0_15", OPERATIONS_STARTERS)):
             if db.execute("SELECT 1 FROM settings WHERE key=?", (key,)).fetchone():
                 continue
             for item in items:
@@ -193,6 +206,13 @@ def catalog(app):
         extension(identifier, title, description, "Connected system", names, state["ready"], state["reason"], setup)
     extension("business_records", "Local business records", "Maintain contacts, item catalogs, stock movements and balanced journals locally.", "Business", {"business_records"}, True,
               "Writes require approval and an idempotency key. Money uses integer cents; journals must balance. Operational records do not certify tax/accounting compliance.", "")
+    extension("business_ops", "Business operations desk", "Audit ERP exports, inspect local cash/stock records and build exact draft quotes and invoices.", "Business", {"business_ops"}, True,
+              "Offline source-bound reports with integer-cent totals. Drafts never post invoices, contact customers or change the ledger. Open Operations to run without a model.", "")
+    extension("market_research", "Historical trading laboratory", "Audit local OHLCV data and replay a fixed strategy with walk-forward selection and a reserved holdout.", "Research", {"market_research"}, True,
+              "Explicit sessions, adjustment metadata, fees, spread and slippage. Historical simulation only; no broker, live feed or order execution. Open Operations for local runs.", "")
+    controls = engine.tools.local_controls.status()
+    extension("home_control", "Home Assistant control gateway", "Read saved device states and propose selected local light, switch and scene operations.", "Connected system", {"home_control"}, controls.get("ready", False),
+              "Owner-configured entities and fixed connectors only. Device changes require a current approval and durable action receipt. Cached states work offline; endpoint setup is separate.", "docs/LOCAL_CONTROLS_0_15.md")
     extension("survival", "Survival & rebuilding", "Plan household reserves and power, track dated supplies and dependency-based projects, and search cited offline references and owner books.", "Preparedness", {"survival_plan", "survival_records", "survival_reference"}, engine.tools.references.status()["ready"],
               "Exact local estimates with explicit assumptions. Inventory is owner-reported; dates do not certify safety. Books require private owner import. Physical work remains an owner decision.", "")
     extension("procedures", "Fixed local workflows", "Generate readiness, stock rotation, power, project, reference, business and knowledge reports without a model call inside the procedure.", "Operations", {"local_procedure"}, True,

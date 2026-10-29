@@ -145,6 +145,8 @@ class Engine:
         self.settings, self.store = settings, store
         self.model = model or Ollama(settings.ollama_url, settings.model_timeout)
         self.tools = ToolRegistry(settings)
+        from .connector_credentials import load_connector_credentials
+        load_connector_credentials(self.tools)
         self.briefing_provider = None
         self.internet_provider = None
         self.internet_enabled = None
@@ -152,6 +154,7 @@ class Engine:
                                     internal_names=lambda: [s["function"]["name"] for s in self.internal_schemas()])
         self.tools.knowledge.store = store
         self.tools.procedures.store = store
+        self.tools.local_controls.store = store
         from .routines import Routines
         self.routines = Routines(self.tools.procedures.service(), store)
         self.tools.media.model_resolver = lambda: store.setting("model", settings.model)

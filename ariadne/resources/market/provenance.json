@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "package": "tzdata",
+  "package_version": "2026.5",
+  "iana_version": "2026e",
+  "source": "https://pypi.org/pypi/tzdata/2026.5/json",
+  "wheel_url": "https://files.pythonhosted.org/packages/94/21/1e5995a1c920cce14e4bffae20c665ec10e7ed03ab25e006cd741092b718/tzdata-2026.5-py2.py3-none-any.whl",
+  "wheel_sha256": "b683bd1b6659ddcd810ff02ad09ba821d4bf1065072805063eb35c49617905ac",
+  "checked_utc": "2026-10-29T20:53:21.900120+00:00",
+  "assets": [
+    {
+      "path": "America_New_York.tzif",
+      "member": "tzdata/zoneinfo/America/New_York",
+      "bytes": 1744,
+      "sha256": "d7f2206b3a45989fc9ad63d558922532fa7352280d5f87176bf1db79cb1d1fa9"
+    },
+    {
+      "path": "TZDATA-LICENSE.txt",
+      "member": "tzdata-2026.5.dist-info/licenses/LICENSE",
+      "bytes": 625,
+      "sha256": "df58f69ea88683035d720b5375bcef0cf5aeaa98a1d098d572e0992c378deb46"
+    },
+    {
+      "path": "TZDATA-APACHE-LICENSE.txt",
+      "member": "tzdata-2026.5.dist-info/licenses/licenses/LICENSE_APACHE",
+      "bytes": 11357,
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    }
+  ],
+  "scope": "Only compiled New York TZif data and exact licenses extracted; no Python package installed or executed.",
+  "upstream": "https://github.com/python/tzdata/releases/tag/2026.5"
+}

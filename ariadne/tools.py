@@ -159,6 +159,9 @@ class ToolRegistry:
         from .survival_tools import SurvivalTools, NAMES as survival_names
         from .survival_library import SurvivalLibrary, NAMES as reference_names
         from .procedure_tools import ProcedureTools, NAMES as procedure_names
+        from .business_ops import BusinessOps, NAMES as business_ops_names
+        from .market_research import MarketResearchTools, NAMES as market_names
+        from .local_controls import LocalControls, NAMES as control_names
         self.production = ProductionTools(self)
         self.knowledge = KnowledgeTools(self)
         self.media = MediaTools(self)
@@ -167,9 +170,12 @@ class ToolRegistry:
         self.survival = SurvivalTools(self)
         self.references = SurvivalLibrary(self)
         self.procedures = ProcedureTools(self)
-        self.extensions = (self.production, self.knowledge, self.media, self.automation, self.business, self.survival, self.references, self.procedures)
+        self.business_ops = BusinessOps(self)
+        self.market_research = MarketResearchTools(self)
+        self.local_controls = LocalControls(self)
+        self.extensions = (self.production, self.knowledge, self.media, self.automation, self.business, self.survival, self.references, self.procedures, self.business_ops, self.market_research, self.local_controls)
         self._extension_names = {}
-        for provider, names in zip(self.extensions, (production_names, knowledge_names, media_names, automation_names, business_names, survival_names, reference_names, procedure_names)):
+        for provider, names in zip(self.extensions, (production_names, knowledge_names, media_names, automation_names, business_names, survival_names, reference_names, procedure_names, business_ops_names, market_names, control_names)):
             for name in names:
                 if name in self._extension_names:
                     raise ToolError("Duplicate extension tool name.")
@@ -367,6 +373,9 @@ class ToolRegistry:
             "media_speak": ("speak", "tts", "voice", "speech", "narrat"),
             "media_generate_image": ("generate image", "create image", "flux", "illustrat", "image generation"),
             "business_records": ("business", "inventory", "stock", "contact", "crm", "ledger", "journal", "trial balance"),
+            "business_ops": ("business", "invoice", "quote", "erp", "cash", "stock", "reorder"),
+            "market_research": ("trading", "backtest", "market data", "ohlcv", "walk-forward", "strategy", "openbb", "holdout"),
+            "home_control": ("home assistant", "device", "light", "switch", "scene", "local control", "telemetry"),
             "survival_plan": ("survival", "prepper", "preparedness", "water", "rations", "battery", "power budget", "off-grid", "rebuild", "dartnell"),
             "survival_records": ("survival", "prepper", "preparedness", "supply", "supplies", "expiry", "stockpile", "rebuild", "dartnell"),
             "survival_reference": ("survival", "prepper", "preparedness", "reference", "book", "civilization", "rebuild", "dartnell", "water safety"),
@@ -472,6 +481,9 @@ class ToolRegistry:
                 with self._lock:
                     if approval_fingerprint is not None and not hmac.compare_digest(approval_fingerprint, self.fingerprint(name, args)):
                         return {"ok": False, "error": "Local capability or approved inputs changed. Review a new action."}
+                    if name == "home_control":
+                        return self._extension_names[name].execute(name, args, cancelled=cancelled,
+                                                                  approval_fingerprint=approval_fingerprint)
                     return self._extension_names[name].execute(name, args, cancelled=cancelled)
             if name == "analytics_query":
                 return self.analytics.execute(name, args, cancelled=cancelled)

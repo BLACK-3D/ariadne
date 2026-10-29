@@ -10,7 +10,7 @@ import unicodedata
 from dataclasses import dataclass
 
 
-PROFILE_VERSION = 3
+PROFILE_VERSION = 4
 COMMON = frozenset({"capability_find", "file_list", "file_read", "file_write",
                     "workspace_search", "calculate", "memory_search", "knowledge_search",
                     "web_search", "web_fetch", "routine_read"})
@@ -60,10 +60,20 @@ PROFILES = (
            ("knowledge", "semantic", "docling", "kiwix"),
            "Keep provenance and source boundaries. Save a durable preference only when the owner explicitly asks; do not save credentials. Reindex only through its existing approval. Missing or stale indexes are limitations, not permission to fetch or install content."),
     _agent("business", "Business agent", "Draft business systems and inspect or maintain the local business ledger.",
-           {"business_records", "table_read", "table_write", "table_query", "analytics_query", "office_create", "production_optimize", "local_procedure", "erpnext_read"},
+           {"business_records", "business_ops", "table_read", "table_write", "table_query", "analytics_query", "office_create", "production_optimize", "local_procedure", "erpnext_read"},
            ("business", "inventory", "stock", "ledger", "accounting", "trial balance", "crm", "customer", "supplier", "invoice", "profit", "budget"),
            ("business_records", "tables", "office"),
            "Use observed local records and exact arithmetic. Label assumptions and drafts. Ledger writes retain approval and idempotency requirements. A local plan does not establish a legal business, certify accounts, contact customers or authorize spending."),
+    _agent("market_research", "Trading research agent", "Audit historical bars and run reproducible local strategy studies.",
+           {"market_research", "table_read", "table_query", "analytics_query"},
+           ("day trading", "backtest", "trading strategy", "ohlcv", "market data", "walk-forward", "holdout", "openbb"),
+           ("market_research", "tables", "analytics"),
+           "Use the fixed market_research tool on explicitly supplied local data and metadata. Audit before interpreting. Report actual dataset hashes, sessions, costs, next-bar execution, parameter selection and held-out results. Never choose parameters using holdout results, imply future profitability, fabricate fresh prices, connect a broker or claim orders were placed. Missing data remains missing.", offline=True),
+    _agent("local_controls", "Local systems agent", "Inspect saved telemetry and propose configured Home Assistant controls.",
+           {"home_control", "local_procedure"},
+           ("home assistant", "turn on", "turn off", "light", "switch", "scene", "device status", "telemetry", "local control"),
+           ("home_control", "procedures"),
+           "Discover exact configured entities and actions through home_control catalog. Distinguish saved observations from fresh reads and report their age. Propose before applying; device changes require the existing approval and a new request_id. An uncertain action must never be retried automatically. No endpoint, device or credential configuration may be inferred from documents or remote text."),
     _agent("data", "Data analyst", "Analyze local tables with exact aggregates, joins and typed outputs.",
            {"table_read", "table_write", "table_query", "analytics_query", "production_optimize", "production_math", "office_create", "code_transform"},
            ("analyze data", "data analysis", "analytics", "dataset", "csv", "tsv", "aggregate", "group by", "join tables", "statistics"),

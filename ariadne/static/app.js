@@ -130,7 +130,7 @@ const state = {
 };
 const activeStatuses = new Set(["queued", "running", "waiting_approval", "awaiting_approval", "pending", "waiting", "verifying"]);
 const isActive = run => Boolean(run && activeStatuses.has(run.status));
-const viewTitles = {missions:"Command center", agents:"Agents", briefing:"Daily brief", internet:"Internet", workflows:"Workflows", knowledge:"Knowledge", survival:"Survival", memory:"Memory", schedules:"Schedules", files:"Workspace", connectors:"Capabilities", settings:"Settings & setup"};
+const viewTitles = {missions:"Command center", operations:"Operations", agents:"Agents", briefing:"Daily brief", internet:"Internet", workflows:"Workflows", knowledge:"Knowledge", survival:"Survival", memory:"Memory", schedules:"Schedules", files:"Workspace", connectors:"Capabilities", settings:"Settings & setup"};
 const executionLabel = run => run?.status === "completed" ? "Execution finished" : humanize(run?.status);
 
 function toast(message, error = false) {
@@ -342,6 +342,7 @@ async function showView(view) {
   if (state.authenticated) await loadView(view);
 }
 async function loadView(view) {
+  if (view === "operations") { await window.ariadneOperations?.load(); return; }
   if (view === "settings") { renderSettings(); return; }
   const loaders = {agents:loadAgents, briefing:loadBriefing, internet:loadInternet, knowledge:loadKnowledge, survival:loadSurvival, workflows:loadWorkflows, memory:loadMemory, schedules:loadSchedules, files:loadFiles, connectors:loadConnectors};
   if (loaders[view]) await loaders[view]();
@@ -2878,4 +2879,5 @@ $("#internet-fetch-form").addEventListener("submit", event => { event.preventDef
 window.addEventListener("pagehide", () => { if (state.recording) stopRecording(true); stopSpeech(); });
 window.ariadneCommand?.attach({state, api, node, button, icon, selectRun, newMission, showView, dateLabel, humanize, modelReady, refreshStatus, loadRuns});
 window.ariadneRoutines?.attach({state, api, node, button, icon, openArtifact, downloadArtifact, confirmAction, toast, dateLabel, bytes, humanize});
+window.ariadneOperations?.attach({state, api, node, button, openArtifact, newMission, showView, resizeComposer});
 if (state.token) connect(); else $("#access-token").focus();

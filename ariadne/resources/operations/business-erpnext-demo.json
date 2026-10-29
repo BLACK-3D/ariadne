@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "provider": "erpnext",
+  "captured_at": "2026-10-29T00:00:00Z",
+  "currency": "USD",
+  "invoices": {
+    "data": [
+      {"name": "DEMO-INV-001", "customer": "DEMO-Customer", "posting_date": "2026-08-01", "due_date": "2026-09-01", "currency": "USD", "docstatus": 1, "grand_total": "100.01", "outstanding_amount": "80.01"},
+      {"name": "DEMO-INV-002", "customer": "DEMO-Customer", "posting_date": "2026-10-01", "due_date": "2026-11-01", "currency": "USD", "docstatus": 1, "grand_total": "50.00", "outstanding_amount": "0.29"},
+      {"name": "DEMO-DRAFT-003", "customer": "DEMO-Customer", "posting_date": "2026-10-01", "due_date": "2026-11-01", "currency": "USD", "docstatus": 0, "grand_total": "250.00", "outstanding_amount": "250.00"},
+      {"name": "DEMO-CANCELLED-004", "customer": "DEMO-Customer", "posting_date": "2026-10-01", "due_date": "2026-11-01", "currency": "USD", "docstatus": 2, "grand_total": "120.00", "outstanding_amount": "120.00"}
+    ]
+  }
+}

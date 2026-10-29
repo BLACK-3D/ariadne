@@ -1,0 +1,14 @@
+[
+  {
+    "entity_id": "light.desk",
+    "state": "off",
+    "attributes": {"friendly_name": "DEMO desk light", "brightness": 0},
+    "last_updated": "2026-10-29T12:00:00+00:00"
+  },
+  {
+    "entity_id": "sensor.office_temperature",
+    "state": "21.5",
+    "attributes": {"friendly_name": "DEMO office sensor", "unit_of_measurement": "°C"},
+    "last_updated": "2026-10-29T12:00:00+00:00"
+  }
+]

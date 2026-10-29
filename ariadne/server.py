@@ -50,6 +50,8 @@ class Application:
         self.engine.tools.references.books.sources = self.sources
         self.procedures = self.engine.tools.procedures.service()
         self.routines = self.engine.routines
+        from .operations import OperationsDesk
+        self.operations = OperationsDesk(self.engine.tools, self.store)
         from .internet import InternetService
         self.internet = InternetService(settings, self.store, self.engine.tools)
         self.engine.internet_provider = self.internet_call
@@ -263,7 +265,9 @@ class Application:
                           "/app.js": ("app.js", "text/javascript"), "/styles.css": ("styles.css", "text/css"),
                           "/static/app.js": ("app.js", "text/javascript"), "/static/styles.css": ("styles.css", "text/css"),
                           "/static/command.js": ("command.js", "text/javascript"), "/static/command.css": ("command.css", "text/css"),
-                          "/static/routines.js": ("routines.js", "text/javascript")}
+                          "/static/routines.js": ("routines.js", "text/javascript"),
+                          "/static/operations.js": ("operations.js", "text/javascript"),
+                          "/static/operations.css": ("operations.css", "text/css")}
                 if path not in assets:
                     raise HTTPError(404, "Not found")
                 filename, mime = assets[path]
@@ -570,6 +574,10 @@ class Application:
                 self.import_lock.release()
         elif parts == ["capabilities"] and method == "GET":
             result = catalog(self)
+        elif parts == ["operations"] and method == "GET":
+            result = self.operations.catalog()
+        elif parts == ["operations", "run"] and method == "POST":
+            result = self.operations.run(self.body(env, limit=16_384))
         elif parts == ["automation"] and method == "GET":
             result = self.engine.tools.automation.overview()
         elif parts == ["automation"] and method == "PUT":

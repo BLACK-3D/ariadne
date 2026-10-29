@@ -56,3 +56,4 @@ service-account*.json
 .coverage
 htmlcov/
 node_modules/
+.operations-test-*/

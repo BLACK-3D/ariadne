@@ -1,0 +1,31 @@
+{
+  "connectors": [
+    {
+      "id": "ha_states",
+      "description": "Read Home Assistant states on the explicitly selected local server",
+      "url": "http://127.0.0.1:8123/api/states",
+      "method": "GET",
+      "read_only": true,
+      "headers": {"Authorization": {"env": "ARIADNE_CONNECTOR_HA_AUTH"}},
+      "timeout_seconds": 5
+    },
+    {
+      "id": "ha_light_on",
+      "description": "Home Assistant light turn_on endpoint; use home_control for the fixed entity action",
+      "url": "http://127.0.0.1:8123/api/services/light/turn_on",
+      "method": "POST",
+      "read_only": false,
+      "headers": {"Authorization": {"env": "ARIADNE_CONNECTOR_HA_AUTH"}},
+      "timeout_seconds": 5
+    },
+    {
+      "id": "ha_light_off",
+      "description": "Home Assistant light turn_off endpoint; use home_control for the fixed entity action",
+      "url": "http://127.0.0.1:8123/api/services/light/turn_off",
+      "method": "POST",
+      "read_only": false,
+      "headers": {"Authorization": {"env": "ARIADNE_CONNECTOR_HA_AUTH"}},
+      "timeout_seconds": 5
+    }
+  ]
+}

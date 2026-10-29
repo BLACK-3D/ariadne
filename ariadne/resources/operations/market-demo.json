@@ -1,0 +1,24 @@
+{
+  "symbol": "DEMO",
+  "currency": "USD",
+  "source": "Ariadne synthetic demonstration; not market data",
+  "adjustment": "raw",
+  "timeframe_minutes": 1,
+  "timezone": "America/New_York",
+  "session_open": "09:30",
+  "session_close": "09:38",
+  "weekdays": [0, 1, 2, 3, 4],
+  "expected_sessions": ["2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29"],
+  "study": {
+    "initial_cash": "1000",
+    "shares": 2,
+    "commission_per_order": "0.10",
+    "fee_bps": "1",
+    "spread_bps": "2",
+    "slippage_bps": "1",
+    "train_sessions": 1,
+    "test_sessions": 1,
+    "holdout_sessions": 1,
+    "parameter_grid": [{"fast": 1, "slow": 2}, {"fast": 2, "slow": 3}]
+  }
+}

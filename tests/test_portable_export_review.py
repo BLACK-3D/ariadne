@@ -14,6 +14,21 @@ from scripts.stage_runtime_notices import stage
 
 
 class PortableExportReviewTests(unittest.TestCase):
+    def test_operation_examples_and_docs_are_exported_without_private_control_state(self):
+        from scripts.export_offline import EXAMPLE_FILES
+        for name in EXAMPLE_FILES:
+            path = self.root / "config/examples" / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("public illustrative fixture", encoding="utf-8")
+        for name in ("BUSINESS_OPS_0_15.md", "MARKET_RESEARCH_0_15.md", "LOCAL_CONTROLS_0_15.md", "OPERATIONS_0_15.md"):
+            (self.root / "docs" / name).write_text("public operation docs", encoding="utf-8")
+        for name in ("local-controls.json", "local-controls.sqlite3", "connector-secrets.json"):
+            (self.root / "data" / name).write_text("private fixture", encoding="utf-8")
+        exported = {name for name, _, _ in inventory(self.root)}
+        self.assertTrue({"config/examples/" + name for name in EXAMPLE_FILES} <= set(exported))
+        self.assertIn("docs/OPERATIONS_0_15.md", exported)
+        self.assertFalse({"data/" + name for name in ("local-controls.json", "local-controls.sqlite3", "connector-secrets.json")} & exported)
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix=".portable-export-review-", dir=Path.cwd())
         self.addCleanup(self.temporary.cleanup)

@@ -32,6 +32,9 @@ DOCS = {"ARCHITECTURE.md", "ANALYTICS_0_3.md", "OCR_0_3.md", "MCP_0_3.md", "KNOW
 DOCS.update({"SIGNAL_ROOM_0_12.md", "INDEPENDENT_HOST_0_12.md", "DAILY_SIGNAL_0_12.md"})
 DOCS.add("CHECKED_BACKUPS_0_13.md")
 DOCS.add("REPOSITORY_WATCH_0_14.md")
+DOCS.update({"BUSINESS_OPS_0_15.md", "MARKET_RESEARCH_0_15.md", "LOCAL_CONTROLS_0_15.md", "OPERATIONS_0_15.md"})
+EXAMPLE_FILES = {"business-erpnext-demo.json", "business-quote-demo.json", "market-demo.csv", "market-demo.json",
+                 "control-connectors.json", "control-home-assistant.json", "control-states-demo.json"}
 RUNTIME_DIRS = ("runtime/python", "runtime/ollama", "runtime/whisper", "runtime/ocr/models", "runtime/ocr/wheels", "runtime/ocr/notices",
     "runtime/media/python", "runtime/media/flux-python", "runtime/media/piper-python", "runtime/media/piper", "runtime/media/kokoro", "runtime/media/sherpa", "runtime/media/silero",
     "runtime/media/diarization", "runtime/media/flux", "runtime/media/licenses", "runtime/media/wheels", "runtime/media/flux-wheels",
@@ -287,6 +290,11 @@ def inventory(root=ROOT):
             if path.is_file() and path.name in CONFIG_FILES:
                 info = _regular(path)
                 files["config/" + path.name] = (path, info.st_size)
+    for name in EXAMPLE_FILES:
+        path = _allowed_path(root / "config/examples" / name)
+        if path.exists():
+            info = _regular(path)
+            files["config/examples/" + name] = (path, info.st_size)
     for relative in ("config/erpnext/compose.yaml", "config/erpnext/images.json", "config/erpnext/LICENSE"):
         path = _allowed_path(root / relative)
         if path.exists():

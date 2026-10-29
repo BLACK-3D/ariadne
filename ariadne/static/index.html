@@ -8,8 +8,10 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='3' fill='%23080d12'/%3E%3Cpath d='M32 11v42M14 21l36 22M14 43l36-22' stroke='%2394e5ef' stroke-width='5'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/static/styles.css">
   <link rel="stylesheet" href="/static/command.css">
+  <link rel="stylesheet" href="/static/operations.css">
   <script src="/static/command.js" defer></script>
   <script src="/static/routines.js" defer></script>
+  <script src="/static/operations.js" defer></script>
   <script src="/static/app.js" defer></script>
 </head>
 <body class="command-console">
@@ -24,6 +26,7 @@
         <button class="nav-item" data-view="briefing"><span data-icon="eye"></span><span>Daily brief<small>Regional intelligence and activity</small></span></button>
         <button class="nav-item" data-view="internet"><span data-icon="globe"></span><span>Internet<small>Public reading and saved evidence</small></span></button>
         <button class="nav-item" data-view="workflows"><span data-icon="workflow"></span><span>Workflows<small>Repeatable operations and reports</small></span></button>
+        <button class="nav-item" data-view="operations"><span data-icon="server"></span><span>Operations<small>Business, markets and local controls</small></span></button>
         <button class="nav-item" data-view="knowledge"><span data-icon="book"></span><span>Knowledge<small>Your private reference library</small></span><span class="nav-count" id="knowledge-count"></span></button>
         <button class="nav-item" data-view="survival"><span data-icon="shield"></span><span>Survival<small>Continuity, supplies and rebuilding</small></span></button>
         <button class="nav-item" data-view="memory"><span data-icon="memory"></span><span>Memory<small>Retained working context</small></span></button>
@@ -94,6 +97,35 @@
           <div id="survival-library-panel" role="tabpanel" aria-labelledby="survival-library-tab" hidden>
             <article class="survival-panel survival-owner-library"><div class="survival-section-heading"><div><span class="eyebrow">PRIVATE / FULL-TEXT LIBRARY</span><h2>Your survival books</h2><p>Import your own legally obtained PDF or EPUB. Full book text stays private on this server.</p></div><button type="button" class="button button-secondary" id="survival-manage-sources"><span data-icon="folder"></span> Source folders</button></div><div id="survival-book-list"></div><details id="survival-book-import"><summary>Add a book from an approved folder</summary><p class="survival-footnote">Register its folder in Knowledge first, then review the file here before importing. Encrypted and DRM-protected books are not supported. Extractable text presence is reported for every section; scanned PDF pages may need OCR. Full content coverage is not certified, and diagrams/images are not interpreted.</p><form id="survival-book-form"><div class="survival-book-import-fields"><div><label for="survival-book-source">Approved source folder</label><select id="survival-book-source" required><option value="">Loading approved folders…</option></select></div><div><label for="survival-book-path">File path within that folder</label><input id="survival-book-path" required maxlength="1000" placeholder="Books/The Knowledge.pdf" spellcheck="false"></div><div class="survival-wide"><label for="survival-book-title">Book title</label><input id="survival-book-title" maxlength="200" placeholder="The Knowledge: How to Rebuild Our World from Scratch"></div></div><p id="survival-book-preview" class="survival-book-preview" hidden></p><p id="survival-book-error" class="form-error" role="alert" hidden></p><div class="survival-import-actions"><button type="submit" class="button button-secondary" id="preview-survival-book"><span data-icon="eye"></span> Review file</button><button type="button" class="button button-primary" id="import-survival-book" disabled><span data-icon="book"></span> Import reviewed book</button><span id="survival-book-progress" role="status"></span></div></form></details></article>
             <form id="survival-library-search" class="survival-library-toolbar"><div><label for="survival-search">Search offline cards & imported books</label><input id="survival-search" type="search" maxlength="300" placeholder="Water, food storage, energy, rebuilding…"></div><div><label for="survival-topic">Topic</label><select id="survival-topic"><option value="">All topics</option></select></div><button class="button button-secondary" type="submit"><span data-icon="book"></span> Search</button></form><p class="survival-footnote">Original planning cards cite their sources. Source websites need a connection; bundled reference PDFs and imported books remain local.</p><div id="survival-book-results"></div><div id="survival-library-list" class="survival-project-grid"></div></div>
+        </section>
+        <section class="view content-view" id="view-operations" hidden>
+          <div class="page-heading"><div><span class="eyebrow">LOCAL EXECUTION / OBSERVABLE RESULTS</span><h1>Operations</h1><p>From evidence to a checked result. No model needed for these local runs.</p></div><button class="button button-secondary" data-view="workflows">AI workflows</button></div>
+          <p id="ops-status" class="procedure-status" role="status">Open this desk to load available operations.</p>
+          <p id="ops-error" class="form-error" role="alert" hidden></p>
+          <div class="ops-grid">
+            <form id="ops-business" class="ops-card"><span class="eyebrow">01 / BUSINESS</span><h2>Operating picture</h2><p>Inspect cash and stock, audit an ERP export, or calculate a draft quote and invoice.</p>
+              <label for="ops-business-action">Operation</label><select id="ops-business-action"><option value="snapshot">Review local business records</option><option value="audit_erp">Audit an ERP export</option><option value="draft_quote">Prepare a quote from a request file</option></select>
+              <label for="ops-business-path">Workspace input file <small>For export audits and quote requests</small></label><input id="ops-business-path" maxlength="1000" placeholder="business/export.json">
+              <label for="ops-business-date">Audit as of</label><input id="ops-business-date" type="date">
+              <button class="button button-primary" type="submit">Create business report</button><button class="button button-secondary" type="button" data-operation-example="business">Try a synthetic ERP example</button>
+              <small>Drafts remain local. Ledger changes and invoice posting are separate actions.</small>
+            </form>
+            <form id="ops-market" class="ops-card"><span class="eyebrow">02 / MARKET RESEARCH</span><h2>Strategy laboratory</h2><p>Validate historical bars and replay a fixed strategy with costs, walk-forward selection and a reserved holdout.</p>
+              <label for="ops-market-action">Operation</label><select id="ops-market-action"><option value="audit">Audit historical market data</option><option value="study">Run the configured strategy study</option></select>
+              <label for="ops-market-path">Historical bars in Workspace</label><input id="ops-market-path" required maxlength="1000" placeholder="markets/bars.csv">
+              <label for="ops-market-metadata">Dataset and study assumptions</label><input id="ops-market-metadata" required maxlength="1000" placeholder="markets/metadata.json">
+              <button class="button button-primary" type="submit">Run local research</button><button class="button button-secondary" type="button" data-operation-example="market">Try a synthetic strategy example</button>
+              <small>Historical simulation. Fresh prices and broker connections require separate services.</small>
+            </form>
+            <form id="ops-controls" class="ops-card"><span class="eyebrow">03 / LOCAL SYSTEMS</span><h2>Device awareness</h2><p>Read saved Home Assistant observations and inspect the exact controls the owner has configured.</p>
+              <label for="ops-controls-action">Operation</label><select id="ops-controls-action"><option value="status">Read saved device states</option><option value="catalog">Inspect configured devices and actions</option><option value="import_snapshot">Import a saved state snapshot</option></select>
+              <label for="ops-controls-path">Saved snapshot in Workspace</label><input id="ops-controls-path" maxlength="1000" placeholder="devices/states.json">
+              <label for="ops-controls-time">Snapshot observation time <small>ISO timestamp with time zone</small></label><input id="ops-controls-time" maxlength="40" placeholder="2026-10-29T12:00:00-05:00">
+              <button class="button button-primary" type="submit">Inspect local systems</button><button id="ops-control-mission" class="button button-secondary" type="button">Prepare a device-control mission</button>
+              <small>Devices require owner configuration. Actions are reviewed in the mission approval flow.</small>
+            </form>
+          </div>
+          <article id="ops-result" class="ops-result" aria-live="polite" hidden></article>
         </section>
         <section class="view content-view" id="view-workflows" hidden>
           <div class="page-heading"><div><span class="eyebrow">REPEATABLE OPERATIONS</span><h1>Workflows</h1><p>Reusable missions and fixed local reports, with the outputs in view.</p></div><button class="button button-primary" id="add-workflow"><span data-icon="plus"></span> New workflow</button></div>

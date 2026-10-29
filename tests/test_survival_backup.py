@@ -83,6 +83,8 @@ class SurvivalBackupTests(unittest.TestCase):
             "automation-config.json": b'{"fixture":"flows"}',
             "knowledge-config.json": b'{"fixture":"private references"}',
             "repository-radar-cache.json": b'{"fixture":"dated upstream baseline"}',
+            "local-controls.json": b'{"schema":1,"enabled":false}',
+            "connector-secrets.json": b'{"schema":1,"environment":{"ARIADNE_CONNECTOR_FIXTURE":"private-header"}}',
             "erpnext/bootstrap.env": b"FIXTURE_SECRET=owner-only\n",
         }
         for name, payload in private.items():

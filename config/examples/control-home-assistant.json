@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "enabled": false,
+  "read_connector": "connector_ha_states",
+  "entities": ["light.desk", "sensor.office_temperature"],
+  "actions": [
+    {
+      "id": "desk_work_light",
+      "entity_id": "light.desk",
+      "service": "light.turn_on",
+      "connector": "connector_ha_light_on",
+      "data": {"brightness_pct": 60}
+    },
+    {
+      "id": "desk_light_off",
+      "entity_id": "light.desk",
+      "service": "light.turn_off",
+      "connector": "connector_ha_light_off",
+      "data": {}
+    }
+  ],
+  "stale_seconds": 300
+}

@@ -1,5 +1,7 @@
 # Ariadne — local AI in a box
 
+Version 0.15 adds the **Operations desk**: offline business snapshots and ERPNext-export audits, exact draft quotes/invoices, OpenBB-compatible historical-data audits and strategy replay, and a scoped Home Assistant gateway with approved actions and durable uncertainty receipts. Open **All systems → Operations** for zero-model local reports and explicit synthetic examples. Two new specialists and three checked AI workflows use these tools. No ERP, brokerage or Home Assistant installation is implied. See [operations and setup](docs/OPERATIONS_0_15.md).
+
 Version 0.14 adds a **daily repository watch** to the local 6 AM brief: selected business, trading, control and AI upstreams, first-observation baselines, changed/unchanged metadata and dated offline results. It uses no language model and installs nothing. See [daily repository operation](docs/REPOSITORY_WATCH_0_14.md).
 
 The [29 October capability radar](docs/CAPABILITY_RADAR_2026_10_29.md) adds a primary-source scan of **49 business, trading, device/control and AI candidates**, with offline requirements, license constraints, recurring-cost considerations and concrete integration workflows. These are researched proposals, separate from installed capabilities. The dated report is also saved as a local daily-brief addendum.

@@ -1,0 +1,12 @@
+{
+  "customer_id": "demo-customer",
+  "company": "DEMO Example Company",
+  "posting_date": "2026-10-29",
+  "due_date": "2026-11-28",
+  "currency": "USD",
+  "tax_bps": 825,
+  "tax_account": "DEMO Sales Tax Payable",
+  "lines": [
+    {"item_id": "demo-widget", "quantity": 3, "discount_bps": 500}
+  ]
+}

@@ -90,6 +90,8 @@ The bundled FEMA, CDC and FoodSafety.gov documents remain attributed to their or
 
 # Ariadne 0.6 timezone data
 
+The 0.15 market-research adapter also includes `ariadne/resources/market/America_New_York.tzif` from the official Python tzdata 2026.5 distribution (IANA 2026e). Exact member/distribution hashes, source URLs and bundled original licenses are recorded in that directory's `provenance.json`, `TZDATA-LICENSE.txt` and `TZDATA-APACHE-LICENSE.txt`. These data and notices retain their upstream terms. No tzdata Python package is installed by the adapter.
+
 `ariadne/resources/briefing/America_Chicago.tzif` is the IANA America/Chicago record from the cached Python tzdata 2026.6 distribution. Bundled attribution and Apache-2.0 license are in `ariadne/resources/briefing/`. This small local asset supplies DST-aware daily timing on Windows without a runtime dependency download.
 
 # Fast offline speech (0.11)

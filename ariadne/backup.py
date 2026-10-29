@@ -25,9 +25,10 @@ from . import __version__
 from .atomic import commit_staged
 from .config import _allowed_path
 
-DATABASES = ("ariadne.sqlite3", "business.sqlite3", "survival.sqlite3", "books.sqlite3", "procedures.sqlite3", "briefing.sqlite3", "internet.sqlite3")
+DATABASES = ("ariadne.sqlite3", "business.sqlite3", "survival.sqlite3", "books.sqlite3", "procedures.sqlite3", "briefing.sqlite3", "internet.sqlite3", "local-controls.sqlite3")
 CONFIGURATIONS = ("server.token", "connectors.json", "provision-manifest.json", "voice-config.json", "mcp.json", "ocr-config.json", "media-config.json", "knowledge-config.json", "automation-config.json", "flows.token", "knowledge-vectors.json", "erpnext/bootstrap.env", "repository-radar-cache.json")
 SQLITE_SIDECARS = ("-journal", "-wal", "-shm")
+CONFIGURATIONS += ("local-controls.json", "connector-secrets.json")
 MANIFEST_NAME = "BACKUP-MANIFEST.json"
 MAX_FILES = 10_000
 MAX_FILE_BYTES = 1_073_741_824

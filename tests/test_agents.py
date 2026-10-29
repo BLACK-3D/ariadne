@@ -44,8 +44,8 @@ class AgentTests(unittest.TestCase):
 
     def test_concrete_profiles_cover_every_installed_tool_without_extra_model_calls(self):
         catalog = self.registry.catalog()
-        self.assertEqual(len(catalog["agents"]), 19)
-        self.assertEqual(len({p.id for p in PROFILES}), 19)
+        self.assertEqual(len(catalog["agents"]), 21)
+        self.assertEqual(len({p.id for p in PROFILES}), 21)
         installed = {s["function"]["name"] for s in self.engine.tools.schemas()}
         general = next(item for item in catalog["agents"] if item["id"] == "general")
         self.assertTrue(installed <= set(general["tools"]))
