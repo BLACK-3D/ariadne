@@ -124,6 +124,136 @@ function checkScrollContracts() {
   assert.equal(items.get("execution-trail").open, false);
   checks.push("execution-trail first-render defaults preserve a user's later collapse during polling");
 }
+
+function checkKeyboardContracts() {
+  // Evaluate the shipped listener and menu function, rather than recreating
+  // their conditions in this verifier. The other app listeners are not run.
+  const listenerStart = appSource.indexOf('document.addEventListener("keydown", event => {');
+  const listenerEnd = appSource.indexOf("\nlet internetConfig", listenerStart);
+  const menuStart = appSource.indexOf("let directoryReturn = null;");
+  const menuEnd = appSource.indexOf("async function showView(", menuStart);
+  assert.ok(listenerStart >= 0 && listenerEnd > listenerStart && menuStart >= 0 && menuEnd > menuStart);
+  const listenerSource = appSource.slice(listenerStart, listenerEnd);
+  const menuSource = appSource.slice(menuStart, menuEnd);
+
+  function fixture() {
+    const state = {authenticated: true}, items = new Map(), body = new Set();
+    const effects = {missions: 0, prevented: 0, focuses: []};
+    let listener = null, dialog = null;
+    const document = {activeElement: null, body: {classList: {
+      toggle(name, enabled) { if (enabled) body.add(name); else body.delete(name); },
+    }}, addEventListener(name, callback) { assert.equal(name, "keydown"); assert.equal(listener, null); listener = callback; }};
+    function element(id, tagName = "BUTTON") {
+      const classes = new Set();
+      const item = {id, tagName, isContentEditable: false, isConnected: true, hidden: false, inert: false,
+        parentElement: null, attributes: {}, rects: 1,
+        classList: {contains: name => classes.has(name), toggle(name, enabled) {
+          if (enabled) classes.add(name); else classes.delete(name);
+        }},
+        setAttribute(name, value) { this.attributes[name] = String(value); },
+        getClientRects() { return Array(this.rects).fill({}); },
+        contains(target) { for (let item = target; item; item = item.parentElement) if (item === this) return true; return false; },
+        focus() { document.activeElement = this; effects.focuses.push(this.id); },
+      };
+      items.set(id, item);
+      return item;
+    }
+    for (const id of ["sidebar", "sidebar-scrim", "menu-toggle", "directory-close", "new-mission", "middle", "outside", "hidden", "no-rects"]) element(id);
+    const sidebar = items.get("sidebar"), first = items.get("directory-close"), middle = items.get("middle"), last = items.get("new-mission");
+    for (const item of [first, middle, last, items.get("hidden"), items.get("no-rects")]) item.parentElement = sidebar;
+    items.get("hidden").hidden = true; items.get("no-rects").rects = 0;
+    sidebar.hidden = true; sidebar.inert = true;
+    let controls = [items.get("hidden"), first, middle, last, items.get("no-rects")];
+    document.activeElement = items.get("outside");
+    const sandbox = vm.createContext({state, document,
+      $: selector => selector === "dialog[open]" ? dialog : items.get(selector.replace(/^#/, "")) || null,
+      $$: (_selector, scope) => { assert.equal(scope, sidebar); return controls; },
+      newMission: () => { effects.missions += 1; },
+      fetch: forbidden, setTimeout: forbidden, setInterval: forbidden, requestAnimationFrame: forbidden});
+    vm.runInContext(menuSource + "\n" + listenerSource, sandbox, {filename: "app.js keyboard/menu fixture", timeout: 2000});
+    assert.equal(typeof listener, "function");
+    return {state, document, effects, items, first, middle, last,
+      menu: open => sandbox.setMenu(open), dialog: open => { dialog = open ? {} : null; },
+      controls: value => { controls = value; },
+      fire: values => listener({ctrlKey: false, metaKey: false, altKey: false, shiftKey: false,
+        preventDefault() { effects.prevented += 1; }, ...values}),
+      snapshot: () => JSON.stringify({effects, active: document.activeElement?.id, body: [...body],
+        sidebar: {open: sidebar.classList.contains("open"), hidden: sidebar.hidden, inert: sidebar.inert, attributes: sidebar.attributes},
+        menu: items.get("menu-toggle").attributes, scrimHidden: items.get("sidebar-scrim").hidden}),
+    };
+  }
+
+  const malformed = fixture(); malformed.menu(true);
+  let coerced = 0;
+  const unusualKeys = [undefined, null, 7, true, {}, [], new String("n"), Symbol("n"), 1n,
+    {toLowerCase() { coerced += 1; return "n"; }}];
+  const before = malformed.snapshot();
+  assert.doesNotThrow(() => malformed.fire({}));
+  assert.equal(malformed.snapshot(), before);
+  for (const key of unusualKeys) {
+    assert.doesNotThrow(() => malformed.fire({key}));
+    assert.equal(malformed.snapshot(), before);
+  }
+  assert.equal(coerced, 0);
+  checks.push("actual keyboard listener ignores missing, undefined, null and non-string keys without coercion or side effects");
+
+  for (const values of [{key: "n"}, {key: "N"}, {key: "N", shiftKey: true}]) {
+    const keyboard = fixture(); keyboard.fire(values);
+    assert.equal(keyboard.effects.missions, 1); assert.equal(keyboard.effects.prevented, 1);
+  }
+  checks.push("actual n and N keyboard shortcuts request exactly one new mission and prevent native handling");
+  for (const tagName of ["INPUT", "TEXTAREA", "SELECT"]) {
+    const keyboard = fixture(); keyboard.document.activeElement = {tagName}; keyboard.fire({key: "n"});
+    assert.equal(keyboard.effects.missions, 0); assert.equal(keyboard.effects.prevented, 0);
+  }
+  const editable = fixture(); editable.document.activeElement = {tagName: "DIV", isContentEditable: true}; editable.fire({key: "N"});
+  assert.equal(editable.effects.missions, 0); assert.equal(editable.effects.prevented, 0);
+  checks.push("typing in inputs, textareas, selects or contenteditable does not trigger a new mission");
+  const locked = fixture(); locked.state.authenticated = false; locked.fire({key: "n"}); locked.menu(true);
+  assert.equal(locked.effects.missions, 0); assert.equal(locked.effects.prevented, 0); assert.equal(locked.items.get("sidebar").inert, true);
+  checks.push("locked console suppresses mission shortcut and directory opening");
+  for (const modifier of ["ctrlKey", "metaKey", "altKey"]) {
+    const keyboard = fixture(); keyboard.fire({key: "n", [modifier]: true});
+    assert.equal(keyboard.effects.missions, 0); assert.equal(keyboard.effects.prevented, 0);
+  }
+  checks.push("control, command and alt combinations preserve native shortcuts instead of creating missions");
+  const dialog = fixture(); dialog.dialog(true); dialog.fire({key: "N"});
+  assert.equal(dialog.effects.missions, 0); assert.equal(dialog.effects.prevented, 0);
+  checks.push("an open dialog suppresses the new-mission keyboard shortcut");
+  const ordinary = fixture();
+  for (const key of ["", "x", "Enter", "Escape", "Tab", "ArrowDown"]) ordinary.fire({key});
+  assert.equal(ordinary.effects.missions, 0); assert.equal(ordinary.effects.prevented, 0); assert.deepEqual(ordinary.effects.focuses, []);
+  checks.push("unrelated keys and closed-directory Escape or Tab remain native with no mission or focus changes");
+
+  const escape = fixture(); escape.menu(true); escape.fire({key: "Escape"});
+  assert.equal(escape.effects.prevented, 1); assert.equal(escape.document.activeElement.id, "outside");
+  assert.equal(escape.items.get("sidebar").hidden, true); assert.equal(escape.items.get("sidebar").inert, true);
+  assert.equal(escape.items.get("sidebar-scrim").hidden, true); assert.equal(escape.items.get("menu-toggle").attributes["aria-expanded"], "false");
+  assert.equal(escape.effects.missions, 0);
+  checks.push("Escape closes the actual directory, restores inert/ARIA state and returns focus to its opener");
+  const detached = fixture(); detached.menu(true); detached.items.get("outside").isConnected = false; detached.fire({key: "Escape"});
+  assert.equal(detached.document.activeElement.id, "menu-toggle");
+  checks.push("Escape returns focus to the Resources toggle if the original opener was removed");
+  const forward = fixture(); forward.menu(true); forward.document.activeElement = forward.last; forward.fire({key: "Tab"});
+  assert.equal(forward.document.activeElement, forward.first); assert.equal(forward.effects.prevented, 1);
+  checks.push("directory Tab wraps from the last visible control to the first and ignores hidden controls");
+  const reverse = fixture(); reverse.menu(true); reverse.document.activeElement = reverse.first; reverse.fire({key: "Tab", shiftKey: true});
+  assert.equal(reverse.document.activeElement, reverse.last); assert.equal(reverse.effects.prevented, 1);
+  checks.push("directory Shift-Tab wraps from the first control to the last and ignores controls without layout boxes");
+  for (const shiftKey of [false, true]) {
+    const keyboard = fixture(); keyboard.menu(true); keyboard.document.activeElement = keyboard.items.get("outside"); keyboard.fire({key: "Tab", shiftKey});
+    assert.equal(keyboard.document.activeElement, shiftKey ? keyboard.last : keyboard.first); assert.equal(keyboard.effects.prevented, 1);
+  }
+  checks.push("directory Tab recaptures outside focus at the correct forward or reverse boundary");
+  const middle = fixture(); middle.menu(true); middle.document.activeElement = middle.middle;
+  const middleFocuses = middle.effects.focuses.length; middle.fire({key: "Tab"}); middle.fire({key: "Tab", shiftKey: true});
+  assert.equal(middle.effects.prevented, 0); assert.equal(middle.effects.focuses.length, middleFocuses);
+  checks.push("directory interior Tab traversal remains native rather than forcibly moving focus");
+  const empty = fixture(); empty.menu(true); empty.controls([]); empty.document.activeElement = empty.items.get("outside");
+  assert.doesNotThrow(() => empty.fire({key: "Tab"})); assert.equal(empty.effects.prevented, 1);
+  assert.equal(empty.effects.missions, 0);
+  checks.push("directory Tab tolerates a temporarily empty focusable set without throwing or creating a mission");
+}
 test("locked state conceals prior runtime/microphone counts", s => { s.authenticated = false; s.status.wake.active = true; }, "locked", r => {
   assert.equal(r.activeCount, null); assert.equal(r.mic, "Status unavailable"); assert.equal(r.model, "Not connected");
 });
@@ -178,6 +308,7 @@ const past = clone(briefing); past.next_due_at = "2020-01-01T12:00:00+00:00";
 assert.match(command.snapshot(base(), past).nextBrief, /refresh/i);
 checks.push("expired schedule snapshot requests manual refresh without inventing a new due time");
 checkScrollContracts();
+checkKeyboardContracts();
 
 async function lifecycle() {
   const state = base(), requests = []; let refreshes = 0, loads = 0, mission = null;
@@ -229,7 +360,7 @@ lifecycle().then(() => {
       "ariadne/static/app.js": crypto.createHash("sha256").update(appSource).digest("hex"),
       "scripts/check_command_snapshot.cjs": crypto.createHash("sha256").update(fs.readFileSync(__filename)).digest("hex")},
     fixture_now_utc: new Date(fixtureNow).toISOString(),
-    scope: "Pure snapshot, minimal DOM lifecycle and actual renderRun scroll contracts; no live browser layout, server operations, microphone or model execution."};
+    scope: "Pure snapshot, minimal DOM lifecycle, actual renderRun scrolling and actual app keyboard/menu listeners; no live browser layout, server operations, microphone or model execution."};
   if (receiptPath) {
     fs.mkdirSync(path.dirname(receiptPath), {recursive:true});
     fs.writeFileSync(receiptPath, JSON.stringify(receipt, null, 2)+"\n");

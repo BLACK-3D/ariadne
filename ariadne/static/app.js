@@ -2594,6 +2594,7 @@ $("#copy-pull").addEventListener("click", () => copyText("ollama pull qwen3:4b")
 $("#voice-record").addEventListener("click", toggleRecording);
 $("#speech-player").addEventListener("ended", stopSpeech);
 document.addEventListener("keydown", event => {
+  if (typeof event.key !== "string") return;
   if (event.key === "Escape" && $("#sidebar").classList.contains("open")) { event.preventDefault(); setMenu(false); return; }
   if (event.key === "Tab" && $("#sidebar").classList.contains("open")) {
     const items = $$('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]', $("#sidebar")).filter(item => !item.hidden && item.getClientRects().length);
