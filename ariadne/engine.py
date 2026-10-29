@@ -214,7 +214,9 @@ class Engine:
                 if current_id is None:
                     current_id = self.routines.latest_completed_id()
                 if current_id is None:
-                    return {"ok": True, "state": "current_unavailable", "current_id": None, "baseline_id": None, "steps": [], "note": "No completed routine invocation is available. No comparison was inferred."}
+                    return _comparison_for_model({"state": "current_unavailable", "current_id": None,
+                        "baseline_id": None, "steps": [], "warnings": [
+                            "No completed routine invocation is available. No comparison was inferred."]})
                 try:
                     return _comparison_for_model(self.routines.compare(current_id, args.get("baseline_id")))
                 except KeyError:

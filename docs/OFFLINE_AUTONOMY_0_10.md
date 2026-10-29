@@ -8,6 +8,8 @@ Select **Offline operations**, **Offline research** or **Offline software** when
 
 The new starters cover verified routine changes, household continuity gaps, a business restart checklist, an offline reference evidence map, a knowledge gap ledger and a software delivery plan. They inspect actual local evidence and record unavailable sources explicitly. A draft, a file check and an implemented physical or business action remain different outcomes. Existing owner workflows are preserved. New starters seed once, subject to the 100-workflow limit.
 
+Factory prompts keep Markdown short and structured outputs small to fit the existing model budget. The change handoff selects exact state, invocation IDs, totals and model-view omission fields, with a four-line Markdown locator; complete source receipts remain available separately in Offline routines. The continuity starter reviews missing supply records and dated reference evidence, without calculating reserve sufficiency. Empty stock records mean actual holdings are unknown. Reference locators are read through their reference tools. A one-time update matches only byte-identical initial 0.10 prompts with their original names, checks, profiles and output mode, then replaces those prompts and adds a literal state-key check to the handoff. Owner edits, old missions and frozen schedules are preserved. The state-key check establishes presence, not semantic correctness. Output limits are instructions to the model, not new file-size predicates.
+
 ## A new checked output folder per run
 
 In a workflow editor, enable **New checked output folder each run**. Put the literal `{{run_dir}}` in the instructions and start every check path with `{{run_dir}}/`, for example:
@@ -33,6 +35,8 @@ The authenticated endpoint is `GET /api/routines/runs/<current-id>/changes`, opt
 ## Complete portable package
 
 `scripts/export_offline.py` packages the current source, cached engines, wheels, offline libraries and pinned public models. `config/public-models.json` identifies the three accepted public Qwen tags and exact required manifest/blob identities. Unknown private model tags and metadata are excluded. Missing or modified pinned assets fail closed; every exported file receives a SHA256 entry in `BOX-MANIFEST.json`. The ZIP and adjacent checksum/receipt are separate from GitHub source.
+
+For later source-only maintenance, `scripts/refresh_offline_source.py --base COMPLETE.zip --source AUDITED-source.zip --output NEW-complete.zip` can rewrite a complete appliance without traversing the installed engines again. It requires matching checksum sidecars and a base receipt, verifies every old member including removed source, preserves native/model bytes, and records both input archive hashes. Changed runtime recipes or public model pins require a full export instead. It creates a new complete ZIP and never overwrites an existing archive or imports owner state. An audit of the replacement source and fresh-folder qualification are still separate requirements.
 
 For a new box, extract the full ZIP into an allowed local folder and double-click **Start Ariadne.cmd**. It creates a fresh pairing token and owner state. No Internet or microphone listening is enabled by default. Keep the checksum with the ZIP. Verify it before extraction with `Get-FileHash -Algorithm SHA256`. Do not extract over an existing owner's data. Preserve existing backups before updating an installation.
 

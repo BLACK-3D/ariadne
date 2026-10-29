@@ -142,7 +142,16 @@ class ComparisonToolAPIReviewTests(unittest.TestCase):
                     self.assertFalse(self.engine.execute_internal("routine_read", args)["ok"])
 
     def test_tool_absence_and_unknown_ids_are_honest(self):
-        self.assertEqual(self.engine.execute_internal("routine_read", {"action": "changes"})["state"], "current_unavailable")
+        unavailable = self.engine.execute_internal("routine_read", {"action": "changes"})
+        self.assertEqual(unavailable["state"], "current_unavailable")
+        self.assertIsNone(unavailable["current_id"])
+        self.assertIsNone(unavailable["baseline_id"])
+        self.assertIsNone(unavailable["totals"])
+        self.assertEqual(unavailable["steps"], [])
+        self.assertEqual(unavailable["model_view"]["omitted_change_previews"], 0)
+        self.assertEqual(unavailable["model_view"]["omitted_steps"], 0)
+        self.assertIn("No completed routine", unavailable["warnings"][0])
+        self.assertLess(len(json.dumps(unavailable, ensure_ascii=False)), 7600)
         self.assertFalse(self.engine.execute_internal("routine_read", {"action": "changes", "current_id": "unknown"})["ok"])
 
     def test_latest_completed_lookup_is_not_limited_by_display_history(self):

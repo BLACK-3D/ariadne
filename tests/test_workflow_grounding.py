@@ -10,6 +10,8 @@ from ariadne.store import Store
 from ariadne.capabilities import seed_workflows, SURVIVAL_STARTERS, OFFLINE_STARTERS
 from ariadne.verification import validate_checks
 
+INITIAL_HANDOFF = "Use routine_read with action changes to review the latest completed offline routine against its compatible prior invocation. Save {{run_dir}}/handoff.md and {{run_dir}}/evidence.json using real file tools, then read both back. Include exact parent invocation IDs, child source paths and SHA256 identities from the comparison; separate substantive changes from metadata timestamps. Report first-run, unavailable, incomparable or partial evidence honestly, including omissions and lower-bound counts. Do not infer current physical conditions from saved reports or execute a new routine. State missing evidence instead of inventing values. Work entirely from local evidence and take no external action."
+
 
 class ClockModel:
     def __init__(self):
@@ -73,3 +75,42 @@ class WorkflowGroundingTests(unittest.TestCase):
             seed_workflows(store)
             self.assertTrue(store.workflow(edited["id"])["isolated_outputs"])
             self.assertEqual(store.workflow(edited["id"])["prompt"], "Owner notes {{run_dir}}/handoff.md")
+
+    def test_initial_default_prompt_updates_without_rewriting_mission_or_schedule_snapshots(self):
+        with tempfile.TemporaryDirectory(dir=Path.cwd(), prefix=".starter-migrate-") as directory:
+            store = Store(Path(directory)/"state.sqlite3")
+            seed_workflows(store)
+            template = OFFLINE_STARTERS[0]
+            workflow = next(row for row in store.workflows() if row["name"] == template["name"])
+            old = store.workflow_save(workflow["name"], INITIAL_HANDOFF, workflow["checks"][:2], workflow["id"])
+            run = store.workflow_run(old["id"])
+            store.schedule_add("Frozen original definition", "unused", 1440, workflow_id=old["id"])
+            schedules = store.schedules()
+            with store.connect() as db:
+                db.execute("DELETE FROM settings WHERE key='starter_workflows_0_10_bounded'")
+            seed_workflows(store)
+            updated = store.workflow(old["id"])
+            self.assertEqual(updated, {**old, "prompt": template["prompt"], "checks": template["checks"]})
+            self.assertEqual(store.run(run["id"]), run)
+            self.assertEqual(store.schedules(), schedules)
+            seed_workflows(store)
+            self.assertEqual(store.workflow(old["id"]), updated)
+
+    def test_initial_prompt_migration_preserves_each_kind_of_owner_definition_edit(self):
+        with tempfile.TemporaryDirectory(dir=Path.cwd(), prefix=".starter-owner-") as directory:
+            store = Store(Path(directory)/"state.sqlite3")
+            seed_workflows(store)
+            template = OFFLINE_STARTERS[0]
+            variants = [{"prompt": INITIAL_HANDOFF+" Owner addition."}, {"name": template["name"]+" owner"},
+                        {"checks": [{"kind": "file_contains", "path": "{{run_dir}}/handoff.md", "text": "Owner decision"}]},
+                        {"agent_id": "general"}, {"isolated_outputs": False}]
+            saved = [store.workflow_save(**{"name": template["name"], "prompt": INITIAL_HANDOFF,
+                        "checks": template["checks"][:2], "agent_id": template["agent_id"], "isolated_outputs": True, **variant})
+                     for variant in variants]
+            with store.connect() as db:
+                db.execute("DELETE FROM settings WHERE key='starter_workflows_0_10_bounded'")
+            count = len(store.workflows())
+            seed_workflows(store)
+            self.assertEqual(len(store.workflows()), count)
+            for original in saved:
+                self.assertEqual(store.workflow(original["id"]), original)
