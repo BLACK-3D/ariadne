@@ -11,12 +11,14 @@
   <link rel="stylesheet" href="/static/operations.css">
   <link rel="stylesheet" href="/static/venture.css">
   <link rel="stylesheet" href="/static/handoff.css">
+  <link rel="stylesheet" href="/static/client_handoff.css">
   <script src="/static/command.js" defer></script>
   <script src="/static/routines.js" defer></script>
   <script src="/static/operations.js" defer></script>
   <script src="/static/operations_workflows.js" defer></script>
   <script src="/static/venture.js" defer></script>
   <script src="/static/handoff.js" defer></script>
+  <script src="/static/client_handoff.js" defer></script>
   <script src="/static/app.js" defer></script>
 </head>
 <body class="command-console">
@@ -33,7 +35,7 @@
         <button class="nav-item" data-view="workflows"><span data-icon="workflow"></span><span>Workflows<small>Repeatable operations and reports</small></span></button>
         <button class="nav-item" data-view="operations"><span data-icon="server"></span><span>Operations<small>Business, markets and local controls</small></span></button>
         <button class="nav-item" data-view="venture"><span data-icon="workflow"></span><span>Venture Lab<small>Business plans and ETF research</small></span></button>
-        <button class="nav-item" data-view="handoff"><span data-icon="file"></span><span>Service desk<small>Quote and invoice handoff demo</small></span></button>
+        <button class="nav-item" data-view="handoff"><span data-icon="file"></span><span>Service desk<small>Clients, quotes &amp; approvals</small></span></button>
         <button class="nav-item" data-view="knowledge"><span data-icon="book"></span><span>Knowledge<small>Your private reference library</small></span><span class="nav-count" id="knowledge-count"></span></button>
         <button class="nav-item" data-view="survival"><span data-icon="shield"></span><span>Survival<small>Continuity, supplies and rebuilding</small></span></button>
         <button class="nav-item" data-view="memory"><span data-icon="memory"></span><span>Memory<small>Retained working context</small></span></button>
@@ -110,8 +112,13 @@
           <div id="venture-content" aria-live="polite"></div>
         </section>
         <section class="view content-view" id="view-handoff" hidden>
-          <div class="page-heading handoff-heading"><div><span class="eyebrow">LOCAL BUSINESS / WORKING DEMONSTRATION</span><h1>Service desk</h1></div><button id="refresh-handoff" class="button button-secondary">Refresh desk</button></div>
-          <div id="handoff-content" aria-live="polite"></div>
+          <div class="page-heading handoff-heading"><div><span class="eyebrow">LOCAL BUSINESS / CLIENT WORKFLOW</span><h1>Service desk</h1></div><div><button id="refresh-client-handoff" class="button button-secondary">Refresh clients</button><button id="refresh-handoff" class="button button-secondary" hidden>Refresh demo</button></div></div>
+          <div class="handoff-mode-switch" role="group" aria-label="Service desk workspace">
+            <button id="handoff-real-mode" class="button button-primary" type="button" aria-pressed="true">Real clients</button>
+            <button id="handoff-demo-mode" class="button button-secondary" type="button" aria-pressed="false">Fictional demo</button>
+          </div>
+          <div id="client-handoff-content" aria-live="polite"><p>Connect to load your private client workspace.</p></div>
+          <div id="handoff-content" aria-live="polite" hidden></div>
         </section>
         <section class="view content-view" id="view-operations" hidden>
           <div class="page-heading"><div><span class="eyebrow">LOCAL EXECUTION / OBSERVABLE RESULTS</span><h1>Operations</h1><p>From evidence to a checked result. No model needed for these local runs.</p></div><button class="button button-secondary" data-view="workflows">AI workflows</button></div>

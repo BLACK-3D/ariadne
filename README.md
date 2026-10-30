@@ -1,5 +1,7 @@
 # Ariadne — local AI in a box
 
+Version 0.20.0 turns **Service desk → Real clients** into an offline client workflow: saved issuer profiles, sourced job intake, versioned quotes, exact fractional billing, separate draft review and customer-response evidence, completed-work invoice gates, and verified HTML/JSON handoffs. Corrections invalidate approval; unsent drafts can be voided without losing their history. The fictional demonstration remains separate. These operations require no model, network, paid service or new dependency. See [the client workflow](docs/SERVICE_DESK_0_20.md).
+
 Version 0.19.0 adds **All systems → Service desk**, a working offline quote and invoice handoff demonstration. Inspect fictional intake notes, check exact totals, resolve missing information, record a demo review and export a print-ready handoff packet. Its owner-only state is separate from operational contacts and ledgers; it uses no model or network calls. See [the service workflow and its limits](docs/VENTURE_LAB.md#quote-and-invoice-service-desk).
 
 Version 0.18.0 adds faster casual conversation and wake-once voice sessions with explicit sleep and microphone-stop controls. It keeps the installed 9B model, preserves full mission budgets and microphone-off preferences, and adds measured load/prompt/generation timing. See [conversation controls and measured performance](docs/VOICE_CONVERSATION.md).

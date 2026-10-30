@@ -23,6 +23,7 @@ from .capabilities import catalog, seed_workflows
 from .routines import RoutineConflict
 from .venture_lab import VentureConflict
 from .handoff import HandoffConflict, HandoffDesk
+from .client_handoff import ClientHandoffDesk
 
 
 class HTTPError(Exception):
@@ -70,6 +71,7 @@ class Application:
         self.briefing = BriefingService(settings, self.store, self.engine.tools)
         self.venture = self.briefing.venture
         self.handoff = HandoffDesk(self.engine.tools, self.store)
+        self.client_handoff = ClientHandoffDesk(self.engine.tools, self.store)
         self.engine.briefing_provider = self.briefing_read
         self.wake_voice = WakeService(settings, self.submit_voice, blocked=self.voice_blocked,
                                       get_run=self.store.run, speak=self.speak_on_pc,
@@ -289,6 +291,8 @@ class Application:
                           "/static/venture.js": ("venture.js", "text/javascript"),
                           "/static/handoff.js": ("handoff.js", "text/javascript"),
                           "/static/handoff.css": ("handoff.css", "text/css"),
+                          "/static/client_handoff.js": ("client_handoff.js", "text/javascript"),
+                          "/static/client_handoff.css": ("client_handoff.css", "text/css"),
                           "/static/operations_workflows.js": ("operations_workflows.js", "text/javascript")}
                 if path not in assets:
                     raise HTTPError(404, "Not found")
@@ -350,6 +354,20 @@ class Application:
     def public_run(run):
         return {k: v for k, v in run.items() if k not in {"context", "pending", "prompt", "verification"}}
 
+    def client_handoff_body(self, env):
+        """Keep strict financial input parsing scoped to the real client desk."""
+        from .handoff import _load
+        if env.get("CONTENT_TYPE", "").split(";")[0] != "application/json":
+            raise HTTPError(415, "Use application/json")
+        payload = self.body(env, raw=True, limit=128 * 1024)
+        try:
+            value = _load((payload or b"{}").decode("utf-8-sig"))
+        except (ValueError, UnicodeError):
+            raise HTTPError(400, "Use strict JSON with unique fields and exact decimal text for quantities and prices.") from None
+        if type(value) is not dict:
+            raise HTTPError(400, "JSON body must be an object")
+        return value
+
     def api(self, path, method, env):
         parts = path.strip("/").split("/")[1:]
         query = parse_qs(env.get("QUERY_STRING", ""))
@@ -406,6 +424,40 @@ class Application:
                 result = self.internet.search(data.get("query"), limit=data.get("max_results", 5), refresh=data.get("refresh", False))
             else:
                 result = self.internet.fetch(data.get("url"), refresh=data.get("refresh", False))
+        elif parts in (["service-desk"], ["service-desk", "status"]) and method == "GET":
+            fields = parse_qs(env.get("QUERY_STRING", ""), keep_blank_values=True)
+            allowed = {"client_offset", "intake_offset", "document_offset", "limit", "client_id"}
+            if set(fields) - allowed or any(len(values) != 1 or not values[0] for values in fields.values()):
+                raise ValueError("Use one nonempty value for each supported service-desk filter.")
+            arguments = {}
+            for key, values in fields.items():
+                if key == "client_id":
+                    arguments[key] = values[0]
+                elif not values[0].isascii() or not values[0].isdecimal() or len(values[0]) > 8:
+                    raise ValueError("Service-desk pagination needs bounded nonnegative whole numbers.")
+                else:
+                    arguments[key] = int(values[0])
+            result = self.client_handoff.status(**arguments)
+        elif len(parts) == 3 and parts[0] == "service-desk" and parts[1] in {"clients", "intakes", "documents"} and method == "GET":
+            readers = {"clients": self.client_handoff.get_client, "intakes": self.client_handoff.get_intake,
+                       "documents": self.client_handoff.get_document}
+            result = readers[parts[1]](parts[2])
+        elif parts == ["service-desk", "export", "acknowledge"] and method == "POST":
+            if self.engine.is_paused():
+                raise HTTPError(409, "Autonomy is paused; client-workflow changes are held.")
+            result = self.client_handoff.acknowledge_export(self.client_handoff_body(env))
+        elif len(parts) == 2 and parts[0] == "service-desk" and (parts[1], method) in {
+                ("clients", "POST"), ("clients", "PUT"), ("intakes", "POST"),
+                ("quotes", "POST"), ("documents", "PUT"), ("review", "POST"),
+                ("acceptance", "POST"), ("invoices", "POST"), ("export", "POST"), ("void", "POST")}:
+            if self.engine.is_paused():
+                raise HTTPError(409, "Autonomy is paused; client-workflow changes are held.")
+            handlers = {"clients": self.client_handoff.save_client, "intakes": self.client_handoff.create_intake,
+                        "quotes": self.client_handoff.generate_quote, "documents": self.client_handoff.revise_document,
+                        "review": self.client_handoff.review, "acceptance": self.client_handoff.accept_quote,
+                        "invoices": self.client_handoff.create_invoice, "export": self.client_handoff.export,
+                        "void": self.client_handoff.void_document}
+            result = handlers[parts[1]](self.client_handoff_body(env))
         elif parts == ["handoff"] and method == "GET":
             result = self.handoff.status()
         elif parts == ["handoff", "export", "acknowledge"] and method == "POST":

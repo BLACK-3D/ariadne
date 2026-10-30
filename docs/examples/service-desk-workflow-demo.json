@@ -1,0 +1,471 @@
+{
+  "fictional_only": true,
+  "scope": "Actual isolated browser walkthrough; not owner client evidence or earned revenue.",
+  "source_export": {
+    "created_at": "2026-10-30T15:59:06.838244+00:00",
+    "demo_only": false,
+    "document": {
+      "acceptance": null,
+      "can_accept": false,
+      "can_edit": true,
+      "can_invoice": false,
+      "can_void": true,
+      "client_id": "client-872eb150d98b43109b73d5ebc3a6f920",
+      "content_sha256": "8715ff24a5816f4401643f4c3c845580e5e319666c650c38594b5e68ce512b75",
+      "currency": "USD",
+      "customer": {
+        "address": "20 Example Avenue",
+        "email": null,
+        "name": "QA Example Customer"
+      },
+      "demo_only": false,
+      "document_date": "2026-10-30",
+      "due_date": "2026-11-13",
+      "exceptions": [],
+      "id": "I-000002",
+      "intake_id": "job-26d9f02b6f63473da919ba362b9611be",
+      "invoice_id": null,
+      "kind": "invoice",
+      "lines": [
+        {
+          "description": "Maintenance labor",
+          "line_total_cents": "8750",
+          "price_approved": true,
+          "quantity": "2.5",
+          "source_ref": "QA supplied rate sheet",
+          "unit": "hours",
+          "unit_price": "35.00"
+        }
+      ],
+      "parent": {
+        "acceptance": {
+          "accepted": true,
+          "contact": "QA Example Customer (fictional)",
+          "content_sha256": "963dbbaa22749ddde0e8a3294884ab30da72bec1358e7f0abb4746b9d2cf4c43",
+          "document_revision": 1,
+          "independently_verified": false,
+          "note": "Demonstration observation only; no real agreement.",
+          "observed_at": "2026-10-30T15:58:00+00:00",
+          "owner_reported": true,
+          "party": "The service business's customer; not an authenticated client account.",
+          "recorded_at": "2026-10-30T15:58:51.209019+00:00",
+          "source_ref": "Fictional QA written acceptance record"
+        },
+        "content_sha256": "963dbbaa22749ddde0e8a3294884ab30da72bec1358e7f0abb4746b9d2cf4c43",
+        "document_date": "2026-10-30",
+        "document_revision": 1,
+        "quote_id": "Q-000001",
+        "review": {
+          "content_sha256": "963dbbaa22749ddde0e8a3294884ab30da72bec1358e7f0abb4746b9d2cf4c43",
+          "decision": "approve",
+          "document_revision": 1,
+          "note": "Fictional QA review: supplied rates, dates and tax instruction checked.",
+          "reviewed_at": "2026-10-30T15:58:31.368510+00:00",
+          "scope": "Local owner approval of this exact draft; no sending, ledger posting, payment or independent customer verification."
+        }
+      },
+      "parent_quote_id": "Q-000001",
+      "payment_received": false,
+      "permission": {
+        "confirmed": true,
+        "source_ref": "Fictional QA permission only"
+      },
+      "posted": false,
+      "provider": {
+        "address": "10 Example Street, Example City",
+        "archived": false,
+        "contact": "Fictional QA contact",
+        "email": null,
+        "id": "client-872eb150d98b43109b73d5ebc3a6f920",
+        "name": "QA Threadline Service LLC",
+        "notes": "Isolated browser QA only — not owner or customer evidence.",
+        "revision": 1
+      },
+      "reference": "I-000002",
+      "review": {
+        "content_sha256": "8715ff24a5816f4401643f4c3c845580e5e319666c650c38594b5e68ce512b75",
+        "decision": "approve",
+        "document_revision": 1,
+        "note": "Fictional QA invoice review: accepted quote copied, 2.5 hours × $35.00 = $87.50; completion reference checked.",
+        "reviewed_at": "2026-10-30T15:59:00.499913+00:00",
+        "scope": "Local owner approval of this exact draft; no sending, ledger posting, payment or independent customer verification."
+      },
+      "revision": 1,
+      "sent": false,
+      "service_date": "2026-10-30",
+      "source_notes": "Fictional QA scope: supplied maintenance request. No real work or customer.",
+      "status": "approved",
+      "subtotal_cents": "8750",
+      "tax": {
+        "approved": true,
+        "bps": 0,
+        "source_ref": "QA explicit tax instruction"
+      },
+      "tax_cents": "0",
+      "title": "QA maintenance visit",
+      "total_cents": "8750",
+      "voided": null,
+      "work": {
+        "approved": true,
+        "completed": true,
+        "source_ref": "Fictional QA completion checklist: 2.5 hours recorded, example work complete."
+      }
+    },
+    "model_calls": 0,
+    "network_calls": 0,
+    "request_id": "client-export-8e197acceebf4b55aa90045fc5a9011a",
+    "schema": 1,
+    "scope": "APPROVED DRAFT / NOT SENT. Local approval binds the included content hash. Customer acceptance and completion are owner-reported; no external delivery, ledger posting or payment is established.",
+    "workflow_timezone": "America/Chicago"
+  },
+  "quote": {
+    "client_id": "client-872eb150d98b43109b73d5ebc3a6f920",
+    "customer": {
+      "address": "20 Example Avenue",
+      "email": null,
+      "name": "QA Example Customer"
+    },
+    "document_date": "2026-10-30",
+    "due_date": "2026-11-13",
+    "id": "Q-000001",
+    "intake_id": "job-26d9f02b6f63473da919ba362b9611be",
+    "kind": "quote",
+    "lines": [
+      {
+        "description": "Maintenance labor",
+        "quantity": "2.5",
+        "unit": "hours",
+        "unit_price": "35.00",
+        "price_approved": true,
+        "source_ref": "QA supplied rate sheet",
+        "line_total_cents": "8750"
+      }
+    ],
+    "parent": null,
+    "parent_quote_id": null,
+    "permission": {
+      "confirmed": true,
+      "source_ref": "Fictional QA permission only"
+    },
+    "provider": {
+      "address": "10 Example Street, Example City",
+      "archived": false,
+      "contact": "Fictional QA contact",
+      "email": null,
+      "id": "client-872eb150d98b43109b73d5ebc3a6f920",
+      "name": "QA Threadline Service LLC",
+      "notes": "Isolated browser QA only — not owner or customer evidence.",
+      "revision": 1
+    },
+    "reference": "Q-000001",
+    "revision": 1,
+    "service_date": "2026-10-30",
+    "source_notes": "Fictional QA scope: supplied maintenance request. No real work or customer.",
+    "tax": {
+      "approved": true,
+      "bps": 0,
+      "source_ref": "QA explicit tax instruction"
+    },
+    "title": "QA maintenance visit",
+    "voided": null,
+    "work": {
+      "approved": false,
+      "completed": false,
+      "source_ref": null
+    },
+    "content_sha256": "963dbbaa22749ddde0e8a3294884ab30da72bec1358e7f0abb4746b9d2cf4c43",
+    "currency": "USD",
+    "exceptions": [],
+    "status": "approved",
+    "subtotal_cents": "8750",
+    "tax_cents": "0",
+    "total_cents": "8750",
+    "review": {
+      "content_sha256": "963dbbaa22749ddde0e8a3294884ab30da72bec1358e7f0abb4746b9d2cf4c43",
+      "decision": "approve",
+      "document_revision": 1,
+      "note": "Fictional QA review: supplied rates, dates and tax instruction checked.",
+      "reviewed_at": "2026-10-30T15:58:31.368510+00:00",
+      "scope": "Local owner approval of this exact draft; no sending, ledger posting, payment or independent customer verification."
+    },
+    "acceptance": {
+      "accepted": true,
+      "contact": "QA Example Customer (fictional)",
+      "content_sha256": "963dbbaa22749ddde0e8a3294884ab30da72bec1358e7f0abb4746b9d2cf4c43",
+      "document_revision": 1,
+      "independently_verified": false,
+      "note": "Demonstration observation only; no real agreement.",
+      "observed_at": "2026-10-30T15:58:00+00:00",
+      "owner_reported": true,
+      "party": "The service business's customer; not an authenticated client account.",
+      "recorded_at": "2026-10-30T15:58:51.209019+00:00",
+      "source_ref": "Fictional QA written acceptance record"
+    },
+    "invoice_id": "I-000002",
+    "demo_only": false,
+    "sent": false,
+    "posted": false,
+    "payment_received": false,
+    "can_edit": false,
+    "can_accept": false,
+    "can_invoice": false,
+    "can_void": false,
+    "history": [
+      {
+        "revision": 1,
+        "content_sha256": "963dbbaa22749ddde0e8a3294884ab30da72bec1358e7f0abb4746b9d2cf4c43",
+        "bytes": 1172,
+        "current": true
+      }
+    ],
+    "history_retained": 1,
+    "events": [
+      {
+        "action": "accept_quote",
+        "content_sha256": "963dbbaa22749ddde0e8a3294884ab30da72bec1358e7f0abb4746b9d2cf4c43",
+        "demo_only": false,
+        "details": {
+          "acceptance": {
+            "accepted": true,
+            "contact": "QA Example Customer (fictional)",
+            "content_sha256": "963dbbaa22749ddde0e8a3294884ab30da72bec1358e7f0abb4746b9d2cf4c43",
+            "document_revision": 1,
+            "independently_verified": false,
+            "note": "Demonstration observation only; no real agreement.",
+            "observed_at": "2026-10-30T15:58:00+00:00",
+            "owner_reported": true,
+            "party": "The service business's customer; not an authenticated client account.",
+            "recorded_at": "2026-10-30T15:58:51.209019+00:00",
+            "source_ref": "Fictional QA written acceptance record"
+          }
+        },
+        "entity_id": "Q-000001",
+        "entity_type": "document",
+        "replayed": false,
+        "request_id": "customer-response-75996b3aece647c0b465592831039f09",
+        "revision": 5,
+        "schema": 1,
+        "status": "completed"
+      },
+      {
+        "action": "review",
+        "content_sha256": "963dbbaa22749ddde0e8a3294884ab30da72bec1358e7f0abb4746b9d2cf4c43",
+        "demo_only": false,
+        "details": {
+          "review": {
+            "content_sha256": "963dbbaa22749ddde0e8a3294884ab30da72bec1358e7f0abb4746b9d2cf4c43",
+            "decision": "approve",
+            "document_revision": 1,
+            "note": "Fictional QA review: supplied rates, dates and tax instruction checked.",
+            "reviewed_at": "2026-10-30T15:58:31.368510+00:00",
+            "scope": "Local owner approval of this exact draft; no sending, ledger posting, payment or independent customer verification."
+          }
+        },
+        "entity_id": "Q-000001",
+        "entity_type": "document",
+        "replayed": false,
+        "request_id": "document-review-bfed70281ba24c67ba012d5384491885",
+        "revision": 4,
+        "schema": 1,
+        "status": "completed"
+      },
+      {
+        "action": "generate_quote",
+        "content_sha256": "963dbbaa22749ddde0e8a3294884ab30da72bec1358e7f0abb4746b9d2cf4c43",
+        "demo_only": false,
+        "entity_id": "Q-000001",
+        "entity_type": "document",
+        "replayed": false,
+        "request_id": "quote-generate-c8ce185a2753437b91a28233ac145742",
+        "revision": 3,
+        "schema": 1,
+        "status": "completed"
+      }
+    ],
+    "evidence_scope": "Customer acceptance and completed-work evidence are reported by the owner. No customer account, signature verification, external delivery or payment is established."
+  },
+  "invoice": {
+    "client_id": "client-872eb150d98b43109b73d5ebc3a6f920",
+    "customer": {
+      "address": "20 Example Avenue",
+      "email": null,
+      "name": "QA Example Customer"
+    },
+    "document_date": "2026-10-30",
+    "due_date": "2026-11-13",
+    "id": "I-000002",
+    "intake_id": "job-26d9f02b6f63473da919ba362b9611be",
+    "kind": "invoice",
+    "lines": [
+      {
+        "description": "Maintenance labor",
+        "quantity": "2.5",
+        "unit": "hours",
+        "unit_price": "35.00",
+        "price_approved": true,
+        "source_ref": "QA supplied rate sheet",
+        "line_total_cents": "8750"
+      }
+    ],
+    "parent": {
+      "acceptance": {
+        "accepted": true,
+        "contact": "QA Example Customer (fictional)",
+        "content_sha256": "963dbbaa22749ddde0e8a3294884ab30da72bec1358e7f0abb4746b9d2cf4c43",
+        "document_revision": 1,
+        "independently_verified": false,
+        "note": "Demonstration observation only; no real agreement.",
+        "observed_at": "2026-10-30T15:58:00+00:00",
+        "owner_reported": true,
+        "party": "The service business's customer; not an authenticated client account.",
+        "recorded_at": "2026-10-30T15:58:51.209019+00:00",
+        "source_ref": "Fictional QA written acceptance record"
+      },
+      "content_sha256": "963dbbaa22749ddde0e8a3294884ab30da72bec1358e7f0abb4746b9d2cf4c43",
+      "document_date": "2026-10-30",
+      "document_revision": 1,
+      "quote_id": "Q-000001",
+      "review": {
+        "content_sha256": "963dbbaa22749ddde0e8a3294884ab30da72bec1358e7f0abb4746b9d2cf4c43",
+        "decision": "approve",
+        "document_revision": 1,
+        "note": "Fictional QA review: supplied rates, dates and tax instruction checked.",
+        "reviewed_at": "2026-10-30T15:58:31.368510+00:00",
+        "scope": "Local owner approval of this exact draft; no sending, ledger posting, payment or independent customer verification."
+      }
+    },
+    "parent_quote_id": "Q-000001",
+    "permission": {
+      "confirmed": true,
+      "source_ref": "Fictional QA permission only"
+    },
+    "provider": {
+      "address": "10 Example Street, Example City",
+      "archived": false,
+      "contact": "Fictional QA contact",
+      "email": null,
+      "id": "client-872eb150d98b43109b73d5ebc3a6f920",
+      "name": "QA Threadline Service LLC",
+      "notes": "Isolated browser QA only — not owner or customer evidence.",
+      "revision": 1
+    },
+    "reference": "I-000002",
+    "revision": 1,
+    "service_date": "2026-10-30",
+    "source_notes": "Fictional QA scope: supplied maintenance request. No real work or customer.",
+    "tax": {
+      "approved": true,
+      "bps": 0,
+      "source_ref": "QA explicit tax instruction"
+    },
+    "title": "QA maintenance visit",
+    "voided": null,
+    "work": {
+      "approved": true,
+      "completed": true,
+      "source_ref": "Fictional QA completion checklist: 2.5 hours recorded, example work complete."
+    },
+    "content_sha256": "8715ff24a5816f4401643f4c3c845580e5e319666c650c38594b5e68ce512b75",
+    "currency": "USD",
+    "exceptions": [],
+    "status": "approved",
+    "subtotal_cents": "8750",
+    "tax_cents": "0",
+    "total_cents": "8750",
+    "review": {
+      "content_sha256": "8715ff24a5816f4401643f4c3c845580e5e319666c650c38594b5e68ce512b75",
+      "decision": "approve",
+      "document_revision": 1,
+      "note": "Fictional QA invoice review: accepted quote copied, 2.5 hours × $35.00 = $87.50; completion reference checked.",
+      "reviewed_at": "2026-10-30T15:59:00.499913+00:00",
+      "scope": "Local owner approval of this exact draft; no sending, ledger posting, payment or independent customer verification."
+    },
+    "acceptance": null,
+    "invoice_id": null,
+    "demo_only": false,
+    "sent": false,
+    "posted": false,
+    "payment_received": false,
+    "can_edit": true,
+    "can_accept": false,
+    "can_invoice": false,
+    "can_void": true,
+    "history": [
+      {
+        "revision": 1,
+        "content_sha256": "8715ff24a5816f4401643f4c3c845580e5e319666c650c38594b5e68ce512b75",
+        "bytes": 2320,
+        "current": true
+      }
+    ],
+    "history_retained": 1,
+    "events": [
+      {
+        "action": "export",
+        "artifacts": [
+          {
+            "bytes": 3585,
+            "path": "service-desk/client-export-8e197acceebf4b55aa90045fc5a9011a/document.json",
+            "sha256": "61662235e138642b6d478887e9fd5529212c6339f0f8f7d2305951f3b8a34d70"
+          },
+          {
+            "bytes": 3457,
+            "path": "service-desk/client-export-8e197acceebf4b55aa90045fc5a9011a/document.html",
+            "sha256": "3592e02d3fd7e556ce58ef9a2f047970ce98272e294c4f33575ead17f3a61990"
+          }
+        ],
+        "content_sha256": "8715ff24a5816f4401643f4c3c845580e5e319666c650c38594b5e68ce512b75",
+        "demo_only": false,
+        "document_id": "I-000002",
+        "document_revision": 1,
+        "entity_id": "I-000002",
+        "entity_type": "document",
+        "model_calls": 0,
+        "network_calls": 0,
+        "payment_received": false,
+        "posted": false,
+        "replayed": false,
+        "request_id": "client-export-8e197acceebf4b55aa90045fc5a9011a",
+        "revision": 8,
+        "schema": 1,
+        "sent": false,
+        "status": "completed"
+      },
+      {
+        "action": "review",
+        "content_sha256": "8715ff24a5816f4401643f4c3c845580e5e319666c650c38594b5e68ce512b75",
+        "demo_only": false,
+        "details": {
+          "review": {
+            "content_sha256": "8715ff24a5816f4401643f4c3c845580e5e319666c650c38594b5e68ce512b75",
+            "decision": "approve",
+            "document_revision": 1,
+            "note": "Fictional QA invoice review: accepted quote copied, 2.5 hours × $35.00 = $87.50; completion reference checked.",
+            "reviewed_at": "2026-10-30T15:59:00.499913+00:00",
+            "scope": "Local owner approval of this exact draft; no sending, ledger posting, payment or independent customer verification."
+          }
+        },
+        "entity_id": "I-000002",
+        "entity_type": "document",
+        "replayed": false,
+        "request_id": "document-review-680a4ed30f6a4bef973e49d5c5ba3f41",
+        "revision": 7,
+        "schema": 1,
+        "status": "completed"
+      },
+      {
+        "action": "create_invoice",
+        "content_sha256": "8715ff24a5816f4401643f4c3c845580e5e319666c650c38594b5e68ce512b75",
+        "demo_only": false,
+        "entity_id": "I-000002",
+        "entity_type": "document",
+        "replayed": false,
+        "request_id": "invoice-generate-6a1a8fc54f9d4ae0b18d7a7fdb27c0ad",
+        "revision": 6,
+        "schema": 1,
+        "status": "completed"
+      }
+    ],
+    "evidence_scope": "Customer acceptance and completed-work evidence are reported by the owner. No customer account, signature verification, external delivery or payment is established."
+  }
+}

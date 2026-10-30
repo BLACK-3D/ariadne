@@ -223,6 +223,7 @@ function renderStatus(status) {
   window.ariadneOperationWorkflows?.status(status);
   window.ariadneVenture?.status(status);
   window.ariadneHandoff?.status(status);
+  window.ariadneClientHandoff?.status(status);
 }
 async function refreshStatus({quiet = false} = {}) {
   if (!state.authenticated || state.refreshingStatus) return;
@@ -320,6 +321,7 @@ function lockSession(message = "") {
   window.ariadneOperationWorkflows?.locked();
   window.ariadneVenture?.locked();
   window.ariadneHandoff?.locked();
+  window.ariadneClientHandoff?.locked();
   $("#access-token").focus();
 }
 
@@ -358,7 +360,7 @@ async function showView(view) {
 async function loadView(view) {
   if (view === "operations") { await window.ariadneOperations?.load(); return; }
   if (view === "venture") { await window.ariadneVenture?.load(); return; }
-  if (view === "handoff") { await window.ariadneHandoff?.load(); return; }
+  if (view === "handoff") { await loadServiceDesk(); return; }
   if (view === "settings") { renderSettings(); return; }
   const loaders = {agents:loadAgents, briefing:loadBriefing, internet:loadInternet, knowledge:loadKnowledge, survival:loadSurvival, workflows:loadWorkflows, memory:loadMemory, schedules:loadSchedules, files:loadFiles, connectors:loadConnectors};
   if (loaders[view]) await loaders[view]();
@@ -2996,5 +2998,27 @@ window.ariadneOperations?.attach({state, api, node, button, openArtifact, newMis
 window.ariadneOperationWorkflows?.attach({state, api, node, button, showView, setWorkflowTab, confirmAction, toast});
 window.ariadneVenture?.attach({state, api, node, button, openArtifact, showView, confirmAction, toast});
 window.ariadneHandoff?.attach({state, api, node, button, openArtifact, downloadArtifact, showView, confirmAction, toast});
+window.ariadneClientHandoff?.attach({state, api, node, button, openArtifact, downloadArtifact, confirmAction, toast});
+let serviceDeskMode = "real";
+async function loadServiceDesk() {
+  if (serviceDeskMode === "demo") await window.ariadneHandoff?.load();
+  else await window.ariadneClientHandoff?.load();
+}
+async function selectServiceDesk(mode) {
+  serviceDeskMode = mode;
+  const real = mode === "real";
+  $("#client-handoff-content").hidden = !real;
+  $("#handoff-content").hidden = real;
+  $("#refresh-client-handoff").hidden = !real;
+  $("#refresh-handoff").hidden = real;
+  for (const [id, selected] of [["#handoff-real-mode", real], ["#handoff-demo-mode", !real]]) {
+    $(id).setAttribute("aria-pressed", String(selected));
+    $(id).classList.toggle("button-primary", selected);
+    $(id).classList.toggle("button-secondary", !selected);
+  }
+  if (state.authenticated) await loadServiceDesk();
+}
+$("#handoff-real-mode").addEventListener("click", () => selectServiceDesk("real").catch(error => toast(error.message, true)));
+$("#handoff-demo-mode").addEventListener("click", () => selectServiceDesk("demo").catch(error => toast(error.message, true)));
 if (typeof location !== "undefined" && new URLSearchParams(location.search).get("view") === "handoff") showView("handoff");
 if (state.token) connect(); else $("#access-token").focus();
