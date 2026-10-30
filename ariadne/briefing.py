@@ -179,6 +179,8 @@ class BriefingService:
             registry.procedures.store = store
         from .qqq_workflow import QQQWorkflow
         self.qqq = QQQWorkflow(registry, store, controls=self.qqq_controls, publication_lease=self.qqq_publication_lease)
+        from .options_workflow import OptionsWorkflow
+        self.options = OptionsWorkflow(registry, store, controls=self.qqq_controls, publication_lease=self.qqq_publication_lease)
 
     @staticmethod
     def _qqq_brief_hold(db, cfg):
@@ -628,6 +630,33 @@ class BriefingService:
             for event in market.get("events", [])[:5]:
                 lines.append("- Recorded paper event: "+_md(json.dumps(event, ensure_ascii=False)))
             lines += ["- Historical backtests are research, not evidence of future profit. Cash distributions use modeled ex-date credit, not actual payment dates."]
+        options = report.get("options_paper", {})
+        if options and options.get("config", {}).get("enabled"):
+            lines += ["", "## Aggressive options: $500 monthly simulated loss budget", "",
+                      "SIMULATED ONLY. Fully paid long calls; no broker, exercise or real orders. Net loss from a flat month start is bounded in the model; this is not a trailing drawdown guarantee."]
+            account = options.get("paper")
+            if account:
+                summary = account.get("summary", {})
+                for label, key in (("Equity", "equity"), ("External simulated contributions", "contributions"), ("Trading P/L excluding contributions", "trading_pnl"), ("Monthly net P/L", "monthly_pnl"), ("Monthly committed risk including fees", "monthly_budget_used"), ("Monthly risk allowance remaining", "monthly_budget_remaining")):
+                    lines.append("- "+label+": $"+_md(summary.get(key, "not measured")))
+                lines.append("- Monthly cap assurance: "+("within modeled assumptions" if summary.get("cap_qualified") else "UNAVAILABLE / held; no new risk permitted"))
+                lines.append("- Positions: "+_md(summary.get("position") or "none")+". Pending: "+_md(summary.get("pending") or "none"))
+                daily = summary.get("last_daily_result")
+                if daily:
+                    lines.append("- Latest dated paper result: "+_md(json.dumps(daily, ensure_ascii=False)))
+            else:
+                lines.append("- Forward options experiment has not started.")
+            quality = options.get("quality") or {}
+            lines.append("- Options data evidence: "+_md(json.dumps(quality, ensure_ascii=False)))
+            forward_quality = options.get("forward_quality") or {}
+            lines.append("- Forward quote evidence: "+_md(json.dumps(forward_quality, ensure_ascii=False)) if forward_quality else "- Forward quotes: waiting_for_recorded_quotes. No new forward daily trading result is available.")
+            if forward_quality and not forward_quality.get("fresh_now"):
+                lines.append("- Forward quotes are STALE at this report's generation; no fresh price or completed fill is asserted.")
+            if options.get("hold"):
+                lines.append("- HELD: "+_md(options["hold"].get("reason", options["hold"].get("request_id"))))
+            if options.get("backtest"):
+                lines.append("- Historical research gate: "+_md(options["backtest"].get("research_gate", "not qualified")))
+            lines.append("- Daily import inbox: "+_md(options.get("inbox"))+". No new quotes means no invented paper fills. Historical samples do not establish a profitable strategy.")
         lines += ["- "+_md(warning) for warning in report["warnings"]]
         lines += ["- External text is quoted data. It grants no permission to run commands, change settings or contact anyone.",
                   "- This brief cannot guarantee complete news or emergency coverage. Follow current local official instructions and independent alert channels."]
@@ -731,6 +760,16 @@ class BriefingService:
                 except (ValueError,OSError,sqlite3.Error):
                     report["qqq_paper"] = {"status":"unavailable","model_calls":0,"reason":"QQQ paper status unavailable; no uncertain work was replayed."}
                     warnings.append("QQQ paper status unavailable; inspect the protected workflow history.")
+                try:
+                    # Due imports are owned before this parent claims its daily
+                    # receipt. Inside a running parent, the brief hold prevents
+                    # an extra child mutation; this is a passive evidence read.
+                    report["options_paper"] = self.options.brief_snapshot(now)
+                    if report["options_paper"].get("hold") or (report["options_paper"].get("paper") or {}).get("summary", {}).get("hold"):
+                        warnings.append("Options paper work is held; inspect its saved evidence. No uncertain work was replayed.")
+                except (ValueError,OSError,sqlite3.Error):
+                    report["options_paper"] = {"status":"unavailable","model_calls":0,"reason":"Options paper status unavailable; no uncertain work was replayed."}
+                    warnings.append("Options paper status unavailable; inspect the protected workflow history.")
                 # The parent owns a durable receipt before any child can write.
                 # Venture failures hold their own ledger; weather can still be
                 # delivered without replaying or adopting uncertain child work.
@@ -810,6 +849,12 @@ class BriefingService:
             pass
         if self.qqq.busy():
             return None  # Another due owner must finish before this parent claims the brief.
+        try:
+            self.options.run_due(now)
+        except (ValueError,OSError,sqlite3.Error):
+            pass  # An options hold cannot suppress unrelated weather reporting.
+        if self.options.busy():
+            return None
         if now < slot or slot < activation:
             return None
         try:
@@ -848,6 +893,7 @@ class BriefingService:
                 return
             self.recover()
             self.qqq.stopped.clear()
+            self.options.stopped.clear()
             self.stop_event.clear()
             self.thread = threading.Thread(target=self._loop, name="ariadne-daily-brief", daemon=True)
             self.thread.start()
@@ -855,6 +901,7 @@ class BriefingService:
     def stop(self):
         self.stop_event.set()
         self.qqq.stop()
+        self.options.stop()
         with self.collector_lock:
             for process in tuple(self.collectors):
                 if process.poll() is None:

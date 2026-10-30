@@ -1,0 +1,24 @@
+#options-content { margin:1.4rem 0 4rem; min-width:0; }
+.options-hero { display:flex; gap:2rem; align-items:center; justify-content:space-between; border-top:1px solid var(--line,#35413e); padding:2rem 0; }
+.options-hero h2 { font-size:clamp(1.6rem,3vw,2.4rem); margin:.4rem 0; }
+.options-limit { flex-shrink:0; text-align:right; font-family:var(--font-mono,monospace); }
+.options-limit strong { display:block; color:#cedbb2; font-size:2.8rem; }
+.options-limit span { color:var(--muted,#a7b5b1); font-size:.7rem; letter-spacing:.12em; }
+.options-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; align-items:start; }
+.options-card { border:1px solid var(--line,#35413e); border-radius:8px; padding:1.5rem; background:#111d19; min-width:0; overflow-wrap:anywhere; }
+.options-card h3 { margin:.45rem 0 1rem; }
+.options-card p { line-height:1.65; }
+.options-actions { display:flex; flex-wrap:wrap; gap:.6rem; margin:1rem 0; }
+.options-small { font-size:.82rem; color:var(--muted,#b7c3bd); line-height:1.65; overflow-wrap:anywhere; }
+.options-warning { border-left:3px solid #c7a46d; padding:.8rem 1rem; background:#24261a; margin:1rem 0; }
+.options-metrics { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+.options-metric { padding:.8rem 0; border-top:1px solid var(--line,#35413e); min-width:0; }
+.options-metric span { display:block; font-size:.75rem; color:var(--muted,#b7c3bd); }
+.options-metric strong { display:block; font-size:1.25rem; margin-top:.4rem; }
+.options-field { display:flex; flex-direction:column; gap:.5rem; margin:.9rem 0; font-size:.85rem; }
+.options-field input,.options-field textarea { width:100%; min-width:0; }
+.options-card summary { cursor:pointer; padding:.35rem 0; }
+.options-card pre { white-space:pre-wrap; overflow-wrap:anywhere; font-size:.75rem; max-height:24rem; overflow:auto; }
+.options-full { grid-column:1 / -1; }
+@media(max-width:850px) { .options-grid { grid-template-columns:1fr; } }
+@media(max-width:480px) { .options-hero { align-items:start; flex-direction:column; gap:1rem; }.options-limit { text-align:left; }.options-card { padding:1rem; }.options-metrics { grid-template-columns:1fr; }.options-actions .button { width:100%; white-space:normal; } }

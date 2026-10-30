@@ -182,6 +182,21 @@ def compact_summary(report, now=None):
             "source_retrieved_at":_short(quality.get("retrieved_at"),40)[0],
             "historical_gate":_short((paper.get("backtest") or {}).get("research_gate"),60)[0],
             "note":"Saved paper simulation, not broker fills or live prices. Freshness flag belongs to this report's generation time."}
+    options = report.get("options_paper")
+    if type(options) is dict and options.get("config", {}).get("enabled") is True:
+        summary = (options.get("paper") or {}).get("summary") or {}
+        forward = options.get("forward_quality") or {}
+        result["options_paper"] = {"simulated_only": True, "monthly_cap": "500.00",
+            **{key: _short(summary.get(key), 44)[0] for key in ("equity", "contributions", "trading_pnl", "monthly_pnl", "monthly_budget_used", "monthly_budget_remaining")},
+            "cap_qualified": summary.get("cap_qualified") is True,
+            "held": bool(options.get("hold") or summary.get("hold")),
+            "historical_gate": _short((options.get("backtest") or {}).get("research_gate"), 80)[0],
+            "latest_observed_at": _short(summary.get("last_observed_at"), 40)[0],
+            "latest_result_date": _short((summary.get("last_daily_result") or {}).get("date"), 10)[0],
+            "forward_retrieved_at": _short(forward.get("retrieved_at"), 40)[0],
+            "forward_fresh_at_report_generation": forward.get("fresh_now") is True,
+            "forward_status": "waiting_for_recorded_quotes" if not summary.get("last_daily_result") else "saved_current_session" if forward.get("fresh_now") else "saved_stale_result",
+            "note": "Saved options simulation, not live quotes/broker fills. Contributions are not returns; cap applies to modeled monthly net loss, not peak drawdown."}
     if radar["enabled"]:
         # Reserve a small explicit repository header in the model-facing view;
         # full row metadata and URLs remain in the verified Markdown/JSON.

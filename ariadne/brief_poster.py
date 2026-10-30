@@ -128,6 +128,21 @@ def poster_view(report, now=None):
         else:
             priority_note = "QQQ paper experiment not started / details in full report."
 
+    options = report.get("options_paper")
+    if type(options) is dict and options.get("config", {}).get("enabled"):
+        options_summary = (options.get("paper") or {}).get("summary") or {}
+        options_fresh = (options.get("forward_quality") or {}).get("fresh_now") is True
+        if options.get("hold") or options_summary.get("hold"):
+            priority_note = "OPTIONS PAPER HELD / $500 monthly budget / inspect report."
+        elif not options_summary.get("last_daily_result"):
+            priority_note = "OPTIONS PAPER / waiting for recorded quotes / no trading result yet."
+        elif not options_fresh:
+            priority_note = "OPTIONS PAPER STALE / saved P/L $"+_short(options_summary.get("trading_pnl"), 18)+" / see dated report."
+        elif options_summary:
+            priority_note = "OPTIONS PAPER P/L $"+_short(options_summary.get("trading_pnl"), 18)+" / $500 monthly budget / saved results in full report."
+        else:
+            priority_note = "OPTIONS PAPER / waiting for quotes / $500 monthly budget."
+
     svg = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{HEIGHT}" viewBox="0 0 {WIDTH} {HEIGHT}" role="img" aria-labelledby="poster-title poster-description">',
            '<title id="poster-title">Ariadne daily brief</title>',
            '<desc id="poster-description">One-page saved-evidence brief. Source age and gaps are labeled. Full evidence remains in the Markdown and JSON report.</desc>',

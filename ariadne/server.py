@@ -295,6 +295,8 @@ class Application:
                           "/static/client_handoff.css": ("client_handoff.css", "text/css"),
                           "/static/qqq.js": ("qqq.js", "text/javascript"),
                           "/static/qqq.css": ("qqq.css", "text/css"),
+                          "/static/options.js": ("options.js", "text/javascript"),
+                          "/static/options.css": ("options.css", "text/css"),
                           "/static/operations_workflows.js": ("operations_workflows.js", "text/javascript")}
                 if path not in assets:
                     raise HTTPError(404, "Not found")
@@ -440,6 +442,15 @@ class Application:
                 else:
                     arguments[key] = int(values[0])
             result = self.client_handoff.status(**arguments)
+        elif parts == ["options"] and method == "GET":
+            result = self.briefing.options.status()
+        elif parts == ["options", "config"] and method == "PUT":
+            result = self.briefing.options.configure(self.client_handoff_body(env))
+        elif len(parts) == 2 and parts[0] == "options" and parts[1] in {"import", "refresh", "backtest", "paper", "acknowledge", "archive"} and method == "POST":
+            handlers = {"import": self.briefing.options.import_data, "refresh": self.briefing.options.refresh,
+                        "backtest": self.briefing.options.backtest, "paper": self.briefing.options.start_paper,
+                        "acknowledge": self.briefing.options.acknowledge, "archive": self.briefing.options.archive}
+            result = handlers[parts[1]](self.client_handoff_body(env))
         elif parts == ["qqq"] and method == "GET":
             result = self.briefing.qqq.status()
         elif parts == ["qqq", "config"] and method == "PUT":
