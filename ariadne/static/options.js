@@ -125,9 +125,12 @@
       }
       p(tracks,"Fixed priority rotates after an entry. Backtest performance never chooses the next strategy. Each entry costs at most $125 including premium and both fees. Profits cannot replenish the $500 monthly commitment allowance.");grid.append(tracks);
       const study=e("section","options-card options-full");study.append(e("span","eyebrow","SAME SOURCE / SEPARATE COUNTERFACTUALS"),e("h3","","Expanded strategy comparison"));
-      if(data.archive_catalog){coverage(study,data.archive_catalog.quality,"Archive");p(study,`Accepted manifest SHA-256 ${txt(data.archive_catalog.manifest_sha256)}. Price hashes establish identity, not accuracy.`);}
+      if(data.archive_catalog){coverage(study,data.archive_catalog.quality,"Registered for next run");p(study,`Registered manifest for the next study: ${txt(data.archive_catalog.manifest_sha256)}. Price hashes establish identity, not accuracy.`);}
       else p(study,"Register a complete immutable historical quote archive. Every chunk is verified before use; gaps, changed terms and missing exits are never repaired into profits.");
       if(data.comparison){
+        const accepted=data.comparison.coverage||{};
+        p(study,`Saved comparison input: ${txt(accepted.first_date)||"unknown start"} to ${txt(accepted.last_source_date)||"unknown end"} · ${Number.isInteger(accepted.source_snapshots)?accepted.source_snapshots:"unknown"} source sessions. Accepted manifest SHA-256 ${txt(data.comparison.manifest_sha256)||"not recorded"}.`);
+        if(data.archive_catalog&&data.archive_catalog.manifest_sha256!==data.comparison.manifest_sha256)p(study,"The registered archive changed. This saved comparison has not been rerun on it; its results and artifact links retain the input identified above.","options-warning");
         const results=e("div","options-comparison");
         for(const[id,result]of [["shared_portfolio",data.comparison],...Object.entries(data.comparison.strategy_results||{}).slice(0,3)]){
           const card=e("div","options-strategy"),m=result.metrics||{},c=result.coverage||{};
