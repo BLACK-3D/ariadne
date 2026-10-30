@@ -10,11 +10,13 @@
   <link rel="stylesheet" href="/static/command.css">
   <link rel="stylesheet" href="/static/operations.css">
   <link rel="stylesheet" href="/static/venture.css">
+  <link rel="stylesheet" href="/static/handoff.css">
   <script src="/static/command.js" defer></script>
   <script src="/static/routines.js" defer></script>
   <script src="/static/operations.js" defer></script>
   <script src="/static/operations_workflows.js" defer></script>
   <script src="/static/venture.js" defer></script>
+  <script src="/static/handoff.js" defer></script>
   <script src="/static/app.js" defer></script>
 </head>
 <body class="command-console">
@@ -31,6 +33,7 @@
         <button class="nav-item" data-view="workflows"><span data-icon="workflow"></span><span>Workflows<small>Repeatable operations and reports</small></span></button>
         <button class="nav-item" data-view="operations"><span data-icon="server"></span><span>Operations<small>Business, markets and local controls</small></span></button>
         <button class="nav-item" data-view="venture"><span data-icon="workflow"></span><span>Venture Lab<small>Business plans and ETF research</small></span></button>
+        <button class="nav-item" data-view="handoff"><span data-icon="file"></span><span>Service desk<small>Quote and invoice handoff demo</small></span></button>
         <button class="nav-item" data-view="knowledge"><span data-icon="book"></span><span>Knowledge<small>Your private reference library</small></span><span class="nav-count" id="knowledge-count"></span></button>
         <button class="nav-item" data-view="survival"><span data-icon="shield"></span><span>Survival<small>Continuity, supplies and rebuilding</small></span></button>
         <button class="nav-item" data-view="memory"><span data-icon="memory"></span><span>Memory<small>Retained working context</small></span></button>
@@ -105,6 +108,10 @@
         <section class="view content-view" id="view-venture" hidden>
           <div class="page-heading"><div><span class="eyebrow">IDEAS / EVIDENCE / LOCAL PROGRESS</span><h1>Venture Lab</h1><p>Business experiments and disciplined ETF research. Your daily brief advances the next local draft.</p></div><div><button id="refresh-venture" class="button button-secondary">Refresh</button> <button id="run-venture" class="button button-primary">Create today's check-in</button></div></div>
           <div id="venture-content" aria-live="polite"></div>
+        </section>
+        <section class="view content-view" id="view-handoff" hidden>
+          <div class="page-heading handoff-heading"><div><span class="eyebrow">LOCAL BUSINESS / WORKING DEMONSTRATION</span><h1>Service desk</h1></div><button id="refresh-handoff" class="button button-secondary">Refresh desk</button></div>
+          <div id="handoff-content" aria-live="polite"></div>
         </section>
         <section class="view content-view" id="view-operations" hidden>
           <div class="page-heading"><div><span class="eyebrow">LOCAL EXECUTION / OBSERVABLE RESULTS</span><h1>Operations</h1><p>From evidence to a checked result. No model needed for these local runs.</p></div><button class="button button-secondary" data-view="workflows">AI workflows</button></div>

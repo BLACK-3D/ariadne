@@ -22,4 +22,6 @@ On this installation's RTX 5060 Ti, matched local probes of the same two capabil
 
 The earlier slow business request contained a 90.9-second first model call. Logs attribute approximately 46.9 seconds to cold runner startup, 40.2 seconds to its first prompt processing and 3.1 seconds to output generation. The later wife-demo requests were 11.8 and 3.7 seconds in recorded mission timing. End-to-end hardware microphone and speaker timing has not been measured by these synthetic checks.
 
+After Deadlock closed, three ordinary live conversational requests on 30 October 2026 UTC completed in 1.229, 1.151 and 0.928 seconds of request-to-completion wall time. The 9B model was preloaded; each request used one compact conversational call and no operational tools. The microphone remained off and model, voice, daily brief and Venture Lab settings were preserved. These small warmed-model text samples exclude cold loading, microphone recognition and spoken playback. The completed one-time follow-up was removed.
+
 Implementation follows the official [Ollama chat API](https://docs.ollama.com/api/chat), [usage timing fields](https://docs.ollama.com/api/usage) and [model retention guidance](https://docs.ollama.com/faq). The existing full offline ZIP remains version 0.16.1 until separately rebuilt and qualified.

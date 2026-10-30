@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "demo_only": true,
+  "records": [
+    {
+      "id": "demo-office-quote",
+      "kind": "quote",
+      "title": "Weekly office cleaning — November proposal",
+      "customer": {"name": "DEMO Northline Studio", "email": "office@example.invalid", "address": "100 Example Way, Fictional City"},
+      "document_date": "2026-10-30",
+      "service_date": "2026-11-02",
+      "due_date": "2026-11-13",
+      "source_notes": "Fictional owner note DEMO-NOTE-01: prepare four weekly office cleans at the approved demonstration rate of $125 per visit. Quote only; no work completed or order accepted. The zero-tax instruction is invented demonstration data, not a determination of Missouri tax treatment.",
+      "lines": [{"description": "Office clean — approved demonstration scope", "quantity": 4, "unit_price": "125.00", "price_approved": true, "source_ref": "DEMO-RATE-01: fictional owner-approved $125/visit"}],
+      "tax": {"bps": 0, "approved": true, "source_ref": "DEMO-TAX-01: fictional explicit zero-tax instruction; not real tax advice"},
+      "work": {"completed": false, "approved": false, "source_ref": null}
+    },
+    {
+      "id": "demo-completed-invoice",
+      "kind": "invoice",
+      "title": "Completed storefront cleaning — draft invoice",
+      "customer": {"name": "DEMO Linden Retail", "email": "accounts@example.invalid", "address": "200 Illustration Lane, Fictional City"},
+      "document_date": "2026-10-30",
+      "service_date": "2026-10-29",
+      "due_date": "2026-11-13",
+      "source_notes": "Fictional owner note DEMO-NOTE-02 confirms two completed visits at the supplied rate. The invoice is a local draft for review, not a payment request. The tax rate is demonstration arithmetic only.",
+      "lines": [{"description": "Completed storefront clean — demonstration record", "quantity": 2, "unit_price": "89.95", "price_approved": true, "source_ref": "DEMO-RATE-02: fictional approved $89.95/visit"}],
+      "tax": {"bps": 825, "approved": true, "source_ref": "DEMO-TAX-02: fictional supplied 8.25% arithmetic example; not actual jurisdiction policy"},
+      "work": {"completed": true, "approved": true, "source_ref": "DEMO-COMPLETE-02: fictional owner confirms both visits completed 2026-10-29"}
+    },
+    {
+      "id": "demo-missing-rate",
+      "kind": "quote",
+      "title": "Deep-clean request — needs owner clarification",
+      "customer": {"name": "DEMO Cedar Office", "email": null, "address": "300 Sample Street, Fictional City"},
+      "document_date": "2026-10-30",
+      "service_date": "2026-11-06",
+      "due_date": "2026-11-05",
+      "source_notes": "Fictional intake DEMO-NOTE-03: one deep clean requested, but no approved rate or tax basis was supplied. Do not invent either. Ask the owner for the approved scope, rate and tax instruction.",
+      "lines": [{"description": "Deep clean — scope and price awaiting approval", "quantity": 1, "unit_price": null, "price_approved": false, "source_ref": null}],
+      "tax": {"bps": null, "approved": false, "source_ref": null},
+      "work": {"completed": false, "approved": false, "source_ref": null}
+    },
+    {
+      "id": "demo-unconfirmed-work",
+      "kind": "invoice",
+      "title": "Floor treatment — completion not confirmed",
+      "customer": {"name": "DEMO Harbor Workshop", "email": null, "address": "400 Placeholder Road, Fictional City"},
+      "document_date": "2026-10-30",
+      "service_date": "2026-10-29",
+      "due_date": "2026-11-13",
+      "source_notes": "Fictional intake DEMO-NOTE-04 includes an approved price from a quote, but does not confirm the work was completed. Hold the invoice until explicit completed-work evidence is supplied.",
+      "lines": [{"description": "Floor treatment — previously quoted scope", "quantity": 1, "unit_price": "240.00", "price_approved": true, "source_ref": "DEMO-RATE-04: fictional approved quote rate of $240"}],
+      "tax": {"bps": 0, "approved": true, "source_ref": "DEMO-TAX-04: fictional explicit zero-tax instruction only"},
+      "work": {"completed": false, "approved": false, "source_ref": null}
+    }
+  ]
+}

@@ -1,5 +1,7 @@
 # Ariadne — local AI in a box
 
+Version 0.19.0 adds **All systems → Service desk**, a working offline quote and invoice handoff demonstration. Inspect fictional intake notes, check exact totals, resolve missing information, record a demo review and export a print-ready handoff packet. Its owner-only state is separate from operational contacts and ledgers; it uses no model or network calls. See [the service workflow and its limits](docs/VENTURE_LAB.md#quote-and-invoice-service-desk).
+
 Version 0.18.0 adds faster casual conversation and wake-once voice sessions with explicit sleep and microphone-stop controls. It keeps the installed 9B model, preserves full mission budgets and microphone-off preferences, and adds measured load/prompt/generation timing. See [conversation controls and measured performance](docs/VOICE_CONVERSATION.md).
 
 Version 0.17.0 added a private Venture Lab: business drafts, owner evidence gates and fixed ETF research connected to the daily brief, with zero model or network calls in the daily check-in. See [Venture Lab's operation and research limits](docs/VENTURE_LAB.md). The separately qualified full offline ZIP remains version 0.16.1 until another complete package is built and verified.

@@ -22,6 +22,7 @@ from .verification import validate_checks
 from .capabilities import catalog, seed_workflows
 from .routines import RoutineConflict
 from .venture_lab import VentureConflict
+from .handoff import HandoffConflict, HandoffDesk
 
 
 class HTTPError(Exception):
@@ -68,6 +69,7 @@ class Application:
         from .wake import WakeService
         self.briefing = BriefingService(settings, self.store, self.engine.tools)
         self.venture = self.briefing.venture
+        self.handoff = HandoffDesk(self.engine.tools, self.store)
         self.engine.briefing_provider = self.briefing_read
         self.wake_voice = WakeService(settings, self.submit_voice, blocked=self.voice_blocked,
                                       get_run=self.store.run, speak=self.speak_on_pc,
@@ -285,6 +287,8 @@ class Application:
                           "/static/operations.css": ("operations.css", "text/css"),
                           "/static/venture.css": ("venture.css", "text/css"),
                           "/static/venture.js": ("venture.js", "text/javascript"),
+                          "/static/handoff.js": ("handoff.js", "text/javascript"),
+                          "/static/handoff.css": ("handoff.css", "text/css"),
                           "/static/operations_workflows.js": ("operations_workflows.js", "text/javascript")}
                 if path not in assets:
                     raise HTTPError(404, "Not found")
@@ -297,6 +301,8 @@ class Application:
         except RoutineConflict as error:
             status, payload, mime = 409, {"error": str(error)}, "application/json"
         except VentureConflict as error:
+            status, payload, mime = 409, {"error": str(error), "revision": error.revision}, "application/json"
+        except HandoffConflict as error:
             status, payload, mime = 409, {"error": str(error), "revision": error.revision}, "application/json"
         except KeyError:
             status, payload, mime = 404, {"error": "Not found"}, "application/json"
@@ -400,6 +406,21 @@ class Application:
                 result = self.internet.search(data.get("query"), limit=data.get("max_results", 5), refresh=data.get("refresh", False))
             else:
                 result = self.internet.fetch(data.get("url"), refresh=data.get("refresh", False))
+        elif parts == ["handoff"] and method == "GET":
+            result = self.handoff.status()
+        elif parts == ["handoff", "export", "acknowledge"] and method == "POST":
+            if self.engine.is_paused():
+                raise HTTPError(409, "Autonomy is paused; service-desk changes are held.")
+            result = self.handoff.acknowledge_export(self.body(env, limit=64_000))
+        elif (parts, method) in ((["handoff", "demo"], "POST"),
+                                 (["handoff", "record"], "PUT"),
+                                 (["handoff", "review"], "POST"),
+                                 (["handoff", "export"], "POST")):
+            if self.engine.is_paused():
+                raise HTTPError(409, "Autonomy is paused; service-desk changes are held.")
+            handlers = {"demo": self.handoff.seed_demo, "record": self.handoff.revise,
+                        "review": self.handoff.review, "export": self.handoff.export}
+            result = handlers[parts[1]](self.body(env, limit=64_000))
         elif parts == ["venture"] and method == "GET":
             result = self.venture.status()
             cfg = self.briefing.config()
