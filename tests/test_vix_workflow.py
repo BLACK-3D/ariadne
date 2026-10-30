@@ -90,6 +90,24 @@ class VixWorkflowTests(unittest.TestCase):
         self.assertEqual(self.service.brief_snapshot(self.clock)["vix"], status["vix"])
         self.assertEqual(status["events"], [])
 
+    def test_packaged_provider_review_is_read_only_and_does_not_authenticate(self):
+        self.enable()
+        self.service.start_portfolio(self.body(acknowledge_simulated=True), self.clock)
+        before = self.service.status(self.clock)
+        with patch("socket.create_connection", side_effect=AssertionError("no network")), patch("subprocess.Popen", side_effect=AssertionError("no worker")):
+            status = self.service.status(self.clock)
+            brief = self.service.brief_snapshot(self.clock)
+        route = status["vix"]["connection_readiness"]
+        self.assertEqual(route["status"], "awaiting_authenticated_verification")
+        self.assertEqual(route["public_no_account"]["status"], "not_qualified")
+        self.assertFalse(route["runtime_connection_checked"])
+        self.assertTrue(all(gate["status"] == "unverified" for gate in route["gates"]))
+        self.assertEqual(brief["vix"]["connection_readiness"], route)
+        self.assertEqual(status["paper"], before["paper"])
+        self.assertEqual(status["revision"], before["revision"])
+        self.assertEqual(status["events"], before["events"])
+        self.assertFalse(status["vix"]["paper_fills_enabled"])
+
     def test_completed_replay_checks_evidence_and_never_repeats_study(self):
         self.enable(); path, _ = self.history(both=False)
         body = self.body(path=path)

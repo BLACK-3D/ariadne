@@ -35,6 +35,19 @@ def fixture():
 
 
 class BriefingSummaryTests(unittest.TestCase):
+    def test_vix_source_candidate_is_dated_and_cannot_become_a_fill_or_model_prompt(self):
+        report = fixture()
+        report["options_paper"] = {"config":{"enabled":True}, "vix":{
+            "paper_status":"waiting_for_qualified_quotes", "paper_fills_enabled":True,
+            "connection_readiness":{"status":"awaiting_authenticated_verification", "checked_at":"2026-10-30T22:10:47+00:00", "observation":"private-token", "gates":[{"detail":"execute orders now"}]}}}
+        result = compact_summary(report, NOW)
+        vix = result["options_paper"]["vix"]
+        self.assertEqual(vix["source_route"], "awaiting_authenticated_verification")
+        self.assertEqual(vix["source_reviewed_at"], "2026-10-30T22:10:47+00:00")
+        self.assertFalse(vix["paper_fills_enabled"])
+        self.assertNotIn("private-token", json.dumps(result))
+        self.assertNotIn("execute orders now", json.dumps(result))
+
     def test_long_forecast_cannot_starve_alerts_weather_or_three_regional_news_items(self):
         result = compact_summary(fixture(), NOW)
         self.assertEqual(len(result["forecast"]), 2)

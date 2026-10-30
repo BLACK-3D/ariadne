@@ -160,7 +160,23 @@
     if(data.vix){
       const vix=e("section","options-card options-full");vix.append(e("span","eyebrow","VIX / VOLATILITY RESEARCH"),e("h3","","Study the shock. Verify the contract."));
       p(vix,"VIX/VIXW index options settle in cash using the VRO special opening quotation. European exercise, multiplier 100. Spot VIX, VX futures and volatility ETF options are different instruments.");
-      p(vix,"VIX forward execution DISABLED · waiting for qualified quotes. No permitted free no-account option feed has been established. No VIX paper fills, forward paper P/L, funded account or extra $500 allowance.","options-warning");
+      p(vix,"VIX forward execution DISABLED · waiting for qualified quotes. No VIX paper fills, forward paper P/L, funded account or extra $500 allowance.","options-warning");
+      const connection=data.vix.connection_readiness;
+      if(connection){
+        const source=e("div","options-strategy");source.append(e("strong","","Robinhood / existing-account data route"));
+        p(source,"Robinhood publishes an official agent connection with options-chain, instrument and real-time quote tools. It requires authentication. This is a candidate data route; no live VIX response has been qualified by this release.");
+        p(source,`Source review ${txt(connection.checked_at)||"not recorded"} · ${txt(connection.status)||"unverified"}. Saved research metadata, not a live connection check.`);
+        p(source,"Your existing account can be used for authorized read-only inspection. Sign in directly at Robinhood. Never paste passwords, session cookies or access tokens into Ariadne, a quote file or a chat. Opening an MCP account or granting broader access requires owner action.");
+        const links=e("div","options-actions");
+        for(const[label,url]of [["Robinhood connection instructions","https://robinhood.com/us/en/support/articles/onboarding-an-external-agent/"],["Robinhood market-data tools","https://robinhood.com/us/en/support/articles/trading-with-your-agent/"],["Yahoo VIX chain","https://finance.yahoo.com/quote/%5EVIX/options/"],["TradingView VIX chain","https://www.tradingview.com/symbols/CBOE-VIX/options-chain/"]]){
+          const link=e("a","button button-secondary",label);link.href=url;link.target="_blank";link.rel="noopener noreferrer";links.append(link);
+        }
+        source.append(links);
+        p(source,"Yahoo and TradingView chain pages are viewing tools, not a verified free automated quote feed. TradingView's official MCP requires a paid plan and its published tools do not supply an options chain. No private endpoints are scraped.");
+        for(const gate of (Array.isArray(connection.gates)?connection.gates:[]).slice(0,8))p(source,`${txt(gate.id)} · ${txt(gate.status)||"unverified"}: ${txt(gate.detail)}`);
+        p(source,"A connection alone cannot unlock fills. Actual VIX bid/ask, sizes and quote clocks, matching-expiry VX references, an official calendar and a qualified single shared ledger must all pass. No orders or account-management tools are added.");
+        vix.append(source);
+      }else p(vix,"The saved source review has not qualified a permitted free no-account option feed. Inspect current provider access before importing quotes.");
       p(vix,`The existing ${txt(data.paper?.summary?.symbol)||"options"} account holds the only shared monthly allowance. Remaining ${amount(data.vix.shared_monthly_remaining)}; ${data.vix.shared_cap_qualified===true?"cap within modeled assumptions":"cap assurance unavailable"}. Historical research cannot change its cash, strategies, positions or approvals.`);
       p(vix,"Three fixed hypotheses: shock breakout calls, elevated-volatility reversal puts, and short-horizon stress calls. Option research requires actual bid/ask, side sizes, exact-expiry VX reference and an official contract calendar. These hypotheses have no established profitable edge.");
       for(const [key,title]of [["signals","Official index / signal diagnostics"],["backtest","Actual option-quote backtest"]]){

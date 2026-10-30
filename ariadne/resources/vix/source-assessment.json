@@ -1,13 +1,60 @@
 {
   "schema": 1,
-  "checked_at": "2026-10-30T21:08:03.282014+00:00",
+  "checked_at": "2026-10-30T22:10:47+00:00",
   "scope": "Free, no-account, permitted VIX/VIXW options quotes: actual contract identifiers, bid/ask, quoted sizes, quote timestamps and usable contract terms. Current feed and historical samples evaluated separately.",
-  "outcome": "No qualifying recurring feed or multi-session VIX quote history established in this bounded scan.",
+  "outcome": "No qualifying public no-account recurring VIX option feed established. Robinhood documents an authenticated official MCP route using an existing account; real VIX quote fields and complete execution inputs remain unverified.",
   "paper_status": "waiting_for_qualified_quotes",
   "paper_fills_enabled": false,
   "shared_monthly_cap": "500.00",
   "second_vix_account": false,
+  "existing_account_route": {
+    "provider": "Robinhood",
+    "status": "awaiting_authenticated_verification",
+    "checked_at": "2026-10-30T22:10:47+00:00",
+    "official_url": "https://robinhood.com/us/en/support/articles/onboarding-an-external-agent/",
+    "mcp_url": "https://agent.robinhood.com/mcp/trading",
+    "read_tools": ["get_option_chains", "get_option_instruments", "get_option_quotes", "get_option_historicals", "get_indexes", "get_index_quotes", "get_index_historicals"],
+    "connection_status": "requires_verification",
+    "observation_scope": "Codex tool inventory and Chrome login page checked during source review; not live Ariadne connection detection.",
+    "observation": "No exposed Robinhood connector and Chrome login page signed out during review. A single unauthenticated official MCP initialize returned HTTP401; public OAuth metadata declares only internal scope. No credentials, agreements, account creation or tool calls. Existing owner-authorized access may be connected separately."
+  },
   "sources": [
+    {
+      "name": "Robinhood official Agent/MCP market data",
+      "primary_urls": [
+        "https://robinhood.com/us/en/support/articles/trading-with-your-agent/",
+        "https://robinhood.com/us/en/support/articles/onboarding-an-external-agent/",
+        "https://robinhood.com/us/en/support/articles/index-options/",
+        "https://agent.robinhood.com/.well-known/oauth-protected-resource/mcp/trading"
+      ],
+      "category": "official authenticated existing-account candidate",
+      "observation": "Official external-agent tools include options chains, instruments, real-time quotes, option OHLC history and index data. Robinhood supports VIX index options. Native unauthenticated initialize returns HTTP401; public metadata advertises internal scope, not a data-only entitlement. VIX tool coverage, actual response schema, quote sizes/clocks and matching-expiry VX references are unverified.",
+      "vix_usable": false,
+      "constraint": "Not a no-account endpoint. Existing account inspection is owner-authorized, but a browser sign-in is not a persistent API grant. Onboarding may require opening a dedicated financial account; owner must complete any account opening or access grant. No real-order/account tools exposed to Ariadne."
+    },
+    {
+      "name": "Yahoo Finance VIX chain",
+      "primary_urls": [
+        "https://finance.yahoo.com/quote/%5EVIX/options/",
+        "https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html"
+      ],
+      "category": "public viewing page",
+      "observation": "Public VIX chain page is indexed, but usable actual VIX contracts, per-side sizes and quote timestamps were not established. No official anonymous options API entitlement was found. Yahoo terms restrict automated collection without prior permission.",
+      "vix_usable": false,
+      "constraint": "No undocumented endpoints, browser-session extraction, anti-bot bypass or systematic page scraping used. A viewing page is not a recurring licensed quote API."
+    },
+    {
+      "name": "TradingView VIX chain and official MCP",
+      "primary_urls": [
+        "https://www.tradingview.com/symbols/CBOE-VIX/options-chain/",
+        "https://www.tradingview.com/mcp/docs",
+        "https://www.tradingview.com/policies/"
+      ],
+      "category": "public viewing page and paid authenticated MCP",
+      "observation": "VIX chain viewing page exists. Official MCP requires an eligible paid plan and OAuth; published tools do not include an options-chain or option bid/ask quote tool. Policies prohibit unlicensed automated extraction/non-display use of ordinary page data.",
+      "vix_usable": false,
+      "constraint": "Official MCP is not a free no-account VIX quote feed. No subscription, signup, authentication grant or private page API used."
+    },
     {
       "name": "MarketData anonymous historical API",
       "primary_urls": [

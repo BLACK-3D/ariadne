@@ -210,6 +210,8 @@ def compact_summary(report, now=None):
     if type(options) is dict and options.get("config", {}).get("enabled") is True and options.get("vix"):
         vix = options["vix"]
         result["options_paper"]["vix"] = {"paper_status":_short(vix.get("paper_status"),64)[0], "paper_fills_enabled":False,
+            "source_route":_short((vix.get("connection_readiness") or {}).get("status"),64)[0],
+            "source_reviewed_at":_short((vix.get("connection_readiness") or {}).get("checked_at"),40)[0],
             "index_source_date":_short((vix.get("index_freshness") or {}).get("source_date"),10)[0],
             "index_stale":(vix.get("index_freshness") or {}).get("stale") is not False,
             "option_backtest_gate":_short((vix.get("backtest") or {}).get("research_gate"),80)[0],

@@ -39,6 +39,8 @@ class VixResearchWorkflow:
             saved[kind] = receipt
         summary = (account or {}).get("summary") or {}
         source = _resource("source-assessment.json")
+        from .vix_sources import readiness as source_readiness
+        connection = source_readiness(source)
         signals = saved["vix_signals"]
         source_date = (signals or {}).get("summary", {}).get("source_date")
         from .qqq_data import last_closed_session
@@ -55,11 +57,12 @@ class VixResearchWorkflow:
             "shared_monthly_limit": "500.00", "shared_monthly_remaining": summary.get("monthly_budget_remaining"),
             "shared_cap_qualified": summary.get("cap_qualified") is True,
             "readiness": [
-                "No permitted free no-account VIX/VIXW option quote feed has been qualified.",
+                "Public no-account quotes remain unqualified. Robinhood documents an authenticated options-data route; its live VIX response still needs verification.",
                 "Actual option bid/ask, side sizes, exact-expiry VX reference and official contract calendar are required.",
                 "VIX forward execution is disabled; a future integrated shared-ledger version requires separate qualification. No second account or allowance exists.",
                 "Official VIX/VIX9D index history supports retrospective signal diagnostics only, never option P/L or paper fills."],
             "source_assessment": source,
+            "connection_readiness": connection,
             "signals": saved["vix_signals"], "backtest": saved["vix_backtest"],
             "index_freshness": freshness,
             "model_calls": 0, "brokerage_connected": False,
