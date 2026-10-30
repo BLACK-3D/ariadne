@@ -11,6 +11,7 @@ from .config import _allowed_path
 _ACTIONS = {
     "business_ops": frozenset({"snapshot", "audit_erp", "draft_quote"}),
     "market_research": frozenset({"audit", "study"}),
+    "etf_research": frozenset({"study"}),
     "home_control": frozenset({"catalog", "status", "import_snapshot", "propose", "receipt"}),
 }
 _EXAMPLES = {

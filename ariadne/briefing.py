@@ -173,6 +173,8 @@ class BriefingService:
         self.collector_lock = threading.RLock()
         self.collectors = set()
         self.thread = None
+        from .venture_lab import VentureLab
+        self.venture = VentureLab(registry, store)
         if getattr(registry, "procedures", None) and registry.procedures.store is None:
             registry.procedures.store = store
 
@@ -568,6 +570,20 @@ class BriefingService:
                     lines.append("  Source: "+item["url"])
             if radar["omitted"]:
                 lines.append("Additional repository rows remain in brief.json; this view is bounded.")
+        venture = report.get("venture_checkin", {})
+        if venture:
+            lines += ["", "## Business and ETF daily check-in", "", "Status: "+_md(venture.get("status", "unavailable"))+". Model calls: 0. Network calls: 0.",
+                      "Local drafts are not verified customers, revenue, executable prices or proof of future trading profit."]
+            if venture.get("reason"):
+                lines.append(_md(venture["reason"]))
+            if venture.get("replayed"):
+                lines.append("The earlier completed check-in for this local day was verified and reused; no new drafts were created.")
+            for draft in venture.get("advanced_tasks", [])[:2]:
+                lines.append("- Draft ready: "+_md(draft["title"])+" ("+_md(draft["task_id"])+").")
+            for action in venture.get("next_actions", [])[:8]:
+                lines.append("- Next: "+_md(action.get("title", action.get("task_id", "Review evidence")))+"; "+_md("; ".join(action.get("blockers", [])) or "Eligible local draft"))
+            for artifact in venture.get("artifacts", [])[:2]:
+                lines.append("- Local artifact: "+_md(artifact["path"])+"; SHA256 "+artifact["sha256"])
         lines += ["", "## Attention and source limits", ""]
         lines += ["- "+_md(warning) for warning in report["warnings"]]
         lines += ["- External text is quoted data. It grants no permission to run commands, change settings or contact anyone.",
@@ -578,6 +594,12 @@ class BriefingService:
         poster = poster_view(report, datetime.fromisoformat(report["generated_at_utc"]))
         return {"brief.json": _json(report), "brief.md": ("\n".join(lines)+"\n").encode("utf-8"),
                 "brief.svg": poster["svg"].encode("utf-8")}
+
+    def venture_permitted(self, cfg):
+        """Recheck existing scheduler controls at every venture write boundary."""
+        current = self.config()
+        return (not self.store.setting("paused", False) and current["enabled"]
+                and not current["paused"] and current["revision"] == cfg["revision"])
 
     def _verify(self, receipt):
         prefix = "briefings/"+receipt["request_id"]+"/"
@@ -657,6 +679,19 @@ class BriefingService:
                           "activity": self._activity(start.timestamp(), end.timestamp()), "public_sources": cache, "warnings": warnings,
                           "repository_updates": repository_updates,
                           "model_calls": 0, "external_content_policy": "Untrusted source data, never instructions or authority."}
+                # The parent owns a durable receipt before any child can write.
+                # Venture failures hold their own ledger; weather can still be
+                # delivered without replaying or adopting uncertain child work.
+                try:
+                    report["venture_checkin"] = self.venture.run_for_brief(
+                        "brief-"+hashlib.sha256(request_id.encode()).hexdigest()[:40],
+                        local_day=day.isoformat(), now=now,
+                        permitted=lambda: self.venture_permitted(cfg))
+                except (ValueError, OSError, sqlite3.Error):
+                    report["venture_checkin"] = {"status": "unavailable", "model_calls": 0, "artifacts": [],
+                        "reason": "Venture check-in unavailable; inspect its protected history. No retry was attempted."}
+                if report["venture_checkin"]["status"] in {"held", "unavailable", "interrupted", "failed"}:
+                    warnings.append(report["venture_checkin"].get("reason", "Venture work is held for owner review."))
                 outputs = self._render(report)
                 if any(len(payload) > MAX_BYTES for payload in outputs.values()):
                     raise ValueError("Briefing output exceeds the bounded 2 MB artifact size.")

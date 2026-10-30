@@ -84,12 +84,19 @@ OPERATIONS_STARTERS = [
 ]
 
 
+VENTURE_STARTERS = [
+    {"name": "ETF monthly research review", "agent_id": "market_research", "isolated_outputs": True,
+     "prompt": "Use only an explicitly supplied canonical ETF NAV dataset path. If it is missing, save {{run_dir}}/etf-review.md as a short intake checklist and state that no study ran. Otherwise call etf_research study with a new request_id and the owner's explicit cost assumption, defaulting to 5 basis points. Read its actual report. Save {{run_dir}}/etf-review.md with input hash/data date, total-return/dividend status, same-calendar benchmark, losing periods, drawdown, fixed retrospective holdout and cost stress cases. These are fixed monthly research adaptations, not exact published replication or proven winners. NAV fills are not executable quotes. Do not tune on holdout, fetch data, place orders, connect brokers, change the private Venture Lab board or invent forward paper observations. Read back the saved review. This is a manual model workflow; the daily Venture Lab check-in uses no model.",
+     "checks": [{"kind": "file_exists", "path": "{{run_dir}}/etf-review.md"}]},
+]
+
+
 def seed_workflows(store):
     with store.connect() as db:
         db.execute("BEGIN IMMEDIATE")
         import json
         from .store import ident, now
-        for key, items in (("starter_workflows_0_2", STARTERS), ("starter_workflows_0_4", EXPANDED_STARTERS), ("starter_workflows_0_5", SURVIVAL_STARTERS), ("starter_workflows_0_10", OFFLINE_STARTERS), ("starter_workflows_0_15", OPERATIONS_STARTERS)):
+        for key, items in (("starter_workflows_0_2", STARTERS), ("starter_workflows_0_4", EXPANDED_STARTERS), ("starter_workflows_0_5", SURVIVAL_STARTERS), ("starter_workflows_0_10", OFFLINE_STARTERS), ("starter_workflows_0_15", OPERATIONS_STARTERS), ("starter_workflows_0_17", VENTURE_STARTERS)):
             if db.execute("SELECT 1 FROM settings WHERE key=?", (key,)).fetchone():
                 continue
             for item in items:
@@ -210,6 +217,8 @@ def catalog(app):
               "Offline source-bound reports with integer-cent totals. Drafts never post invoices, contact customers or change the ledger. Open Operations to run without a model.", "")
     extension("market_research", "Historical trading laboratory", "Audit local OHLCV data and replay a fixed strategy with walk-forward selection and a reserved holdout.", "Research", {"market_research"}, True,
               "Explicit sessions, adjustment metadata, fees, spread and slippage. Historical simulation only; no broker, live feed or order execution. Open Operations for local runs.", "")
+    extension("etf_research", "ETF position research", "Compare fixed monthly trend and momentum rules on supplied NAV histories with costs and a common benchmark.", "Research", {"etf_research"}, engine.tools.etf_research.status()["ready"],
+              "Immutable local input snapshots, losing periods, fixed holdout and cost stress cases. NAV proxy only; no fresh prices, executable fills, winner guarantees or orders. Venture Lab connects reviewed results to the daily brief.", "docs/VENTURE_LAB.md")
     controls = engine.tools.local_controls.status()
     extension("home_control", "Home Assistant control gateway", "Read saved device states and propose selected local light, switch and scene operations.", "Connected system", {"home_control"}, controls.get("ready", False),
               "Owner-configured entities and fixed connectors only. Device changes require a current approval and durable action receipt. Cached states work offline; endpoint setup is separate.", "docs/LOCAL_CONTROLS_0_15.md")

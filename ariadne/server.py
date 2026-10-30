@@ -21,6 +21,7 @@ from .sources import SourceManager, SourceChanged
 from .verification import validate_checks
 from .capabilities import catalog, seed_workflows
 from .routines import RoutineConflict
+from .venture_lab import VentureConflict
 
 
 class HTTPError(Exception):
@@ -33,6 +34,13 @@ def text_field(data, key, limit, default=None):
     if not isinstance(value, str) or not value.strip() or len(value) > limit or "\x00" in value:
         raise ValueError(f"{key} must be nonempty text, at most {limit} characters")
     return value.strip()
+
+
+def venture_revision(data):
+    value = data.get("expected_revision")
+    if type(value) is not int or value < 0:
+        raise ValueError("expected_revision must be a nonnegative integer.")
+    return value
 
 
 class Application:
@@ -59,6 +67,7 @@ class Application:
         from .briefing import BriefingService
         from .wake import WakeService
         self.briefing = BriefingService(settings, self.store, self.engine.tools)
+        self.venture = self.briefing.venture
         self.engine.briefing_provider = self.briefing_read
         self.wake_voice = WakeService(settings, self.submit_voice, blocked=self.voice_blocked,
                                       get_run=self.store.run, speak=self.speak_on_pc,
@@ -268,6 +277,8 @@ class Application:
                           "/static/routines.js": ("routines.js", "text/javascript"),
                           "/static/operations.js": ("operations.js", "text/javascript"),
                           "/static/operations.css": ("operations.css", "text/css"),
+                          "/static/venture.css": ("venture.css", "text/css"),
+                          "/static/venture.js": ("venture.js", "text/javascript"),
                           "/static/operations_workflows.js": ("operations_workflows.js", "text/javascript")}
                 if path not in assets:
                     raise HTTPError(404, "Not found")
@@ -279,6 +290,8 @@ class Application:
             status, payload, mime = 409, {"error": str(error)}, "application/json"
         except RoutineConflict as error:
             status, payload, mime = 409, {"error": str(error)}, "application/json"
+        except VentureConflict as error:
+            status, payload, mime = 409, {"error": str(error), "revision": error.revision}, "application/json"
         except KeyError:
             status, payload, mime = 404, {"error": "Not found"}, "application/json"
         except FileNotFoundError:
@@ -381,6 +394,39 @@ class Application:
                 result = self.internet.search(data.get("query"), limit=data.get("max_results", 5), refresh=data.get("refresh", False))
             else:
                 result = self.internet.fetch(data.get("url"), refresh=data.get("refresh", False))
+        elif parts == ["venture"] and method == "GET":
+            result = self.venture.status()
+            cfg = self.briefing.config()
+            result["briefing"] = {key: cfg[key] for key in ("enabled", "paused", "hour", "minute", "timezone", "revision")}
+            result["briefing"]["permitted"] = self.briefing.venture_permitted(cfg)
+        elif parts == ["venture", "config"] and method == "PUT":
+            data = self.body(env)
+            if set(data) - {"board", "expected_revision", "resume"} or "board" not in data:
+                raise ValueError("Expected board, expected_revision and optional resume.")
+            result = self.venture.configure(data["board"], venture_revision(data), resume=data.get("resume", False))
+        elif parts == ["venture", "evidence"] and method == "POST":
+            data = self.body(env)
+            if set(data) != {"evidence", "expected_revision"}:
+                raise ValueError("Expected evidence and expected_revision.")
+            result = self.venture.record_evidence(data["evidence"], venture_revision(data))
+        elif parts == ["venture", "hold"] and method == "POST":
+            data = self.body(env)
+            if set(data) != {"request_id", "expected_revision"}:
+                raise ValueError("Expected reviewed request_id and expected_revision.")
+            result = self.venture.resolve_hold(data["request_id"], venture_revision(data))
+        elif parts == ["venture", "run"] and method == "POST":
+            import uuid
+            from .briefing import _tz
+            data = self.body(env)
+            if set(data) - {"request_id"}:
+                raise ValueError("Only request_id is accepted.")
+            cfg = self.briefing.config()
+            if not self.briefing.venture_permitted(cfg):
+                raise HTTPError(409, "Venture advancement is held by autonomy or briefing controls.")
+            now = datetime.now(timezone.utc)
+            result = self.venture.run_for_brief(data.get("request_id", "owner-"+uuid.uuid4().hex),
+                local_day=now.astimezone(_tz(cfg["timezone"])).date().isoformat(), now=now,
+                permitted=lambda: self.briefing.venture_permitted(cfg))
         elif parts == ["briefing"] and method == "GET":
             result = self.briefing.status()
             result["location"] = self.location_status()

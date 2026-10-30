@@ -108,6 +108,15 @@ def poster_view(report, now=None):
     else:
         priority = "Review your day, then set a direction."
         priority_note = "No unresolved approvals were recorded in this activity snapshot."
+    venture = report.get("venture_checkin")
+    if type(venture) is dict and venture.get("status") not in {"disabled", "paused"}:
+        count = len(venture.get("advanced_tasks", []))
+        if venture.get("status") in {"held", "unavailable", "failed", "interrupted"}:
+            priority_note = "Venture Lab needs review. Inspect the check-in in the full report."
+        elif count:
+            priority_note = str(count)+" local Venture Lab draft(s) ready. Review evidence in the full report."
+        else:
+            priority_note = "Venture Lab: review the next evidence decision in the full report."
 
     svg = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{HEIGHT}" viewBox="0 0 {WIDTH} {HEIGHT}" role="img" aria-labelledby="poster-title poster-description">',
            '<title id="poster-title">Ariadne daily brief</title>',

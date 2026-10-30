@@ -1,0 +1,39 @@
+.venture-overview{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(330px,1fr);gap:30px;padding:26px 0 30px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-bottom:26px}
+.venture-overview h2{font:400 clamp(25px,3vw,39px)/1.12 var(--display);letter-spacing:-.8px;margin:12px 0}
+.venture-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-self:center;gap:16px}
+.venture-metric{border-left:1px solid var(--line);padding-left:16px;display:grid;gap:10px}
+.venture-metric span{font:10px/1.5 var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
+.venture-metric strong{font:400 23px/1.2 var(--display);color:var(--accent);overflow-wrap:anywhere}
+.venture-muted,.venture-description{color:var(--text-secondary);font-size:12px;line-height:1.8}
+.venture-layout{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(300px,.8fr);gap:24px;align-items:start}
+.venture-projects,.venture-sidebar{display:grid;gap:22px;min-width:0}
+.venture-project,.venture-panel,.venture-latest{padding:25px;border:1px solid var(--line);background:linear-gradient(130deg,var(--panel),var(--well));min-width:0}
+.venture-project{border-top:2px solid var(--accent-strong);position:relative}
+.venture-project h2,.venture-panel h2,.venture-latest h2{font:400 25px/1.2 var(--display);letter-spacing:-.4px;margin:12px 0 16px}
+.venture-caution{border-left:2px solid var(--amber);padding:10px 14px;color:var(--amber);font-size:11px;line-height:1.7;background:rgba(216,191,131,.035)}
+.venture-task-list{list-style:none;counter-reset:venture-task;margin:22px 0;padding:0;border-top:1px solid var(--line-soft)}
+.venture-task-list li{counter-increment:venture-task;display:grid;grid-template-columns:22px minmax(0,1fr);gap:5px 12px;padding:16px 0;border-bottom:1px solid var(--line-soft)}
+.venture-task-list li:before{content:counter(venture-task,decimal-leading-zero);font:10px/1.8 var(--mono);color:var(--faint);grid-row:1/4}
+.venture-task-list strong{font-size:13px;line-height:1.5;font-weight:500}.venture-task-state{font:10px/1.6 var(--mono);color:var(--accent)}
+.venture-task-list small{color:var(--muted);font-size:11px;line-height:1.6;overflow-wrap:anywhere}
+.venture-source{display:grid;gap:7px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line-soft)}
+.venture-source-age{font:10px/1.8 var(--mono);color:var(--muted)}.venture-source .text-button{width:fit-content;text-align:left;font-size:12px}
+.venture-source details summary,.venture-extra summary{font-size:11px;color:var(--muted);cursor:pointer;line-height:1.7}
+.venture-hash{font:10px/1.8 var(--mono);color:var(--muted);overflow-wrap:anywhere}
+.venture-form{display:grid;gap:15px;margin-top:20px}.venture-field{display:grid;gap:8px;font-size:11px;line-height:1.6;color:var(--text-secondary)}
+.venture-field input,.venture-field textarea,.venture-field select{width:100%;min-width:0;border:1px solid var(--line);background:var(--well);color:var(--text);padding:11px 12px;border-radius:2px;min-height:42px}
+.venture-field textarea{resize:vertical;min-height:110px}.venture-field input:focus,.venture-field textarea:focus,.venture-field select:focus{outline:2px solid var(--accent-strong);outline-offset:2px}
+.venture-extra{display:grid;gap:12px}.venture-extra .venture-field{margin-top:12px}.venture-form .button{min-height:43px;justify-content:center;width:100%}
+.venture-empty{padding:24px;border:1px dashed var(--line);color:var(--muted);font-size:12px;line-height:1.8}
+.venture-notice:not([hidden]),.venture-hold{padding:20px 23px;margin-bottom:24px;border:1px solid var(--amber);background:var(--well);font-size:12px;line-height:1.7;color:var(--text-secondary)}
+.venture-notice p:first-child,.venture-hold h3{margin-top:0}.venture-notice .button,.venture-hold .button{margin:8px 8px 0 0}
+.venture-latest{margin-top:25px}.venture-artifacts{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}.venture-artifacts .button{font-size:12px}
+.venture-evidence-history{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:25px}
+.venture-evidence-history article{border-top:1px solid var(--line);padding-top:15px;min-width:0}.venture-evidence-history p{font-size:12px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere}
+.venture-evidence-history small{font:10px/1.7 var(--mono);color:var(--muted)}.venture-footer{font-size:11px;line-height:1.9;color:var(--muted);margin:24px 0}
+.venture-study-result{margin-top:25px;padding-top:18px;border-top:1px solid var(--line)}.venture-study-result h3{font-size:15px;font-weight:500}
+.venture-table-scroll{overflow-x:auto;max-width:100%;margin-top:18px}.venture-results{width:100%;border-collapse:collapse;text-align:left;font-size:11px;line-height:1.65}
+.venture-results th{font:9px/1.6 var(--mono);text-transform:uppercase;color:var(--muted);font-weight:400;letter-spacing:.04em;padding:8px 10px 10px 0;vertical-align:bottom}
+.venture-results td{border-top:1px solid var(--line-soft);padding:11px 10px 11px 0;vertical-align:top;min-width:85px}.venture-results td:first-child{color:var(--text);min-width:110px}.venture-results td:not(:first-child){font-family:var(--mono);color:var(--text-secondary)}
+@media(max-width:1150px){.venture-overview{grid-template-columns:1fr;gap:20px}.venture-layout{grid-template-columns:minmax(0,1fr)}.venture-sidebar{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:720px){.venture-metrics{gap:10px}.venture-metric{padding-left:10px}.venture-metric strong{font-size:18px}.venture-sidebar,.venture-evidence-history{grid-template-columns:1fr}.venture-project,.venture-panel,.venture-latest{padding:19px}.venture-overview{padding-top:22px}.venture-notice:not([hidden]),.venture-hold{padding:17px}}

@@ -130,7 +130,7 @@ const state = {
 };
 const activeStatuses = new Set(["queued", "running", "waiting_approval", "awaiting_approval", "pending", "waiting", "verifying"]);
 const isActive = run => Boolean(run && activeStatuses.has(run.status));
-const viewTitles = {missions:"Command center", operations:"Operations", agents:"Agents", briefing:"Daily brief", internet:"Internet", workflows:"Workflows", knowledge:"Knowledge", survival:"Survival", memory:"Memory", schedules:"Schedules", files:"Workspace", connectors:"Capabilities", settings:"Settings & setup"};
+const viewTitles = {missions:"Command center", operations:"Operations", venture:"Venture Lab", agents:"Agents", briefing:"Daily brief", internet:"Internet", workflows:"Workflows", knowledge:"Knowledge", survival:"Survival", memory:"Memory", schedules:"Schedules", files:"Workspace", connectors:"Capabilities", settings:"Settings & setup"};
 const executionLabel = run => run?.status === "completed" ? "Execution finished" : humanize(run?.status);
 
 function toast(message, error = false) {
@@ -220,6 +220,7 @@ function renderStatus(status) {
   window.ariadneCommand?.status(status);
   window.ariadneRoutines?.status(status);
   window.ariadneOperationWorkflows?.status(status);
+  window.ariadneVenture?.status(status);
 }
 async function refreshStatus({quiet = false} = {}) {
   if (!state.authenticated || state.refreshingStatus) return;
@@ -308,6 +309,7 @@ function lockSession(message = "") {
   window.ariadneCommand?.locked();
   window.ariadneRoutines?.locked();
   window.ariadneOperationWorkflows?.locked();
+  window.ariadneVenture?.locked();
   $("#access-token").focus();
 }
 
@@ -345,6 +347,7 @@ async function showView(view) {
 }
 async function loadView(view) {
   if (view === "operations") { await window.ariadneOperations?.load(); return; }
+  if (view === "venture") { await window.ariadneVenture?.load(); return; }
   if (view === "settings") { renderSettings(); return; }
   const loaders = {agents:loadAgents, briefing:loadBriefing, internet:loadInternet, knowledge:loadKnowledge, survival:loadSurvival, workflows:loadWorkflows, memory:loadMemory, schedules:loadSchedules, files:loadFiles, connectors:loadConnectors};
   if (loaders[view]) await loaders[view]();
@@ -2883,4 +2886,5 @@ window.ariadneCommand?.attach({state, api, node, button, icon, selectRun, newMis
 window.ariadneRoutines?.attach({state, api, node, button, icon, openArtifact, downloadArtifact, confirmAction, toast, dateLabel, bytes, humanize});
 window.ariadneOperations?.attach({state, api, node, button, openArtifact, newMission, showView, resizeComposer});
 window.ariadneOperationWorkflows?.attach({state, api, node, button, showView, setWorkflowTab, confirmAction, toast});
+window.ariadneVenture?.attach({state, api, node, button, openArtifact, showView, confirmAction, toast});
 if (state.token) connect(); else $("#access-token").focus();

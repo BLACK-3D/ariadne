@@ -1,6 +1,8 @@
 # Ariadne — local AI in a box
 
-Version 0.16.1 fixes a Windows SQLite status-read race: normal removal of temporary WAL files could briefly make a completed workflow appear unavailable. Routine access now distinguishes transient sidecars from the main database and refuses to recreate a missing main database. The complete package uses `qwen3.5:9b` by default; the optional pinned 4B model reached its response budget before tools in one fresh-copy test. See [reliability and qualification scope](docs/SQLITE_RELIABILITY_0_16_1.md).
+Version 0.17.0 adds a private Venture Lab: business drafts, owner evidence gates and fixed ETF research connected to the daily brief, with zero model or network calls in the daily check-in. See [Venture Lab's operation and research limits](docs/VENTURE_LAB.md). The separately qualified full offline ZIP remains version 0.16.1 until another complete package is built and verified.
+
+Version 0.16.1 fixed a Windows SQLite status-read race: normal removal of temporary WAL files could briefly make a completed workflow appear unavailable. Routine access distinguishes transient sidecars from the main database and refuses to recreate a missing main database. That complete package uses `qwen3.5:9b` by default; the optional pinned 4B model reached its response budget before tools in one fresh-copy test. See [reliability and qualification scope](docs/SQLITE_RELIABILITY_0_16_1.md).
 
 Version 0.16 connects business reports, market audits/studies and saved device observations to **autonomous offline routines**. Runs freeze their accepted inputs, use the existing single worker, verify artifacts and hold recurrence after failures or interruptions. Configure them in **Operations → Connect the work**, then run, verify and manage them under **Workflows → Offline routines**. Factory recurrence remains off. See [autonomous operations](docs/AUTONOMOUS_OPERATIONS_0_16.md) and [the full one-click package](docs/PORTABLE_0_16.md).
 
