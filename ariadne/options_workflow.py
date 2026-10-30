@@ -25,6 +25,7 @@ MAX_REPORTS = 128 * 1024 * 1024
 MAX_RUNS = 10000
 MAX_RECEIPTS = 32 * 1024 * 1024
 MAX_EVENTS = 30000
+MAX_MANIFEST = 256 * 1024
 INBOX = "market-data/options/current.json"
 DEFAULT = {"enabled": False, "paused": False, "revision": 0,
            "activation_at": None, "timezone": "America/Chicago", "hour": 6}
@@ -43,6 +44,15 @@ def _now(value=None):
     if not isinstance(clock, datetime) or clock.tzinfo is None or clock.utcoffset() is None:
         raise ValueError("Use an aware options workflow clock.")
     return clock.astimezone(UTC)
+
+
+def _paper_engine(state):
+    """Old accounts retain their frozen engine until an explicit safe upgrade."""
+    if type(state) is dict and type(state.get("schema")) is int and state["schema"] == 2:
+        from . import options_portfolio
+        return options_portfolio
+    from . import options_recovery
+    return options_recovery
 
 
 class OptionsWorkflow(HandoffDesk):
@@ -68,6 +78,8 @@ class OptionsWorkflow(HandoffDesk):
         db.execute("CREATE TABLE IF NOT EXISTS opt_runs(request_id TEXT PRIMARY KEY,action TEXT NOT NULL,day TEXT,digest TEXT NOT NULL,status TEXT NOT NULL,receipt TEXT NOT NULL,bytes INTEGER NOT NULL)")
         db.execute("CREATE UNIQUE INDEX IF NOT EXISTS opt_daily ON opt_runs(day) WHERE day IS NOT NULL")
         db.execute("CREATE TABLE IF NOT EXISTS opt_reports(request_id TEXT PRIMARY KEY,bytes INTEGER NOT NULL,receipt TEXT NOT NULL)")
+        db.execute("CREATE TABLE IF NOT EXISTS opt_catalogs(digest TEXT PRIMARY KEY,path TEXT NOT NULL,value BLOB NOT NULL,bytes INTEGER NOT NULL,quality TEXT NOT NULL)")
+        db.execute("CREATE TABLE IF NOT EXISTS opt_migrations(account_id TEXT PRIMARY KEY,request_id TEXT UNIQUE NOT NULL,old_state TEXT NOT NULL,old_sha256 TEXT NOT NULL,new_rule_sha256 TEXT NOT NULL,activated_at TEXT NOT NULL)")
         db.execute("INSERT OR IGNORE INTO opt_meta VALUES(1,0,?)", (_json(DEFAULT),))
 
     def _meta(self, db):
@@ -187,10 +199,34 @@ class OptionsWorkflow(HandoffDesk):
             return None
         if len(row["state"].encode()) > 2 * 1024 * 1024:
             raise ValueError("Options account exceeds its protected size bound.")
-        from .options_recovery import summarize
         state = _load(row["state"])
-        summary = summarize(state, now=now)
+        summary = _paper_engine(state).summarize(state, now=now)
+        if type(state.get("schema")) is int and state["schema"] == 2 and state.get("migration"):
+            witness = db.execute("SELECT old_state,old_sha256,new_rule_sha256,activated_at FROM opt_migrations WHERE account_id=?", (row["id"],)).fetchone()
+            migration = state["migration"]
+            if not witness or _digest(witness["old_state"].encode()) != witness["old_sha256"] or witness["new_rule_sha256"] != state["rule_sha256"] or migration["legacy_state_sha256"] != witness["old_sha256"] or migration["activated_at"] != witness["activated_at"] or state["portfolio_activation_at"] != witness["activated_at"]:
+                raise ValueError("The retained legacy-to-portfolio migration witness is missing or changed.")
+            from .options_portfolio import migrate_flat_legacy
+            initial = migrate_flat_legacy(_load(witness["old_state"]), activated_at=witness["activated_at"])
+            if row["started_at"] != initial["started_at"] or state["started_at"] != initial["started_at"] or initial["migration"] != migration:
+                raise ValueError("The portfolio migration lost its original account identity or funding provenance.")
+            if state["processed_count"] == 0 and state["trade_count"] == 0:
+                if any(state[key] != initial[key] for key in ("cash", "contributions", "month", "monthly_start_equity", "monthly_committed", "fees")):
+                    raise ValueError("An untouched migrated portfolio cannot change its inherited cash or monthly allowance.")
         return {"id": row["id"], "state": state, "summary": summary, "started_at": row["started_at"], "policy": _load(row["policy"])}
+
+    def _catalog(self, db):
+        if not self._exists(db) or not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='opt_catalogs'").fetchone():
+            return None
+        row = db.execute("SELECT digest,path,substr(value,1,?) value,bytes,quality FROM opt_catalogs ORDER BY rowid DESC LIMIT 1", (MAX_MANIFEST+1,)).fetchone()
+        if not row:
+            return None
+        raw = bytes(row["value"])
+        if len(raw) != row["bytes"] or len(raw) > MAX_MANIFEST or _digest(raw) != row["digest"]:
+            raise ValueError("The accepted options archive manifest failed its integrity check.")
+        from .options_archive import parse_manifest
+        parse_manifest(raw)
+        return {"manifest_sha256": row["digest"], "path": row["path"], "quality": _load(row["quality"])}
 
     @staticmethod
     def _arguments(body, extra=()):
@@ -242,7 +278,12 @@ class OptionsWorkflow(HandoffDesk):
         identifier = _identifier(receipt["request_id"])
         base = "reports/options-recovery/" + identifier + "/"
         artifacts = receipt.get("artifacts")
-        expected = {base + "backtest.json", base + "accepted-input.json"} if receipt["action"] == "backtest" else {base + "archive.json"}
+        if receipt["action"] == "backtest":
+            expected = {base + "backtest.json", base + "accepted-input.json"}
+        elif receipt["action"] == "compare":
+            expected = {base + "comparison.json", base + "archive-manifest.json"}
+        else:
+            expected = {base + "archive.json"}
         if type(artifacts) is not list or {item.get("path") for item in artifacts} != expected or len(artifacts) != len(expected):
             raise ValueError("Options artifact contract is incomplete.")
         for item in artifacts:
@@ -256,6 +297,13 @@ class OptionsWorkflow(HandoffDesk):
                 report = _load(raw)
                 if report.get("rule_sha256") != RULE_SHA256 or report.get("accepted_input_sha256") != receipt["data_sha256"]:
                     raise ValueError("The options backtest belongs to another rule or input.")
+            if item["path"].endswith("archive-manifest.json") and _digest(raw) != receipt["manifest_sha256"]:
+                raise ValueError("The comparison archive identity changed.")
+            if item["path"].endswith("comparison.json"):
+                from .options_portfolio import RULE_SHA256
+                report = _load(raw)
+                if report.get("rule_sha256") != RULE_SHA256 or report.get("accepted_manifest_sha256") != receipt["manifest_sha256"]:
+                    raise ValueError("The strategy comparison belongs to another portfolio or archive.")
 
     def _read(self, relative, limit=MAX_DATA):
         # registry._path rejects absolute paths, traversal, links and excluded
@@ -280,19 +328,25 @@ class OptionsWorkflow(HandoffDesk):
 
     def status(self, now=None):
         from .options_recovery import RULE, RULE_SHA256
+        from .options_portfolio import RULE as PORTFOLIO_RULE, RULE_SHA256 as PORTFOLIO_SHA256
         clock = _now(now)
         with self.database() as db:
             revision, cfg = self._meta(db)
             data, account = self._info(db, clock), self._account(db, clock)
             forward = self._info(db, clock, forward=True)
+            catalog = self._catalog(db)
             runs = [dict(row) for row in db.execute("SELECT request_id,action,day,status FROM opt_runs ORDER BY rowid DESC LIMIT 10")] if self._exists(db) else []
             held = db.execute("SELECT request_id,action,status,receipt FROM opt_runs WHERE status IN ('running','failed') ORDER BY rowid LIMIT 1").fetchone() if self._exists(db) else None
             last = db.execute("SELECT receipt FROM opt_runs ORDER BY rowid DESC LIMIT 1").fetchone() if self._exists(db) else None
             report = db.execute("SELECT opt_reports.receipt FROM opt_reports JOIN opt_runs USING(request_id) WHERE opt_runs.action='backtest' AND opt_runs.status='completed' ORDER BY opt_reports.rowid DESC LIMIT 1").fetchone() if self._exists(db) else None
+            comparison = db.execute("SELECT opt_reports.receipt FROM opt_reports JOIN opt_runs USING(request_id) WHERE opt_runs.action='compare' AND opt_runs.status='completed' ORDER BY opt_reports.rowid DESC LIMIT 1").fetchone() if self._exists(db) else None
             events = [_load(row[0]) for row in db.execute("SELECT value FROM opt_events WHERE account_id=? ORDER BY id DESC LIMIT 20", (account["id"],))] if account else []
         historical = _load(report[0]) if report else None
         if historical:
             self._verify_artifacts(historical)
+        compared = _load(comparison[0]) if comparison else None
+        if compared:
+            self._verify_artifacts(compared)
         quality = data["quality"] if data else None
         hold = {"request_id": held["request_id"], "action": held["action"], "status": held["status"], "reason": _load(held["receipt"]).get("reason", "Interrupted owner operation; inspect before acknowledgment.")} if held else None
         return {"schema": 1, "revision": revision, "config": cfg, "rule": RULE, "rule_sha256": RULE_SHA256,
@@ -301,6 +355,8 @@ class OptionsWorkflow(HandoffDesk):
                 "forward_data_sha256": forward["sha256"] if forward else None, "paper": account,
                 "events": events, "hold": hold, "last_run": _load(last[0]) if last else None, "history": runs,
                 "backtest": historical, "inbox": INBOX, "model_calls": 0, "brokerage_connected": False,
+                "portfolio_rule": PORTFOLIO_RULE, "portfolio_rule_sha256": PORTFOLIO_SHA256,
+                "archive_catalog": catalog, "comparison": compared,
                 "scope": "Simulated options only. $500 monthly non-recycling premium/fee allowance; no cross-month positions. Missing exits hold the ledger and invalidate cap assurance. No real orders, auto-exercise or verified future profitability."}
 
     def configure(self, body, now=None):
@@ -369,8 +425,7 @@ class OptionsWorkflow(HandoffDesk):
                     if account:
                         if account["policy"] != self._epoch(db, cfg, brief):
                             raise ValueError("Options permission epoch changed; archive this experiment explicitly before a new start.")
-                        from .options_recovery import advance_paper
-                        advancement = advance_paper(dataset, account["state"], decided_at=clock.isoformat())
+                        advancement = _paper_engine(account["state"]).advance_paper(dataset, account["state"], decided_at=clock.isoformat())
                         events = advancement["events"]
                         if db.execute("SELECT count(*) FROM opt_events").fetchone()[0] + len(events) > MAX_EVENTS:
                             raise ValueError("Options event quota is full; no history was removed.")
@@ -387,6 +442,129 @@ class OptionsWorkflow(HandoffDesk):
             except Exception as error:
                 self._failed(receipt, error)
                 raise
+
+    def register_archive(self, body, now=None):
+        """Register verified immutable research chunks without adopting positions."""
+        self._arguments(body, {"path"})
+        self.registry._path(body["path"])
+        clock, receipt = _now(now), None
+        with self._ownership():
+            try:
+                with self.database() as db:
+                    db.execute("BEGIN IMMEDIATE")
+                    self._schema(db)
+                    cfg, brief = self._policy(db)
+                    replay = self._reserve(db, "register_archive", body, None, clock)
+                    if replay:
+                        return replay
+                    receipt = {"request_id": body["request_id"], "action": "register_archive", "status": "running", "created_at": clock.isoformat(), "artifacts": [], "model_calls": 0, "replayed": False}
+                    if db.execute("SELECT count(*) FROM opt_catalogs").fetchone()[0] >= 16:
+                        raise ValueError("Options archive catalog quota is full; no retained research was deleted.")
+                def checkpoint():
+                    with self.database() as db:
+                        self._policy(db, cfg)
+                        if self.controls() != brief:
+                            raise HandoffConflict("Brief permissions changed during archive inspection.")
+                from .options_archive import inspect_archive, load_manifest
+                quality = inspect_archive(self.registry, body["path"], checkpoint=checkpoint)
+                raw, manifest = load_manifest(self.registry, body["path"], expected_manifest_sha256=quality["manifest_sha256"])
+                if manifest["evidence_kind"] != "historical_quotes":
+                    raise ValueError("Owner archive catalogs require historical quotes; synthetic fixtures are not research evidence.")
+                if len(raw) > MAX_MANIFEST:
+                    raise ValueError("Options archive manifest exceeds 256 KiB.")
+                with self._committing(brief) as db:
+                    self._policy(db, cfg)
+                    digest = _digest(raw)
+                    old = db.execute("SELECT path,value FROM opt_catalogs WHERE digest=?", (digest,)).fetchone()
+                    if old and (old["path"] != body["path"] or bytes(old["value"]) != raw):
+                        raise ValueError("An archive identity cannot be relocated or changed silently.")
+                    if not old:
+                        db.execute("INSERT INTO opt_catalogs VALUES(?,?,?,?,?)", (digest, body["path"], raw, len(raw), _json(quality)))
+                    receipt.update(status="completed", outcome="registered" if not old else "unchanged", manifest_sha256=digest, chunks=len(manifest["chunks"]), quote_time_basis=manifest["source"]["quote_time_basis"], historical_positions_adopted=0)
+                    self._finish(db, receipt)
+                return receipt
+            except Exception as error:
+                self._failed(receipt, error)
+                raise
+
+    def compare(self, body, now=None):
+        """One streamed archive, one actual portfolio, separate counterfactuals."""
+        self._arguments(body)
+        clock, receipt = _now(now), None
+        with self._ownership():
+            try:
+                with self.database() as db:
+                    db.execute("BEGIN IMMEDIATE")
+                    self._schema(db)
+                    cfg, brief = self._policy(db)
+                    replay = self._reserve(db, "compare", body, None, clock)
+                    if replay:
+                        return replay
+                    receipt = {"request_id": body["request_id"], "action": "compare", "status": "running", "created_at": clock.isoformat(), "artifacts": [], "model_calls": 0, "replayed": False}
+                    catalog = self._catalog(db)
+                    if not catalog:
+                        raise ValueError("Register a verified historical options archive before comparing strategies.")
+                    accepted = bytes(db.execute("SELECT value FROM opt_catalogs WHERE digest=?", (catalog["manifest_sha256"],)).fetchone()[0])
+                def checkpoint():
+                    with self.database() as db:
+                        self._policy(db, cfg)
+                        if self.controls() != brief:
+                            raise HandoffConflict("Brief permissions changed during the options comparison.")
+                from .options_archive import iter_archive
+                from .options_portfolio import backtest_comparison
+                chunks = iter_archive(self.registry, catalog["path"], expected_manifest_sha256=catalog["manifest_sha256"], checkpoint=checkpoint)
+                report = backtest_comparison(chunks, symbol=catalog["quality"]["symbol"])
+                report.update(request_id=body["request_id"], accepted_manifest_sha256=catalog["manifest_sha256"],
+                              archive_quality=catalog["quality"], input_evidence_scope="Exact archive/chunk hashes were checked during this run. Original private chunks are retained separately; passive views do not rescan all market prices.")
+                payload = _json(report).encode()
+                if len(payload) > 8 * 1024 * 1024:
+                    raise ValueError("Options comparison report exceeds 8 MiB.")
+                receipt.update({key: copy.deepcopy(value) for key, value in report.items() if key in {"metrics", "coverage", "research_gate", "execution_qualified", "symbol", "rule_sha256"}})
+                receipt.update(manifest_sha256=catalog["manifest_sha256"], comparison_scope="Shared $500 portfolio; single-strategy results are separate counterfactual accounts and are never added together.")
+                # Keep compact receipts bounded; complete state, curves and
+                # individual strategy evidence live in the protected report.
+                receipt["strategy_results"] = {key: {field: value.get(field) for field in ("metrics", "coverage", "research_gate")} for key, value in report["strategy_results"].items()}
+                self._publish(cfg, brief, receipt, (("comparison.json", payload), ("archive-manifest.json", accepted)))
+                return receipt
+            except Exception as error:
+                self._failed(receipt, error)
+                raise
+
+    def upgrade_portfolio(self, body, now=None):
+        """Upgrade only a pristine legacy account, preserving its budget and ID."""
+        self._arguments(body, {"acknowledge_simulated"})
+        if body["acknowledge_simulated"] is not True:
+            raise ValueError("Acknowledge the shared simulated portfolio and unchanged $500 allowance.")
+        clock = _now(now)
+        with self._ownership():
+            with self.database() as db:
+                cfg, brief = self._policy(db)
+            with self._committing(brief) as db:
+                self._policy(db, cfg)
+                replay = self._reserve(db, "upgrade_portfolio", body, None, clock)
+                if replay:
+                    return replay
+                account = self._account(db)
+                if not account or type(account["state"].get("schema")) is not int or account["state"]["schema"] != 1:
+                    raise HandoffConflict("Choose the existing pristine legacy account; no portfolio reset or duplicate is permitted.")
+                if account["policy"] != self._epoch(db, cfg, brief):
+                    raise HandoffConflict("The account permission epoch changed; an upgrade cannot adopt uncertain work across a pause.")
+                if db.execute("SELECT 1 FROM opt_events WHERE account_id=? LIMIT 1", (account["id"],)).fetchone():
+                    raise HandoffConflict("The legacy account already has observations; preserve its frozen experiment.")
+                if self._data(db, forward=True):
+                    raise HandoffConflict("A forward data basis already exists; a pristine upgrade cannot adopt it.")
+                from .options_portfolio import migrate_flat_legacy, RULE_SHA256
+                old_raw = _json(account["state"])
+                state = migrate_flat_legacy(account["state"], activated_at=clock.isoformat())
+                db.execute("INSERT INTO opt_migrations VALUES(?,?,?,?,?,?)", (account["id"], body["request_id"], old_raw, _digest(old_raw.encode()), RULE_SHA256, clock.isoformat()))
+                db.execute("UPDATE opt_accounts SET state=? WHERE id=?", (_json(state), account["id"]))
+                event = {"type": "portfolio_upgrade", "at": clock.isoformat(), "legacy_state_sha256": _digest(old_raw.encode()), "simulated_funding_added": "0", "monthly_budget_reset": False, "historical_positions_adopted": 0}
+                if db.execute("SELECT count(*) FROM opt_events").fetchone()[0] >= MAX_EVENTS:
+                    raise ValueError("Options event history is full.")
+                db.execute("INSERT INTO opt_events(account_id,run_id,value) VALUES(?,?,?)", (account["id"], body["request_id"], _json(event)))
+                receipt = {"request_id": body["request_id"], "action": "upgrade_portfolio", "status": "completed", "account_id": account["id"], "portfolio_activation_at": clock.isoformat(), "legacy_state_sha256": _digest(old_raw.encode()), "rule_sha256": RULE_SHA256, "simulated_funding_added": "0", "monthly_budget_reset": False, "artifacts": [], "model_calls": 0, "replayed": False}
+                self._finish(db, receipt)
+        return receipt
 
     def backtest(self, body, now=None):
         self._arguments(body)
@@ -456,6 +634,12 @@ class OptionsWorkflow(HandoffDesk):
             self._finish(db, receipt)
 
     def start_paper(self, body, now=None):
+        return self._start_paper(body, now, portfolio=False)
+
+    def start_portfolio(self, body, now=None):
+        return self._start_paper(body, now, portfolio=True)
+
+    def _start_paper(self, body, now=None, *, portfolio):
         self._arguments(body, {"acknowledge_simulated"})
         if body["acknowledge_simulated"] is not True:
             raise ValueError("Acknowledge that this is a simulated $500 monthly account.")
@@ -465,7 +649,8 @@ class OptionsWorkflow(HandoffDesk):
                 cfg, brief = self._policy(db)
             with self._committing(brief) as db:
                 self._policy(db, cfg)
-                replay = self._reserve(db, "paper", body, None, clock)
+                action = "portfolio" if portfolio else "paper"
+                replay = self._reserve(db, action, body, None, clock)
                 if replay:
                     return replay
                 if self._account(db):
@@ -475,9 +660,8 @@ class OptionsWorkflow(HandoffDesk):
                 # Archiving cannot mint a new monthly risk allowance, even if
                 # the old account is flat or began in a previous month.
                 for old in db.execute("SELECT state,started_at,closed_at FROM opt_accounts"):
-                    from .options_recovery import validate_state
                     state = _load(old["state"])
-                    validate_state(state)
+                    _paper_engine(state).validate_state(state)
                     used_months = {state["month"], exchange_day(datetime.fromisoformat(old["started_at"])).strftime("%Y-%m")}
                     if old["closed_at"]:
                         used_months.add(exchange_day(datetime.fromisoformat(old["closed_at"])).strftime("%Y-%m"))
@@ -487,11 +671,14 @@ class OptionsWorkflow(HandoffDesk):
                         raise HandoffConflict("This calendar month already belongs to a retained options experiment; archival never resets its $500 allowance.")
                 if db.execute("SELECT count(*) FROM opt_accounts").fetchone()[0] >= 32:
                     raise ValueError("Options experiment quota is full.")
-                from .options_recovery import initial_state
+                if portfolio:
+                    from .options_portfolio import initial_state
+                else:
+                    from .options_recovery import initial_state
                 state = initial_state(None, started_at=clock.isoformat(), symbol="QQQ")
                 identifier = "options-paper-" + uuid.uuid4().hex
                 db.execute("INSERT INTO opt_accounts VALUES(?,?,?,NULL,?)", (identifier, _json(state), clock.isoformat(), _json(self._epoch(db, cfg, brief))))
-                receipt = {"request_id": body["request_id"], "action": "paper", "status": "completed", "account_id": identifier, "started_at": clock.isoformat(), "simulated_initial_cash": "500.00", "monthly_loss_allowance": "500.00", "artifacts": [], "model_calls": 0, "replayed": False}
+                receipt = {"request_id": body["request_id"], "action": action, "status": "completed", "account_id": identifier, "started_at": clock.isoformat(), "simulated_initial_cash": "500.00", "monthly_loss_allowance": "500.00", "artifacts": [], "model_calls": 0, "replayed": False}
                 self._finish(db, receipt)
         return receipt
 
@@ -570,4 +757,4 @@ class OptionsWorkflow(HandoffDesk):
 
     def brief_snapshot(self, now=None):
         status = self.status(now)
-        return {key: status[key] for key in ("config", "quality", "forward_quality", "paper", "events", "hold", "last_run", "backtest", "rule_sha256", "model_calls", "scope", "inbox")}
+        return {key: status[key] for key in ("config", "quality", "forward_quality", "paper", "events", "hold", "last_run", "backtest", "rule_sha256", "portfolio_rule_sha256", "archive_catalog", "comparison", "model_calls", "scope", "inbox")}

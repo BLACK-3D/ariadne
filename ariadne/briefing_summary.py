@@ -196,6 +196,10 @@ def compact_summary(report, now=None):
             "forward_retrieved_at": _short(forward.get("retrieved_at"), 40)[0],
             "forward_fresh_at_report_generation": forward.get("fresh_now") is True,
             "forward_status": "waiting_for_recorded_quotes" if not summary.get("last_daily_result") else "saved_current_session" if forward.get("fresh_now") else "saved_stale_result",
+            "shared_portfolio": summary.get("schema") == 2,
+            "strategy_attribution": {key: {"entries":_count(stats.get("entry_count")),"closed":_count(stats.get("closed_count")), **{field:_short(stats.get(field),44)[0] for field in ("realized_pnl","monthly_committed")}} for key,stats in list(summary.get("strategy_stats", {}).items())[:3]},
+            "comparison_gate": _short((options.get("comparison") or {}).get("research_gate"),80)[0],
+            "comparison_coverage": {"source_snapshots":_count(((options.get("comparison") or {}).get("coverage") or {}).get("source_snapshots")),"processed_snapshots":_count(((options.get("comparison") or {}).get("coverage") or {}).get("processed_snapshots")),"last_processed_date":_short(((options.get("comparison") or {}).get("coverage") or {}).get("last_processed_date"),10)[0]},
             "note": "Saved options simulation, not live quotes/broker fills. Contributions are not returns; cap applies to modeled monthly net loss, not peak drawdown."}
     if radar["enabled"]:
         # Reserve a small explicit repository header in the model-facing view;

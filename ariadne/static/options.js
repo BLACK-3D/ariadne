@@ -4,7 +4,8 @@
 (() => {
   let app, attached, data=null, generation=0, busy=false, loading=false, stale=false;
   let notice="", uncertain=null, inspected=false, actions=[], fields=[], lastPause=null;
-  let importDraft="market-data/options/current.json", reasonDraft="", archiveData=false;
+  let importDraft="market-data/options/current.json", manifestDraft="market-data/options/archives/qqq-2022/catalog.json", reasonDraft="", archiveData=false;
+  const strategyNames={recovery_call_v1:"Recovery / calls",breakout_call_v1:"Breakout / calls",breakdown_put_v1:"Breakdown / puts"};
   const $=id=>document.getElementById(id), e=(tag,cls="",value)=>app.node(tag,cls,value);
   const txt=value=>typeof value==="string"?value:"";
   const identity=/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
@@ -28,14 +29,14 @@
     }
     if(typeof identifier!=="string"||!identity.test(identifier))throw new Error("Use a unique bounded request ID.");
     const body={request_id:identifier,expected_revision:revision};
-    if(kind==="import")return {...body,path:path(extra.path)};
-    if(kind==="paper")return {...body,acknowledge_simulated:true};
+    if(["import","register-archive"].includes(kind))return {...body,path:path(extra.path)};
+    if(["paper","portfolio","upgrade-portfolio"].includes(kind))return {...body,acknowledge_simulated:true};
     if(kind==="archive"){
       const reason=txt(extra.reason).trim();
       if(!reason||reason.length>1000||typeof extra.archive_data!=="boolean")throw new Error("Supply an archive reason and explicit data choice.");
       return {...body,reason,archive_data:extra.archive_data};
     }
-    if(!["refresh","backtest","acknowledge"].includes(kind))throw new Error("Unsupported options action.");
+    if(!["refresh","backtest","compare","acknowledge"].includes(kind))throw new Error("Unsupported options action.");
     return body;
   }
   function writable(held=false){return Boolean(app?.state.authenticated&&data&&!busy&&!loading&&!stale&&!uncertain&&!app.state.status?.paused&&(held||!data.hold));}
@@ -59,7 +60,7 @@
   function artifactButtons(parent,items){
     const row=e("div","options-actions");
     for(const item of (Array.isArray(items)?items:[]).slice(0,4))try{
-      const relative=path(item.path),node=app.button(relative.endsWith("accepted-input.json")?"Inspect historical input":"Inspect full research report","button-secondary",()=>app.openArtifact(relative));node.type="button";row.append(node);
+      const relative=path(item.path),label=relative.endsWith("accepted-input.json")?"Inspect historical input":relative.endsWith("archive-manifest.json")?"Inspect accepted archive manifest":relative.endsWith("comparison.json")?"Inspect strategy comparison":"Inspect full research report",node=app.button(label,"button-secondary",()=>app.openArtifact(relative));node.type="button";row.append(node);
     }catch{}
     parent.append(row);
   }
@@ -68,7 +69,7 @@
     root.replaceChildren();actions=[];fields=[];lastPause=Boolean(app.state.status?.paused);
     const hero=e("section","options-hero"),copy=e("div"),limit=e("div","options-limit");
     copy.append(e("span","eyebrow","OPTIONS / ASYMMETRIC RESEARCH"),e("h2","","Small stake. Measured upside."));
-    p(copy,"Fully paid long-call experiments with actual option quotes, a frozen rule and a separate forward paper ledger. Zero model calls.");
+    p(copy,"Three fixed call/put hypotheses. One shared paper portfolio. Actual option quotes, auditable decisions, zero model calls.");
     limit.append(e("strong","","$500"),e("span","","MONTHLY SIMULATED LOSS BUDGET"));hero.append(copy,limit);root.append(hero);
     const warning=e("div","options-warning");warning.setAttribute("role","status");
     p(warning,"SIMULATED ONLY. The cap bounds modeled monthly net loss from a flat opening account. It does not cap a fall from unrealized profits. No short options, brokerage connection or real-money orders.");
@@ -92,8 +93,39 @@
       p(paper,summary.position?`Open contract: ${txt(summary.position.contract_id)} · last bid mark ${amount(summary.position.marked_bid)} per share.`:"No open option position.");
       p(paper,summary.pending?`Pending paper decision: ${JSON.stringify(summary.pending).slice(0,1200)}`:"No pending paper decision. Cash is a valid outcome.");
       p(paper,summary.last_daily_result?`Latest dated result: ${JSON.stringify(summary.last_daily_result).slice(0,2200)}`:"No forward daily trading result yet. Starting cash is not a return.");
+      if(summary.schema===2){
+        p(paper,`ONE shared $500 allowance for all enabled strategies. One open position total. Next selector priority: ${strategyNames[summary.next_strategy]||txt(summary.next_strategy)}.`);
+        for(const[id,stats]of Object.entries(summary.strategy_stats||{}).slice(0,3))p(paper,`${strategyNames[id]||id}: ${Number.isInteger(stats.entry_count)?stats.entry_count:"unknown"} entries / ${Number.isInteger(stats.closed_count)?stats.closed_count:"unknown"} closed · realized P/L ${amount(stats.realized_pnl)} · month committed ${amount(stats.monthly_committed)}.`);
+      }else if(data.paper.state?.schema===1&&data.portfolio_rule){
+        p(paper,"This is the retained frozen recovery-call account. A pristine account can upgrade in place; its existing cash, month and allowance stay intact.");
+        paper.append(button("Upgrade pristine account to shared portfolio",upgradePortfolio,runnable));
+      }
     }else{p(paper,"Start with $500 simulated cash. Later observed calendar months add $500 of simulated external funding only after the previous month is verified flat. This does not spend your money.");paper.append(button("Start $500 monthly paper experiment",startPaper,runnable));}
     p(paper,"The 6 AM Chicago brief reads the fixed local quote inbox. There is no connected options subscription. Offline reads and backtests work; absent or stale quotes never become invented fills.");grid.append(paper);
+    if(data.portfolio_rule){
+      const tracks=e("section","options-card");tracks.append(e("span","eyebrow","REGISTERED / NO WINNER CHASING"),e("h3","","Three hypotheses. One risk ledger."));
+      for(const[id,value]of Object.entries(data.portfolio_rule.strategies||{}).slice(0,3)){
+        const card=e("div","options-strategy");card.append(e("strong","",strategyNames[id]||id));p(card,txt(value.signal));tracks.append(card);
+      }
+      p(tracks,"Fixed priority rotates after an entry. Backtest performance never chooses the next strategy. Each entry costs at most $125 including premium and both fees. Profits cannot replenish the $500 monthly commitment allowance.");grid.append(tracks);
+      const study=e("section","options-card options-full");study.append(e("span","eyebrow","SAME SOURCE / SEPARATE COUNTERFACTUALS"),e("h3","","Expanded strategy comparison"));
+      if(data.archive_catalog){coverage(study,data.archive_catalog.quality,"Archive");p(study,`Accepted manifest SHA-256 ${txt(data.archive_catalog.manifest_sha256)}. Price hashes establish identity, not accuracy.`);}
+      else p(study,"Register a complete immutable historical quote archive. Every chunk is verified before use; gaps, changed terms and missing exits are never repaired into profits.");
+      if(data.comparison){
+        const results=e("div","options-comparison");
+        for(const[id,result]of [["shared_portfolio",data.comparison],...Object.entries(data.comparison.strategy_results||{}).slice(0,3)]){
+          const card=e("div","options-strategy"),m=result.metrics||{},c=result.coverage||{};
+          card.append(e("strong","",id==="shared_portfolio"?"Shared $500 portfolio":`${strategyNames[id]||id} / separate counterfactual`));
+          p(card,`P/L excluding deposits ${amount(m.trading_pnl)} · ${Number.isInteger(m.closed_trade_count)?m.closed_trade_count:"unknown"} closed / ${Number.isInteger(m.trade_count)?m.trade_count:"unknown"} entries.`);
+          p(card,`${c.complete===true?"Complete input processed":"INCOMPLETE / last dated mark"}: ${Number.isInteger(c.processed_snapshots)?c.processed_snapshots:"unknown"} of ${Number.isInteger(c.source_snapshots)?c.source_snapshots:"unknown"} sessions · through ${txt(c.last_processed_date)||"unknown"}. Gate: ${txt(result.research_gate)||"not qualified"}.`);
+          p(card,`Realized payout milestones ${JSON.stringify(m.payout_milestones||{})}.`);results.append(card);
+        }
+        study.append(results);p(study,"Counterfactual accounts each have their own simulated $500 allowance for comparison. Their P/L is never added together. Missing-exit ledgers stop at their last dated observation; these are not full-window realized returns. No result qualifies real-money execution.","options-warning");artifactButtons(study,data.comparison.artifacts);
+      }
+      const form=e("form"),label=e("label","options-field","Archive manifest inside Ariadne Workspace"),input=e("input");input.name="options_manifest_path";input.value=manifestDraft;input.maxLength=1000;input.addEventListener("input",()=>{manifestDraft=input.value;});label.append(input);fields.push(input);form.append(label);
+      const submit=e("button","button button-secondary","Register historical archive");submit.type="submit";actions.push({node:submit,allowed:runnable,held:false});form.append(submit);
+      form.addEventListener("submit",async event=>{event.preventDefault();if(runnable())try{await mutate("register-archive",{path:manifestDraft});}catch(error){notice=error.message;render();}});study.append(form,button("Compare registered strategies",()=>mutate("compare"),()=>runnable()&&Boolean(data.archive_catalog)));grid.append(study);
+    }
     const history=e("section","options-card");history.append(e("span","eyebrow","HISTORICAL / QUOTE-BASED RESEARCH"),e("h3","","Backtest evidence"));
     if(data.backtest){const report=data.backtest,metrics=report.metrics||{};
       p(history,`Research gate: ${txt(report.research_gate)||"not qualified"}. Historical fills are assumptions; this result does not qualify real-money execution.`,"options-warning");
@@ -107,7 +139,7 @@
     const form=e("form"),label=e("label","options-field","JSON file inside Ariadne Workspace"),input=e("input");input.name="options_import_path";input.value=importDraft;input.maxLength=1000;input.addEventListener("input",()=>{importDraft=input.value;});label.append(input);fields.push(input);form.append(label);
     const submit=e("button","button button-secondary","Import historical dataset");submit.type="submit";actions.push({node:submit,allowed:runnable,held:false});form.append(submit);
     form.addEventListener("submit",async event=>{event.preventDefault();if(!runnable())return;try{await mutate("import",{path:importDraft});}catch(error){notice=error.message;render();}});importer.append(form);p(importer,`Daily forward inbox: ${txt(data.inbox)}. Forward observations need recorded timestamps, quoted size and the latest completed session. Assumed-EOD research cannot place paper fills.`);grid.append(importer);
-    const rule=e("details","options-card options-full");rule.append(e("summary","","Frozen selection rule and monthly risk contract"));for(const[key,value]of Object.entries(data.rule||{}).slice(0,30))p(rule,`${key}: ${typeof value==="string"?value:JSON.stringify(value)}`);p(rule,`Rule SHA-256 ${txt(data.rule_sha256)}`);grid.append(rule);
+    const rule=e("details","options-card options-full");rule.append(e("summary","","Frozen selection rule and monthly risk contract"));for(const[key,value]of Object.entries(data.portfolio_rule||data.rule||{}).slice(0,30))p(rule,`${key}: ${typeof value==="string"?value:JSON.stringify(value)}`);p(rule,`Portfolio rule SHA-256 ${txt(data.portfolio_rule_sha256)} / original recovery rule ${txt(data.rule_sha256)}`);grid.append(rule);
     if(data.paper||data.quality||data.forward_quality){const archive=e("details","options-card options-full");archive.append(e("summary","","Archive an experiment or input basis"));p(archive,"Retains the ledger and last marks without inventing a sale. Archiving never resets a month's allowance. An unresolved archived position blocks a new experiment.");
       const reasonLabel=e("label","options-field","Reason"),reason=e("textarea");reason.name="options_archive_reason";reason.maxLength=1000;reason.value=reasonDraft;reason.addEventListener("input",()=>{reasonDraft=reason.value;});reasonLabel.append(reason);fields.push(reason);archive.append(reasonLabel);
       const checkLabel=e("label","options-field"),check=e("input");check.type="checkbox";check.checked=archiveData;check.name="options_archive_data";check.addEventListener("change",()=>{archiveData=check.checked;});checkLabel.append(check,e("span","","Also retain and clear both imported data caches"));fields.push(check);archive.append(checkLabel,button("Review archival",archiveExperiment));grid.append(archive);}
@@ -124,8 +156,9 @@
   }
   async function mutate(kind,extra={},identifier=null){
     if(!writable(kind==="config"||kind==="acknowledge"))return;
-    if(["refresh","backtest","import","paper"].includes(kind)&&!runnable())return;
-    if(kind==="paper"&&data.paper)return;
+    if(["refresh","backtest","import","paper","portfolio","upgrade-portfolio","register-archive","compare"].includes(kind)&&!runnable())return;
+    if(["paper","portfolio"].includes(kind)&&data.paper)return;
+    if(kind==="upgrade-portfolio"&&data.paper?.state?.schema!==1)return;
     const body=request(kind,data.revision,identifier||newId(),extra),marker=generation,token=app.state.token;
     busy=true;notice="";controls();
     try{const result=await app.api("/options/"+kind,{method:kind==="config"?"PUT":"POST",body});if(!current(marker,token))return;
@@ -138,11 +171,12 @@
     const marker=generation,token=app.state.token,revision=data.revision;
     if(await app.confirmAction(title,description,label,"Keep current state")&&current(marker,token)&&revision===data.revision)await fn();
   }
-  async function startPaper(){if(!runnable()||data.paper)return;await confirmed("Start the options paper experiment?","Start $500 simulated cash with at most $500 committed premium/fees per month. No profits recycle the allowance. No cross-month positions or real orders. A restart cannot reset this month's budget.","Start simulated experiment",()=>mutate("paper"));}
+  async function startPaper(){if(!runnable()||data.paper)return;await confirmed("Start the options paper experiment?","Start $500 simulated cash with at most $500 committed premium/fees per month across ALL strategies, one position total. No profits recycle the allowance. No cross-month positions or real orders. A restart cannot reset this month's budget.","Start simulated experiment",()=>mutate(data.portfolio_rule?"portfolio":"paper"));}
+  async function upgradePortfolio(){if(!runnable()||data.paper?.state?.schema!==1)return;await confirmed("Upgrade this pristine account in place?","Enable all three fixed strategies on the SAME account. Existing $500 simulated cash, contributions, ledger month and monthly allowance remain unchanged. No historical positions, new funding or reset. The server refuses any prior observed or traded account.","Preserve budget and upgrade",()=>mutate("upgrade-portfolio"));}
   async function acknowledge(){if(!writable(true)||!data.hold)return;const identifier=data.hold.request_id;await confirmed("Acknowledge inspected options work?","The failed request stays closed. Partial inputs, fills and files are not adopted, deleted or replayed.","Acknowledge inspected request",()=>mutate("acknowledge",{},identifier));}
   async function archiveExperiment(){if(!writable())return;const body=request("archive",data.revision,newId(),{reason:reasonDraft,archive_data:archiveData});await confirmed("Archive this options experiment?",`${body.reason}\n\nLast marks, history and losses remain retained. No synthetic sell. This cannot replenish a monthly allowance.${body.archive_data?" Both data caches are retained in evidence before clearing.":" Imported data stays cached."}`,"Retain evidence and archive",()=>mutate("archive",{reason:body.reason,archive_data:body.archive_data},body.request_id));}
   function status(){if(data&&lastPause!==Boolean(app?.state.status?.paused))render();else controls();}
-  function locked(){generation++;data=null;busy=false;loading=false;stale=false;notice="";uncertain=null;inspected=false;actions=[];fields=[];lastPause=null;importDraft="market-data/options/current.json";reasonDraft="";archiveData=false;$("options-content")?.replaceChildren();controls();}
+  function locked(){generation++;data=null;busy=false;loading=false;stale=false;notice="";uncertain=null;inspected=false;actions=[];fields=[];lastPause=null;importDraft="market-data/options/current.json";manifestDraft="market-data/options/archives/qqq-2022/catalog.json";reasonDraft="";archiveData=false;$("options-content")?.replaceChildren();controls();}
   function attach(value){app=value;const root=$("options-content");if(!root||attached===root)return;attached=root;$("refresh-options")?.addEventListener("click",load);controls();}
-  window.ariadneOptions={attach,load,status,locked,request,path,amount,mutate,startPaper,acknowledge,archiveExperiment};
+  window.ariadneOptions={attach,load,status,locked,request,path,amount,mutate,startPaper,upgradePortfolio,acknowledge,archiveExperiment};
 })();
