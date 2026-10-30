@@ -222,9 +222,11 @@ See [checked backups](docs/CHECKED_BACKUPS_0_13.md) for offline verification and
 
 ## Operating cost and evidence
 
-The core uses no model/API subscription. It makes no inference calls while idle, uses one model worker, caps tool/context/output budgets, and unloads model memory through Ollama's five-minute retention policy. Optional hybrid retrieval uses an on-demand CPU embedding worker and a persisted vector index; lexical recall remains available without it. Heavy native and model workers run on demand. Tool schemas are selected for the current task; ordinary prompts measured 9,196 schema bytes versus 24,516 for all schemas on the qualification snapshot. These are byte counts, not measured energy savings. Electricity, hardware wear, storage and administration still have costs; no monetary or energy savings are claimed without measurement.
+The core uses no model/API subscription. It makes no inference calls while idle, uses one model worker, caps tool/context/output budgets, and retains the selected model for up to fifteen minutes after use under the 0.18 voice policy. Retaining model memory trades availability of RAM/VRAM for fewer cold loads; it is not a measurement of electricity savings. Optional hybrid retrieval uses an on-demand CPU embedding worker and a persisted vector index; lexical recall remains available without it. Heavy native and model workers run on demand. Tool schemas are selected for the current task; ordinary prompts measured 9,196 schema bytes versus 24,516 for all schemas on the qualification snapshot. These are byte counts, not measured energy savings. Electricity, hardware wear, storage and administration still have costs; no monetary or energy savings are claimed without measurement.
 
 Model events record prompt tokens, output tokens and runtime duration. Use those alongside task success, GPU/CPU utilization and wall-meter energy readings to compare models. A smaller model that repeatedly fails or needs more turns may cost more to operate. Keep the smaller model for tasks it demonstrably handles; choose a stronger model when its measured quality warrants it.
+
+For a business cost-and-capacity scenario, the offline [Venture Lab economics calculator](docs/VENTURE_LAB.md#monthly-cost-and-capacity-scenarios) separates cash surplus from the value of owner labor, preserves unknown costs, and shows client counts, capacity and one-client-loss stress. It uses no model or network calls. Prices and client counts in its example are hypotheses, not market validation or observed revenue.
 
 Run verification:
 

@@ -12,6 +12,30 @@ Plans and research stay in the private workspace. Configuration, accepted source
 
 Global autonomy pause, briefing pause/disable/revision changes, Venture Lab pause and integrity holds stop advancement. Running, failed or interrupted work is never adopted or automatically repeated. Resolving a hold acknowledges the receipt; it does not replay uncertain work. The weather brief may still complete with a warning when Venture Lab is held. A completed parent brief never repeats its child check-in.
 
+## Monthly cost and capacity scenarios
+
+`scripts/venture_economics.py` creates a private static HTML and JSON report from explicit assumptions. It uses the bundled standard-library runtime, with no model calls, network requests, new subscriptions, scheduler or customer actions. Copy `config/examples/venture-economics.json` into the private workspace, fill in your own assumptions, then run from the installation folder:
+
+```powershell
+runtime\python\python.exe -I -B scripts\venture_economics.py business/economics-input.json business/economics-review-001
+```
+
+Both paths are relative to the workspace, normally `data/workspace`. An optional `--workspace` must identify an existing directory inside the installation. A new output folder is required each time; completed and partial output is never overwritten or adopted. Outputs are `economics.html` and `economics.json`, verified after publication. Inputs and reports remain private and are included when backing up the workspace. The calculator itself does not register a Venture Lab project, revise source pins or change the daily brief.
+
+The example is an unvalidated service scenario. Its system budget is a planning allowance, not a measured bill. `actual_system_cost_monthly: null` uses that allowance and keeps actual cost unknown; a supplied actual replaces the allowance instead of adding it. `other_fixed_cost_monthly: null` excludes unknown additional fixed costs and marks the result incomplete. Supply all relevant monthly costs before interpreting the result as cost coverage. Payment fees and variable costs remain explicit assumptions.
+
+Cash surplus is before owner compensation and personal tax. Economic surplus also subtracts the stated value of delivery, sales and administrative hours. Imputed sole-proprietor time is not a tax deduction or a taxable-profit calculation. No assumed investment return funds either target. Capacity uses 52/12 weeks per month; onboarding and customer acquisition must fit the nonbillable-hour assumption or be recorded as additional hours.
+
+The report shows minimum client counts for both targets, capacity at each stated weekly-hours limit, one-client loss, and additional fixed-cost headroom. Nonpositive contribution cannot fund a positive target. Zero clients and zero revenue are valid scenarios. A scenario meeting the target does not prove customers, price acceptance, collected revenue or sustainable delivery. Use actual paid pilots and time records to test those assumptions.
+
+Run the calculator's isolated arithmetic, validation and publication checks with:
+
+```powershell
+runtime\python\python.exe -I -B scripts\check_venture_economics.py
+```
+
+These checks use disposable fixtures inside the installation and do not open the microphone, generate model output, access production databases or contact external services.
+
 ## ETF studies
 
 The `etf_research` tool runs three predeclared monthly research rules: a ten-month US trend filter, twelve-month US absolute momentum and US/developed-ex-US rotation with a bond fallback. These are correlated trend adaptations, not three independent sources of return or exact reproductions of published papers.

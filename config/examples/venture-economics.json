@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "label": "Ariadne monthly income scenarios — unvalidated assumptions",
+  "system_budget_monthly": 100,
+  "actual_system_cost_monthly": null,
+  "other_fixed_cost_monthly": null,
+  "monthly_profit_target": 2000,
+  "hourly_value": 35,
+  "weekly_hours_profiles": [10, 20],
+  "fixed_nonbillable_hours_monthly": 12,
+  "offers": [
+    {
+      "id": "baseline-quote-admin",
+      "name": "Existing $350 quote/admin offer",
+      "price": 350,
+      "clients": 7,
+      "hours_per_client": 6,
+      "variable_cash_per_client": 0,
+      "payment_fee_percent": 3
+    },
+    {
+      "id": "refined-eight-client-hypothesis",
+      "name": "$500 monthly service — eight-client hypothesis",
+      "price": 500,
+      "clients": 8,
+      "hours_per_client": 4,
+      "variable_cash_per_client": 10,
+      "payment_fee_percent": 3
+    },
+    {
+      "id": "refined-nine-client-cushion",
+      "name": "$500 monthly service — one-client-loss cushion",
+      "price": 500,
+      "clients": 9,
+      "hours_per_client": 4,
+      "variable_cash_per_client": 10,
+      "payment_fee_percent": 3
+    }
+  ]
+}
