@@ -94,7 +94,7 @@ class OptionsAPITests(unittest.TestCase):
         return relative,hashlib.sha256(raw).hexdigest()
 
     def test_auth_same_origin_and_host_for_all_read_write_routes(self):
-        for tail,method in (("","GET"),("/config","PUT"),*(("/"+name,"POST") for name in ("import","refresh","backtest","paper","acknowledge","archive","register-archive","compare","portfolio","upgrade-portfolio","feed","collect-feed","research-compare"))):
+        for tail,method in (("","GET"),("/config","PUT"),*(("/"+name,"POST") for name in ("import","refresh","backtest","paper","acknowledge","archive","register-archive","compare","portfolio","upgrade-portfolio","feed","collect-feed","research-compare","vix-signals","vix-backtest"))):
             path="/api/options"+tail
             with self.subTest(path=path):
                 self.assertEqual(self.request(path,method,auth=False)["status"],401)
@@ -248,6 +248,40 @@ class OptionsAPITests(unittest.TestCase):
             db.execute("INSERT INTO briefing_runs VALUES(?,?,?,?,?)",("failed-parent",day,"failed",now.timestamp(),json.dumps(receipt)))
         with patch.object(self.app.briefing.options,"refresh",side_effect=AssertionError("Held parent")) as collect:
             self.assertIsNone(self.app.briefing.run_due(now));collect.assert_not_called()
+
+    def test_vix_readiness_in_future_brief_has_no_forward_profit_or_extra_funding(self):
+        self.free_feed()
+        result=self.app.briefing.run("vix-readiness-brief",self.clock,collect=False)
+        artifacts={Path(item["path"]).suffix:item for item in result["artifacts"]}
+        report=json.loads((self.settings.workspace/artifacts[".json"]["path"]).read_bytes())
+        vix=report["options_paper"]["vix"]
+        self.assertEqual(vix["paper_status"],"waiting_for_qualified_quotes")
+        self.assertFalse(vix["paper_fills_enabled"])
+        self.assertEqual(vix["funding_added"],"0")
+        self.assertEqual(report["options_paper"]["paper"]["state"]["symbol"],"AAPL")
+        self.assertEqual(report["options_paper"]["paper"]["state"]["cash"],"500")
+        markdown=(self.settings.workspace/artifacts[".md"]["path"]).read_text()
+        self.assertIn("Forward VIX execution is DISABLED",markdown)
+        self.assertIn("Index changes are not option returns",markdown)
+        self.assertIn("VIX index source freshness",markdown)
+        from ariadne.briefing_summary import compact_summary,MAX_SUMMARY_CHARS
+        compact=compact_summary(report,self.clock)
+        self.assertFalse(compact["options_paper"]["vix"]["paper_fills_enabled"])
+        self.assertLessEqual(len(json.dumps(compact,separators=(",",":"),ensure_ascii=False)),MAX_SUMMARY_CHARS)
+
+    def test_vix_routes_reject_nonexact_json_unknown_authority_and_global_pause(self):
+        self.enable()
+        revision=self.request()["body"]["revision"]
+        for action in ("vix-signals","vix-backtest"):
+            route="/api/options/"+action
+            self.assertEqual(self.request(route,"POST",raw=b'{"request_id":"a","request_id":"b","expected_revision":1,"path":"x"}')["status"],400)
+            for forbidden in ("funding","account_id","symbol","broker_token","url","fee"):
+                self.assertEqual(self.request(route,"POST",{"request_id":"bad","expected_revision":revision,"path":"x",forbidden:"extra"})["status"],400)
+            self.assertEqual(self.request(route,"POST",{"request_id":"bad","expected_revision":True,"path":"x"})["status"],400)
+        self.assertEqual(self.request()["body"]["revision"],revision)
+        self.store.set_setting("paused",True)
+        for action in ("vix-signals","vix-backtest"):
+            self.assertEqual(self.request("/api/options/"+action,"POST",{"request_id":"held-vix","expected_revision":revision,"path":"x"})["status"],409)
 
     def test_live_options_owner_defers_parent_before_claiming_daily_receipt(self):
         with patch.object(self.app.briefing.qqq,"run_due",return_value=None),patch.object(self.app.briefing.options,"run_due",return_value=None),patch.object(self.app.briefing.options,"busy",return_value=True):

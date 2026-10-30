@@ -5,6 +5,7 @@
   let app, attached, data=null, generation=0, busy=false, loading=false, stale=false;
   let notice="", uncertain=null, inspected=false, actions=[], fields=[], lastPause=null;
   let importDraft="market-data/options/current.json", manifestDraft="market-data/options/archives/qqq-2022/catalog.json", reasonDraft="", archiveData=false;
+  let vixSignalDraft="market-data/vix/index-history.json",vixQuoteDraft="market-data/vix/option-history.json";
   const strategyNames={recovery_call_v1:"Recovery / calls",breakout_call_v1:"Breakout / calls",breakdown_put_v1:"Breakdown / puts",regime_recovery_call_v1:"Trend-filtered recovery / calls",trend_breakout_call_v1:"Trend breakout / calls",trend_breakdown_put_v1:"Trend breakdown / puts"};
   const $=id=>document.getElementById(id), e=(tag,cls="",value)=>app.node(tag,cls,value);
   const txt=value=>typeof value==="string"?value:"";
@@ -33,7 +34,7 @@
       if(typeof extra.enabled!=="boolean")throw new Error("Choose an explicit feed setting.");
       return {...body,enabled:extra.enabled,acknowledge_feed:true};
     }
-    if(["import","register-archive"].includes(kind))return {...body,path:path(extra.path)};
+    if(["import","register-archive","vix-signals","vix-backtest"].includes(kind))return {...body,path:path(extra.path)};
     if(["paper","portfolio","upgrade-portfolio"].includes(kind))return {...body,acknowledge_simulated:true};
     if(kind==="archive"){
       const reason=txt(extra.reason).trim();
@@ -64,7 +65,7 @@
   function artifactButtons(parent,items){
     const row=e("div","options-actions");
     for(const item of (Array.isArray(items)?items:[]).slice(0,4))try{
-      const relative=path(item.path),label=relative.endsWith("accepted-input.json")?"Inspect historical input":relative.endsWith("research-manifest.json")?"Inspect research archive manifest":relative.endsWith("research.json")?"Inspect regime research":relative.endsWith("archive-manifest.json")?"Inspect accepted archive manifest":relative.endsWith("comparison.json")?"Inspect strategy comparison":"Inspect full research report",node=app.button(label,"button-secondary",()=>app.openArtifact(relative));node.type="button";row.append(node);
+      const relative=path(item.path),label=relative.endsWith("vix-report.json")?"Inspect VIX research":relative.endsWith("vix-input.json")?"Inspect VIX input":relative.endsWith("/VIX.csv")?"Inspect private VIX history":relative.endsWith("/VIX9D.csv")?"Inspect private VIX9D history":relative.endsWith("accepted-input.json")?"Inspect historical input":relative.endsWith("research-manifest.json")?"Inspect research archive manifest":relative.endsWith("research.json")?"Inspect regime research":relative.endsWith("archive-manifest.json")?"Inspect accepted archive manifest":relative.endsWith("comparison.json")?"Inspect strategy comparison":"Inspect full research report",node=app.button(label,"button-secondary",()=>app.openArtifact(relative));node.type="button";row.append(node);
     }catch{}
     parent.append(row);
   }
@@ -156,6 +157,39 @@
       }
       p(research,"Previously examined years are exploratory. New retrospective windows are not prospective proof. Comparing partial ledgers with different stop dates cannot establish superiority, and zero trades is not a winning return.","options-warning");research.append(button("Backtest regime hypotheses",()=>mutate("research-compare"),()=>runnable()&&Boolean(data.archive_catalog)));grid.append(research);
     }
+    if(data.vix){
+      const vix=e("section","options-card options-full");vix.append(e("span","eyebrow","VIX / VOLATILITY RESEARCH"),e("h3","","Study the shock. Verify the contract."));
+      p(vix,"VIX/VIXW index options settle in cash using the VRO special opening quotation. European exercise, multiplier 100. Spot VIX, VX futures and volatility ETF options are different instruments.");
+      p(vix,"VIX forward execution DISABLED · waiting for qualified quotes. No permitted free no-account option feed has been established. No VIX paper fills, forward paper P/L, funded account or extra $500 allowance.","options-warning");
+      p(vix,`The existing ${txt(data.paper?.summary?.symbol)||"options"} account holds the only shared monthly allowance. Remaining ${amount(data.vix.shared_monthly_remaining)}; ${data.vix.shared_cap_qualified===true?"cap within modeled assumptions":"cap assurance unavailable"}. Historical research cannot change its cash, strategies, positions or approvals.`);
+      p(vix,"Three fixed hypotheses: shock breakout calls, elevated-volatility reversal puts, and short-horizon stress calls. Option research requires actual bid/ask, side sizes, exact-expiry VX reference and an official contract calendar. These hypotheses have no established profitable edge.");
+      for(const [key,title]of [["signals","Official index / signal diagnostics"],["backtest","Actual option-quote backtest"]]){
+        const saved=data.vix[key],card=e("div","options-strategy");card.append(e("strong","",title));
+        if(saved){
+          const s=saved.summary||{},c=saved.coverage||{};p(card,`Saved ${txt(saved.created_at)} · gate ${txt(saved.research_gate)||"research only"}.`);
+          if(key==="signals"){
+            p(card,`Source session ${txt(s.source_date)||"unknown"} · VIX ${txt(s.index_close)||"unavailable"} · VIX9D ${txt(s.vix9d_close)||"unavailable"}. Index levels, not option prices.`);
+            const counts=s.signal_counts||{},count=id=>Number.isSafeInteger(counts[id])?counts[id]:"unmeasured";
+            p(card,`Historical signals: shock ${count("vix_shock_breakout_call_v1")} · fade ${count("vix_spike_fade_put_v1")} · stress ${count("vix_short_term_stress_call_v1")}. Counts are not win rates.`);
+            const conditions=Object.values(s.latest_conditions||{});p(card,conditions.length===3&&conditions.every(value=>value===false)?"Latest observed session: no registered condition triggered.":"Latest condition details and blocked inputs are retained in the report.");
+            p(card,`Observed regular sessions ${Number.isSafeInteger(c.observed_regular_sessions)?c.observed_regular_sessions:"unknown"} · missing ${Number.isSafeInteger(c.missing_vix_session_count)?c.missing_vix_session_count:"unknown"}. Historical publication times are unknown.`);
+          }else{
+            p(card,`Hypothetical shared research P/L: realized ${amount(s.realized_pnl)}, unrealized ${amount(s.unrealized_pnl)} · closed trades ${Number.isSafeInteger(s.closed_trades)?s.closed_trades:"unknown"}. No active funds or forward fills.`);
+          }
+          const details=e("details");details.append(e("summary","","Coverage and research assumptions"),e("pre","",JSON.stringify({summary:s,coverage:c},null,2)));card.append(details);artifactButtons(card,saved.artifacts);
+        }
+        else p(card,key==="signals"?"No index study saved. Import official local CSV history to inspect fixed signal frequency and subsequent index changes.":"No qualifying VIX option history imported. There is no measured option strategy return to display.");
+        vix.append(card);
+      }
+      p(vix,"Index changes are signal diagnostics, never tradable option returns or win probabilities. Saved source dates remain historical while offline; this release makes no automatic VIX network requests. Original source files stay private and are excluded from GitHub and portable source exports.");
+      p(vix,`Saved index source date ${txt(data.vix.index_freshness?.source_date)||"unavailable"} · ${data.vix.index_freshness?.stale===false?"matches latest reviewed regular session":"STALE / missing latest reviewed regular session"}. Date-only observations have no verified option execution timestamp.`);
+      for(const [kind,name,label]of [["vix-signals","vix_signal_path","Study official index history"],["vix-backtest","vix_quote_path","Backtest VIX option quotes"]]){
+        const form=e("form"),field=e("label","options-field",kind==="vix-signals"?"Index-history manifest inside Ariadne Workspace":"VIX option-history JSON inside Ariadne Workspace"),input=e("input");input.name=name;input.maxLength=1000;input.value=kind==="vix-signals"?vixSignalDraft:vixQuoteDraft;
+        input.addEventListener("input",()=>{if(kind==="vix-signals")vixSignalDraft=input.value;else vixQuoteDraft=input.value;});field.append(input);fields.push(input);form.append(field,button(label,()=>mutate(kind,{path:kind==="vix-signals"?vixSignalDraft:vixQuoteDraft}),runnable));
+        form.addEventListener("submit",async event=>{event.preventDefault();if(!runnable())return;await mutate(kind,{path:kind==="vix-signals"?vixSignalDraft:vixQuoteDraft});});vix.append(form);
+      }
+      const detail=e("details");detail.append(e("summary","","Data-source assessment and execution gates"));for(const reason of (data.vix.readiness||[]).slice(0,8))p(detail,txt(reason));p(detail,`Source assessment checked ${txt(data.vix.source_assessment?.checked_at)||"unknown"}; availability can change.`);vix.append(detail);grid.append(vix);
+    }
     const history=e("section","options-card");history.append(e("span","eyebrow","HISTORICAL / QUOTE-BASED RESEARCH"),e("h3","","Backtest evidence"));
     if(data.backtest){const report=data.backtest,metrics=report.metrics||{};
       p(history,`Research gate: ${txt(report.research_gate)||"not qualified"}. Historical fills are assumptions; this result does not qualify real-money execution.`,"options-warning");
@@ -187,7 +221,7 @@
   }
   async function mutate(kind,extra={},identifier=null){
     if(!writable(kind==="config"||kind==="acknowledge"))return;
-    if(["refresh","backtest","import","paper","portfolio","upgrade-portfolio","register-archive","compare","feed","collect-feed","research-compare"].includes(kind)&&!runnable())return;
+    if(["refresh","backtest","import","paper","portfolio","upgrade-portfolio","register-archive","compare","feed","collect-feed","research-compare","vix-signals","vix-backtest"].includes(kind)&&!runnable())return;
     if(kind==="refresh"&&data.feed?.config?.initialized)return;
     if(kind==="collect-feed"&&(data.feed?.config?.enabled!==true||data.feed.collection_window_open!==true))return;
     if(["paper","portfolio"].includes(kind)&&data.paper)return;
@@ -210,7 +244,7 @@
   async function acknowledge(){if(!writable(true)||!data.hold)return;const identifier=data.hold.request_id;await confirmed("Acknowledge inspected options work?","The failed request stays closed. Partial inputs, fills and files are not adopted, deleted or replayed.","Acknowledge inspected request",()=>mutate("acknowledge",{},identifier));}
   async function archiveExperiment(){if(!writable())return;const body=request("archive",data.revision,newId(),{reason:reasonDraft,archive_data:archiveData});await confirmed("Archive this options experiment?",`${body.reason}\n\nLast marks, history and losses remain retained. No synthetic sell. This cannot replenish a monthly allowance.${body.archive_data?" Both data caches are retained in evidence before clearing.":" Imported data stays cached."}`,"Retain evidence and archive",()=>mutate("archive",{reason:body.reason,archive_data:body.archive_data},body.request_id));}
   function status(){if(data&&lastPause!==Boolean(app?.state.status?.paused))render();else controls();}
-  function locked(){generation++;data=null;busy=false;loading=false;stale=false;notice="";uncertain=null;inspected=false;actions=[];fields=[];lastPause=null;importDraft="market-data/options/current.json";manifestDraft="market-data/options/archives/qqq-2022/catalog.json";reasonDraft="";archiveData=false;$("options-content")?.replaceChildren();controls();}
+  function locked(){generation++;data=null;busy=false;loading=false;stale=false;notice="";uncertain=null;inspected=false;actions=[];fields=[];lastPause=null;importDraft="market-data/options/current.json";manifestDraft="market-data/options/archives/qqq-2022/catalog.json";vixSignalDraft="market-data/vix/index-history.json";vixQuoteDraft="market-data/vix/option-history.json";reasonDraft="";archiveData=false;$("options-content")?.replaceChildren();controls();}
   function attach(value){app=value;const root=$("options-content");if(!root||attached===root)return;attached=root;$("refresh-options")?.addEventListener("click",load);controls();}
   window.ariadneOptions={attach,load,status,locked,request,path,amount,mutate,startPaper,upgradePortfolio,configureFeed,acknowledge,archiveExperiment};
 })();

@@ -207,6 +207,13 @@ def compact_summary(report, now=None):
             "comparison_gate": _short((options.get("comparison") or {}).get("research_gate"),80)[0],
             "comparison_coverage": {"source_snapshots":_count(((options.get("comparison") or {}).get("coverage") or {}).get("source_snapshots")),"processed_snapshots":_count(((options.get("comparison") or {}).get("coverage") or {}).get("processed_snapshots")),"last_processed_date":_short(((options.get("comparison") or {}).get("coverage") or {}).get("last_processed_date"),10)[0]},
             "note": "Saved options simulation, not live quotes/broker fills. Contributions are not returns; cap applies to modeled monthly net loss, not peak drawdown."}
+    if type(options) is dict and options.get("config", {}).get("enabled") is True and options.get("vix"):
+        vix = options["vix"]
+        result["options_paper"]["vix"] = {"paper_status":_short(vix.get("paper_status"),64)[0], "paper_fills_enabled":False,
+            "index_source_date":_short((vix.get("index_freshness") or {}).get("source_date"),10)[0],
+            "index_stale":(vix.get("index_freshness") or {}).get("stale") is not False,
+            "option_backtest_gate":_short((vix.get("backtest") or {}).get("research_gate"),80)[0],
+            "note":"Index diagnostics are not option P/L; no forward VIX fills or added allowance."}
     if radar["enabled"]:
         # Reserve a small explicit repository header in the model-facing view;
         # full row metadata and URLs remain in the verified Markdown/JSON.

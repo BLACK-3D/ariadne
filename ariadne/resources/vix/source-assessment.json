@@ -1,0 +1,146 @@
+{
+  "schema": 1,
+  "checked_at": "2026-10-30T21:08:03.282014+00:00",
+  "scope": "Free, no-account, permitted VIX/VIXW options quotes: actual contract identifiers, bid/ask, quoted sizes, quote timestamps and usable contract terms. Current feed and historical samples evaluated separately.",
+  "outcome": "No qualifying recurring feed or multi-session VIX quote history established in this bounded scan.",
+  "paper_status": "waiting_for_qualified_quotes",
+  "paper_fills_enabled": false,
+  "shared_monthly_cap": "500.00",
+  "second_vix_account": false,
+  "sources": [
+    {
+      "name": "MarketData anonymous historical API",
+      "primary_urls": [
+        "https://www.marketdata.app/docs/api/authentication/",
+        "https://www.marketdata.app/docs/api/options/chain/"
+      ],
+      "category": "documented API",
+      "observation": "Anonymous option endpoint access is documented for AAPL contracts only. Other symbols require authentication. Documented fields include observed bid/ask, sizes and updated timestamp; historical Greeks are not stored.",
+      "vix_usable": false,
+      "constraint": "No documented anonymous VIX entitlement. No new account created or token requested."
+    },
+    {
+      "name": "Cboe DataShop Option Quote Intervals",
+      "primary_urls": [
+        "https://datashop.cboe.com/option-quote-intervals",
+        "https://datashop.cboe.com/download/sample/215"
+      ],
+      "category": "paid historical/recurring product with public downloadable sample",
+      "observation": "Product covers ^VIX OPRA options and supplies observed NBBO with sizes, datetime, root, expiration, strike and side. Public sample inspected locally: four September 21, 2023 files contain only AAPL/SPX; February 2, 2022 file contains SPX/SPXW. Zero VIX/VIXW rows across all five CSVs.",
+      "vix_usable": false,
+      "constraint": "Actual VIX historical/recurring product is purchased, not free. Public sample is not VIX history. No purchase or signup."
+    },
+    {
+      "name": "Cboe DataShop Option EOD Summary",
+      "primary_urls": [
+        "https://datashop.cboe.com/option-eod-summary",
+        "https://datashop.cboe.com/download/sample/217"
+      ],
+      "category": "paid historical/recurring product",
+      "observation": "Official product documents 15:45 Eastern and product-dependent end-of-day NBBO snapshots with sizes, covering index options including ^VIX. Historical coverage advertised from 2012.",
+      "vix_usable": false,
+      "constraint": "No free recurring entitlement established. Public sample link discovered but not downloaded during this scan."
+    },
+    {
+      "name": "HistoricalData.net",
+      "primary_urls": [
+        "https://historicaldata.net/options.html"
+      ],
+      "category": "paid archive with public sample",
+      "observation": "VIX root is advertised in archive. Free 239 MB sample is explicitly TSLA, KO, SPY and SPX/SPXW for July-December 2022; no VIX. Examples include sizes and date, but displayed quote_time cells are blank.",
+      "vix_usable": false,
+      "constraint": "No VIX sample or free recurring VIX entitlement established. Large non-VIX sample not downloaded."
+    },
+    {
+      "name": "DoltHub post-no-preference/options",
+      "primary_urls": [
+        "https://www.dolthub.com/repositories/post-no-preference/options",
+        "https://www.dolthub.com/docs/products/dolthub/api/v1alpha1/sql/"
+      ],
+      "category": "public SQL dataset",
+      "observation": "Documented read-only SQL API accepted anonymous DESCRIBE. Actual table has date, symbol, expiration, strike, call/put, bid, ask and Greeks. No quoted sizes or intraday quote timestamp, volume/OI or contract terms. Bounded SELECT for VIX/^VIX/VIXW/^VIXW timed out; timeout is not proof that roots are absent.",
+      "vix_usable": false,
+      "constraint": "Schema insufficient for required execution evidence; VIX coverage and redistribution rights not established. No bulk clone."
+    },
+    {
+      "name": "ThetaData",
+      "primary_urls": [
+        "https://thetadata.net/docs/Articles/Getting-Started/Getting-Started.html",
+        "https://docs.thetadata.us/Articles/Getting-Started/Subscriptions.html",
+        "https://thetadata.net/docs/Articles/Getting-Started/Sample-Data.html"
+      ],
+      "category": "authenticated free historical EOD tier and public sample bundle",
+      "observation": "Free tier offers historical EOD options with one-day delay. Authentication requires API key or email/password. Public no-account sample is described as one day across UTP/CTA stock endpoints; VIX options coverage is not established in that sample.",
+      "vix_usable": false,
+      "constraint": "No-account condition is not met for normal data access; no executable downloaded or launched."
+    },
+    {
+      "name": "Tallac Options",
+      "primary_urls": [
+        "https://www.tallacoptions.com/",
+        "https://www.tallacoptions.com/Pricing"
+      ],
+      "category": "member free tier",
+      "observation": "Official free tier explicitly lists all available VIX option-chain records, and three API requests per minute. Website directs users to register; no anonymous permitted API established.",
+      "vix_usable": false,
+      "constraint": "Requires membership; current user's no-account instruction preserved. No signup or contact."
+    },
+    {
+      "name": "OptionsDX VIX Option Chains",
+      "primary_urls": [
+        "https://www.optionsdx.com/product/vix-option-chains/",
+        "https://www.optionsdx.com/option-chain-field-definitions/",
+        "https://www.optionsdx.com/terms/"
+      ],
+      "category": "historical storefront with zero-price variants",
+      "observation": "VIX chain product lists 2010-2023, EOD through 5-minute frequencies, with bid/ask and quote timestamps. Its public sample download is named spy_sample-1.csv, not VIX. Year/frequency selections use cart/checkout; not a recurring current feed.",
+      "vix_usable": false,
+      "constraint": "No account/checkout performed. Dataset field DTE definition assumes 16:00 expiration generically and must not override actual VIX settlement/last-trade rules."
+    },
+    {
+      "name": "RutgerVER thesis data repository",
+      "primary_urls": [
+        "https://github.com/RutgerVER/Msc-thesis-csv-files",
+        "https://github.com/RutgerVER/Msc-thesis-csv-files/tree/main/bbo"
+      ],
+      "category": "unverified academic redistribution",
+      "observation": "README describes timestamped VIX BBO with bid/ask sizes. Tree lists April 1, April 8 and July 1, 2025 files. Connector fetch confirms first VIX file is a Git LFS pointer to 47,197,430 bytes. Visible root contains no LICENSE and README does not establish vendor provenance/permission.",
+      "vix_usable": false,
+      "constraint": "Not adopted due unestablished redistribution rights, contract metadata and evidence quality. No 47 MB data fetched; public availability alone is not a license."
+    },
+    {
+      "name": "Optionwatch",
+      "primary_urls": [
+        "https://optionwatch.io/",
+        "https://optionwatch.io/quote/VIX"
+      ],
+      "category": "retail viewing website",
+      "observation": "Website advertises VIX chains with free streaming after market-data agreements. No documented no-account automated API or offline export entitlement established.",
+      "vix_usable": false,
+      "constraint": "No scraping, private API inspection, signup or agreement accepted."
+    }
+  ],
+  "index_signal_sources": {
+    "kind": "retrospective_index_history_not_option_quotes",
+    "official_link_page": "https://www.cboe.com/tradable-products/vix/vix-historical-data",
+    "VIX": "https://cdn-api.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv",
+    "VIX9D": "https://cdn-api.cboe.com/api/global/us_indices/daily_prices/VIX9D_History.csv",
+    "permission_url": "https://www.cboe.com/terms",
+    "permission_scope": "Personal non-commercial copy under section2; no raw-data redistribution, no blanket open-data or commercial-use license.",
+    "source_publication_by_historical_session": "unknown",
+    "usage": "Fixed retrospective index signal diagnostics only; no option price/return, paper fill or business deployment entitlement."
+  },
+  "not_substitutes": [
+    "Cboe VIX_History.csv spot index levels",
+    "VIX futures quotes or settlements",
+    "VIX ETF/ETN options",
+    "SPX options used to calculate VIX",
+    "Black-Scholes or other modeled VIX options quotes"
+  ],
+  "limits": [
+    "No qualifying free no-account options feed established in this bounded scan.",
+    "Public availability is not a redistribution license. No accounts, checkout, agreements, brokers, contacts or paid services were added.",
+    "Cboe delayed quote page extraction is prohibited; its hidden/CDN quote APIs are not an allowed fallback.",
+    "Index-source raw CSVs and private research artifacts must be excluded from public Git and distributable packages."
+  ]
+}

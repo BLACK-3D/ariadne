@@ -1,0 +1,112 @@
+{
+  "id": "ariadne-vix-aggressive-research-preregistration-v1",
+  "registered_at": "2026-10-30T20:57:06Z",
+  "status": "research_design_not_execution_qualified",
+  "outcomes_seen_for_design": false,
+  "scope": "VIX and VIXW index options only; never options on VX futures or volatility ETF/ETN options",
+  "existing_rule_sha256": "e75bca82ac7c6a2a572e351c2bb7f4b4188c632153b3ef6b5358cc4a8357df62",
+  "owner_state_changes_authorized_by_this_document": false,
+  "instrument": {
+    "asset_class": "index_option",
+    "underlying_index": "VIX",
+    "roots": ["VIX", "VIXW"],
+    "exercise_style": "European",
+    "settlement_type": "cash",
+    "settlement_currency": "USD",
+    "multiplier": 100,
+    "deliverable_shares": 0,
+    "settlement_symbol": "VRO",
+    "settlement_method": "AM special opening quotation; not closing spot VIX",
+    "early_exercise": false,
+    "reference_price": "observed VX futures contract with exactly matching settlement date; this is a pricing reference, not the legal underlying or deliverable",
+    "reject_aliases": ["VXX", "UVXY", "VIXY", "SVIX", "VX futures options", "spot VIX close as settlement"],
+    "required_metadata": ["provider_contract_id", "root", "option_type", "strike", "expiry_date", "last_trading_date", "last_trading_at", "calendar_version", "calendar_primary_source", "exercise_style", "settlement_type", "multiplier", "settlement_symbol", "settlement_method", "reference_contract_id", "reference_expiry_date", "reference_observed_at", "reference_available_at", "reference_value", "quote_observed_at", "quote_available_at", "retrieved_at", "bid", "ask", "bid_size", "ask_size", "raw_source_sha256", "usage_rights_status"]
+  },
+  "calendar": {
+    "timezone": "America/Chicago",
+    "effective_contract_spec_checked_at": "2026-10-30T20:57:06Z",
+    "regular_session": ["08:30", "15:15"],
+    "curb_session": ["15:15", "16:00"],
+    "global_session": ["19:15 prior business evening", "08:25"],
+    "current_last_trading_rule": "Exchange business day preceding official settlement date, 16:00 CT on a normal full session; explicit holiday/exception schedule overrides",
+    "future_announcement_gate": "Do not enable the Cboe technical FAQ expiration-day 09:00 ET cutoff while its effective date is TBD",
+    "normal_expiry": "Wednesday identified explicitly by the listed product; exchange holidays on that Wednesday or Friday 30 days later can shift it to the preceding business day",
+    "monthly_vs_weekly": "Keep explicit root/listing classification; monthly and weekly may use different SPX settlement constituent expirations",
+    "authoritative_dates": "Official Cboe calendar plus explicit listed contract metadata must agree; no rule-only calendar inference, weekday-only substitution, unsupported year or unexplained exceptional date",
+    "paper_session_scope": "Regular trading hours only; extended hours are not executable without a separately registered rule",
+    "new_entry_deadline": "Before the mandatory exit session and with 7-21 calendar DTE; official expiry in current local calendar month",
+    "mandatory_exit": "No later than the regular close of the earlier of the tenth following regular session, the regular session preceding the contract last trading date, or the penultimate regular session of the local calendar month",
+    "expiry_handling": "Close before expiry. If a valid disposal bid is absent, hold the entire shared ledger; do not fabricate settlement, write off, reset the month or release risk budget",
+    "settlement_extension": "A later separately tested extension may post official VRO cash on its verified publication/availability timestamp, with cash availability on the following exchange business day. It must never replace VRO with spot VIX or VX last/settlement without verified equivalence"
+  },
+  "signals": {
+    "bar_frequency": "Official regular-session daily closing index observations",
+    "lookback_convention": "All lookbacks exclude the current observation; require consecutive valid exchange sessions and positive finite values; do not forward-fill missing observations",
+    "availability": "A completed close is usable only after actual source availability. A forward paper fill requires a later executable quote observed more than 60 seconds after the durable decision",
+    "registered_order": ["vix_shock_breakout_call_v1", "vix_spike_fade_put_v1", "vix_short_term_stress_call_v1"],
+    "vix_shock_breakout_call_v1": {
+      "type": "call",
+      "warmup_observations": 21,
+      "requirements": ["Cboe VIX daily CLOSE"],
+      "entry_condition": "VIX[t] > max(VIX[t-20:t]) AND VIX[t] >= 1.10 * VIX[t-1]",
+      "hypothesis": "A newly confirmed volatility shock may continue enough to overcome an option's spread, fees and time decay; this is unproven"
+    },
+    "vix_spike_fade_put_v1": {
+      "type": "put",
+      "warmup_observations": 6,
+      "requirements": ["Cboe VIX daily CLOSE"],
+      "entry_condition": "VIX[t-1] >= 25 AND VIX[t] <= 0.90 * VIX[t-1] AND VIX[t] < mean(VIX[t-5:t])",
+      "hypothesis": "A confirmed reversal after elevated volatility may continue; spot mean reversion need not produce a profitable put"
+    },
+    "vix_short_term_stress_call_v1": {
+      "type": "call",
+      "warmup_observations": 6,
+      "requirements": ["Cboe VIX daily CLOSE", "Cboe VIX9D daily CLOSE from identical sessions and available by decision"],
+      "entry_condition": "VIX9D[t] / VIX[t] > 1.05 AND all(VIX9D[i] / VIX[i] <= 1.00 for i in t-5:t)",
+      "hypothesis": "A sudden short-horizon implied-volatility inversion may identify continued stress; the index ratio is not a VX futures spread",
+      "missing_data": "Blocked without both dated official index series; never substitute VIX3M or interpolate a VX futures curve"
+    }
+  },
+  "contracts_and_execution": {
+    "position": "At most one fully paid long call OR put, one contract, across AAPL and every other enrolled symbol in one shared ledger",
+    "contract_filters": "Verified VIX/VIXW metadata; 7-21 calendar DTE, expiry current month; 5%-25% out of the money relative to the actual exactly matched-expiry VX reference: call K/F-1 or put 1-K/F; ask >= 0.10; all-in debit <=125.00",
+    "deterministic_selection": "Eligible contract nearest 14 calendar DTE, then nearest 10% forward OTM, then lexicographic provider contract ID; never sort by realized profit",
+    "reference_gate": "Require a positive actual exactly matched-expiry VX observation and its availability, from the same eligible decision snapshot; missing, stale or synthetic reference blocks entry. No spot-as-forward, continuous rolled future or model-price substitute",
+    "quote_gate": "Positive uncrossed bid/ask; spread <=25% of midpoint; executable side size >=1; bounded freshness and exact session/time provenance. EOD quotes received the next day are not next-day executable quotes",
+    "entry": "Buy ask at the next eligible regular-session quote observed more than 60 seconds after durable decision and available by the execution clock; no same-snapshot fill",
+    "exit": "Observe bid >=5 times entry ask or bid <=0.5 times entry ask; fill only at a later eligible bid. A precommitted mandatory exit may fill on its eligible disposal session without waiting for a new threshold signal",
+    "fee_assumption_per_side": "0.65 USD; a modeling assumption, not a quote of Cboe/broker index-option transaction fees",
+    "fee_stress": "Repeat counterfactual calculations at 1.30 USD per side with the same 125 entry and 500 monthly allowances; do not silently alter active paper fees",
+    "shared_selector": "Append registered VIX hypotheses after existing registered equity strategies in an explicitly versioned cross-symbol rotation. Never replace the owner account, reset the existing cursor, retrospectively seed a new VIX account or add funding",
+    "activation": "No automatic migration from this research registration. A new integrated version must preserve and verify existing cash, contributions, committed budget, holds, positions, pending decisions, histories and activation cutoff"
+  },
+  "risk_budget": {
+    "monthly_shared_maximum": "500.00 USD premium plus entry fees plus reserved exit fees across all symbols and strategies",
+    "per_entry_maximum": "125.00 USD all-in",
+    "profit_recycling": false,
+    "second_vix_account": false,
+    "short_options": false,
+    "spreads": false,
+    "real_orders": false,
+    "month_boundary": "Verified flat only; unresolved or uncertain exposure holds all symbols and prevents rollover",
+    "cap_meaning": "Modeled loss from each verified flat month start excluding deposits; not guaranteed intramonth peak-to-trough drawdown, liquidity or real execution"
+  },
+  "evaluation": {
+    "outcome_gate": "Actual timestamped contract bid/ask history with accepted provenance, calendar and reference data is required for option P&L. Spot index response alone is a signal study, never an option backtest",
+    "point_in_time": "Separate observed, provider available and retrieved timestamps. An archive downloaded now is not live evidence available earlier. Historical availability or size assumptions must be explicit and disqualify forward-execution claims",
+    "sample": "Use every eligible session in the accepted data overlap; publish start/end, missing sessions, listed-contract coverage and all rejected entry/exit reasons",
+    "split": "Chronological first70% / final30% session split for descriptive out-of-sample reporting; no parameter tuning, no winner substitution and no claimed untouched historical holdout after this design is published",
+    "report": ["gross and net realized P&L excluding deposits", "unrealized marks and unresolved positions separately", "trade count and rejected entries", "fees and spread cost", "maximum drawdown excluding contributions", "monthly budget used and remaining", "loss streak", "win rate with sample size", "median trade and worst trade", "2x/5x/10x realized payout counts", "per-strategy attribution", "single shared-ledger result", "separate never-summed counterfactual ledgers", "missing-data/availability/size assumptions", "baseline cash result", "fee-stress sensitivity"],
+    "qualification": "No winning-strategy or profitable execution claim from small samples, retrospective spot moves, synthetic tests or full-sample ranking. Forward paper enrollment requires independently tested instrument/account migration, actual fresh quotes and references, official calendar and preserved shared cap"
+  },
+  "sources": [
+    {"url": "https://www.cboe.com/tradable-products/vix/vix-options/specifications", "supports": "Current product identifiers, multiplier and trading sessions including last trading cutoff"},
+    {"url": "https://www.cboe.com/tradable_products/vix/vix_options/specifications", "supports": "Detailed expiration, European style, VRO SOQ, cash settlement and same-expiry futures valuation reference"},
+    {"url": "https://www.cboe.com/tradable_products/vix/faqs", "supports": "Forward expectations, monthly/weekly constituent distinction and spot-versus-SOQ calculation"},
+    {"url": "https://www.cboe.com/document/tech-spec/content/technical-specifications/cboe-options-exchange-245-faq/general-questions", "supports": "Expiration-day VIX trading extension remains Effective TBD; current prior-day close"},
+    {"url": "https://cdn.cboe.com/resources/options/Cboe2026OPTIONSCalendar.pdf", "supports": "Official 2026 expiration and holiday-exception calendar; dates subject to change"},
+    {"url": "https://www.cboe.com/about/hours/us-options/", "supports": "Exchange session schedules and holidays"},
+    {"url": "https://www.cboe.com/tradable-products/vix/vix-historical-data/", "supports": "Official daily VIX index history; index data is separate from historical option quotes"},
+    {"url": "https://www.theocc.com/getmedia/d1382566-ec98-46e8-8457-8a759e47b3ac/march_2023_riskstoc.pdf", "supports": "Historical March2023 OCC disclosure explains cash-settled/European variability index options and settlement risks; current Cboe contract specifications govern schedule"}
+  ]
+}

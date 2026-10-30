@@ -63,6 +63,8 @@ class OptionsWorkflow(HandoffDesk):
         self.stopped = threading.Event()
         from .options_live import OptionsFeedWorkflow
         self.feed = OptionsFeedWorkflow(self)
+        from .options_vix import VixResearchWorkflow
+        self.vix = VixResearchWorkflow(self)
 
     def stop(self):
         self.stopped.set()
@@ -279,6 +281,9 @@ class OptionsWorkflow(HandoffDesk):
                 self._finish(db, receipt)
 
     def _verify_artifacts(self, receipt):
+        if receipt["action"] in {"vix_signals", "vix_backtest"}:
+            self.vix.verify(receipt)
+            return
         identifier = _identifier(receipt["request_id"])
         base = "reports/options-recovery/" + identifier + "/"
         artifacts = receipt.get("artifacts")
@@ -355,6 +360,7 @@ class OptionsWorkflow(HandoffDesk):
             forward = self._info(db, clock, forward=True)
             catalog = self._catalog(db)
             feed = self.feed.snapshot(db, clock)
+            vix = self.vix.snapshot(db, clock, account)
             runs = [dict(row) for row in db.execute("SELECT request_id,action,day,status FROM opt_runs ORDER BY rowid DESC LIMIT 10")] if self._exists(db) else []
             held = db.execute("SELECT request_id,action,status,receipt FROM opt_runs WHERE status IN ('running','failed') ORDER BY rowid LIMIT 1").fetchone() if self._exists(db) else None
             last = db.execute("SELECT receipt FROM opt_runs ORDER BY rowid DESC LIMIT 1").fetchone() if self._exists(db) else None
@@ -383,6 +389,7 @@ class OptionsWorkflow(HandoffDesk):
                 "archive_catalog": catalog, "comparison": compared,
                 "feed": feed,
                 "research": researched,
+                "vix": vix,
                 "scope": "Simulated options only. $500 monthly non-recycling premium/fee allowance; no cross-month positions. Missing exits hold the ledger and invalidate cap assurance. No real orders, auto-exercise or verified future profitability."}
 
     def configure(self, body, now=None):
@@ -845,4 +852,4 @@ class OptionsWorkflow(HandoffDesk):
 
     def brief_snapshot(self, now=None):
         status = self.status(now)
-        return {key: status[key] for key in ("config", "quality", "forward_quality", "paper", "events", "hold", "last_run", "backtest", "rule_sha256", "portfolio_rule_sha256", "archive_catalog", "comparison", "feed", "research", "model_calls", "scope", "inbox")}
+        return {key: status[key] for key in ("config", "quality", "forward_quality", "paper", "events", "hold", "last_run", "backtest", "rule_sha256", "portfolio_rule_sha256", "archive_catalog", "comparison", "feed", "research", "vix", "model_calls", "scope", "inbox")}
