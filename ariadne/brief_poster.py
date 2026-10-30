@@ -135,7 +135,7 @@ def poster_view(report, now=None):
         if options.get("hold") or options_summary.get("hold"):
             priority_note = "OPTIONS PAPER HELD / $500 monthly budget / inspect report."
         elif not options_summary.get("last_daily_result"):
-            priority_note = "OPTIONS PAPER / waiting for recorded quotes / no trading result yet."
+            priority_note = "OPTIONS PAPER / warming indicators / no trading result yet." if options.get("forward_quality") else "OPTIONS PAPER / waiting for recorded quotes / no trading result yet."
         elif not options_fresh:
             priority_note = "OPTIONS PAPER STALE / saved P/L $"+_short(options_summary.get("trading_pnl"), 18)+" / see dated report."
         elif options_summary:

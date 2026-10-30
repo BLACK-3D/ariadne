@@ -5,7 +5,7 @@
   let app, attached, data=null, generation=0, busy=false, loading=false, stale=false;
   let notice="", uncertain=null, inspected=false, actions=[], fields=[], lastPause=null;
   let importDraft="market-data/options/current.json", manifestDraft="market-data/options/archives/qqq-2022/catalog.json", reasonDraft="", archiveData=false;
-  const strategyNames={recovery_call_v1:"Recovery / calls",breakout_call_v1:"Breakout / calls",breakdown_put_v1:"Breakdown / puts"};
+  const strategyNames={recovery_call_v1:"Recovery / calls",breakout_call_v1:"Breakout / calls",breakdown_put_v1:"Breakdown / puts",regime_recovery_call_v1:"Trend-filtered recovery / calls",trend_breakout_call_v1:"Trend breakout / calls",trend_breakdown_put_v1:"Trend breakdown / puts"};
   const $=id=>document.getElementById(id), e=(tag,cls="",value)=>app.node(tag,cls,value);
   const txt=value=>typeof value==="string"?value:"";
   const identity=/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
@@ -29,6 +29,10 @@
     }
     if(typeof identifier!=="string"||!identity.test(identifier))throw new Error("Use a unique bounded request ID.");
     const body={request_id:identifier,expected_revision:revision};
+    if(kind==="feed"){
+      if(typeof extra.enabled!=="boolean")throw new Error("Choose an explicit feed setting.");
+      return {...body,enabled:extra.enabled,acknowledge_feed:true};
+    }
     if(["import","register-archive"].includes(kind))return {...body,path:path(extra.path)};
     if(["paper","portfolio","upgrade-portfolio"].includes(kind))return {...body,acknowledge_simulated:true};
     if(kind==="archive"){
@@ -36,7 +40,7 @@
       if(!reason||reason.length>1000||typeof extra.archive_data!=="boolean")throw new Error("Supply an archive reason and explicit data choice.");
       return {...body,reason,archive_data:extra.archive_data};
     }
-    if(!["refresh","backtest","compare","acknowledge"].includes(kind))throw new Error("Unsupported options action.");
+    if(!["refresh","backtest","compare","collect-feed","research-compare","acknowledge"].includes(kind))throw new Error("Unsupported options action.");
     return body;
   }
   function writable(held=false){return Boolean(app?.state.authenticated&&data&&!busy&&!loading&&!stale&&!uncertain&&!app.state.status?.paused&&(held||!data.hold));}
@@ -60,7 +64,7 @@
   function artifactButtons(parent,items){
     const row=e("div","options-actions");
     for(const item of (Array.isArray(items)?items:[]).slice(0,4))try{
-      const relative=path(item.path),label=relative.endsWith("accepted-input.json")?"Inspect historical input":relative.endsWith("archive-manifest.json")?"Inspect accepted archive manifest":relative.endsWith("comparison.json")?"Inspect strategy comparison":"Inspect full research report",node=app.button(label,"button-secondary",()=>app.openArtifact(relative));node.type="button";row.append(node);
+      const relative=path(item.path),label=relative.endsWith("accepted-input.json")?"Inspect historical input":relative.endsWith("research-manifest.json")?"Inspect research archive manifest":relative.endsWith("research.json")?"Inspect regime research":relative.endsWith("archive-manifest.json")?"Inspect accepted archive manifest":relative.endsWith("comparison.json")?"Inspect strategy comparison":"Inspect full research report",node=app.button(label,"button-secondary",()=>app.openArtifact(relative));node.type="button";row.append(node);
     }catch{}
     parent.append(row);
   }
@@ -81,10 +85,22 @@
     root.append(warning);
     const row=e("div","options-actions");row.append(button(data.config.enabled?"Disable options workflow":"Enable options workflow",()=>mutate("config",{enabled:!data.config.enabled,paused:data.config.paused}),()=>true,true));
     row.append(button(data.config.paused?"Resume options workflow":"Pause options workflow",()=>mutate("config",{enabled:data.config.enabled,paused:!data.config.paused}),()=>data.config.enabled,true));
-    row.append(button("Read forward quote inbox",()=>mutate("refresh"),runnable),button("Backtest imported history",()=>mutate("backtest"),()=>runnable()&&Boolean(data.quality)));root.append(row);
+    row.append(button("Read forward quote inbox",()=>mutate("refresh"),()=>runnable()&&!data.feed?.config?.initialized),button("Backtest imported history",()=>mutate("backtest"),()=>runnable()&&Boolean(data.quality)));root.append(row);
+    if(data.feed){
+      const source=e("section","options-card");source.append(e("span","eyebrow","PUBLIC QUOTES / NO ACCOUNT"),e("h3","","AAPL daily quote source"));
+      p(source,"Actual vendor end-of-day bid/ask snapshots and quoted sizes. The previous session becomes available after the next market open; collection starts at 9:35 AM Eastern. This is delayed paper research, not a live feed.");
+      p(source,data.feed.config.initialized?`Source ${data.feed.config.enabled?"enabled":"paused"} on the existing AAPL account. One shared $500 allowance remains in force.`:"Optional activation retargets only a pristine QQQ paper account to AAPL in place. Its account ID, $500 cash and monthly allowance are preserved. No extra account or funding.");
+      p(source,"The 6 AM brief shows the latest saved, dated results. Market freshness and overdue disposal assurance remain visible while waiting for publication. Offline or failed collection cannot invent fills. Quarantined crossed quotes cannot be used; a bad open/pending contract quote stops advancement.");
+      if(data.feed.last_run){const latest=data.feed.last_run,provenance=latest.provenance||{};p(source,`Latest source operation: ${txt(latest.status)} · observed ${txt(latest.source_observed_at)||"not accepted"} · received ${txt(latest.retrieved_at)||"not accepted"} · quarantined rows ${Number.isInteger(provenance.quarantined_rows)?provenance.quarantined_rows:"not measured"}.`);if(Array.isArray(provenance.quarantined)&&provenance.quarantined.length){const details=e("details");details.append(e("summary","","Inspect quarantined quotes"),e("pre","",JSON.stringify(provenance.quarantined,null,2)));source.append(details);}}
+      if(data.feed.config.initialized&&Number.isInteger(data.paper?.state?.processed_count))p(source,`Accepted observations: ${data.paper.state.processed_count}. The unchanged strategies need 14 closes before a signal; the first capture warms indicators and adopts no historical trade.`);
+      if(Number.isInteger(data.feed.retention?.remaining_evidence_operations))p(source,`Retained evidence capacity: ${data.feed.retention.remaining_evidence_operations} source/research/archive operations remaining. Collection stops for reviewed maintenance when full; financial history is never deleted automatically.`);
+      for(const item of (data.feed.last_run?.artifacts||[]).filter(value=>txt(value.path).endsWith("provenance.json")).slice(0,1))try{const relative=path(item.path),node=app.button("Inspect full quote provenance","button-secondary",()=>app.openArtifact(relative));node.type="button";source.append(node);}catch{}
+      const controls=e("div","options-actions");controls.append(button(!data.feed.config.initialized?"Enable free AAPL feed":data.feed.config.enabled?"Pause free AAPL feed":"Resume free AAPL feed",configureFeed,runnable),button("Capture available AAPL quotes",()=>mutate("collect-feed"),()=>runnable()&&data.feed.config.enabled===true&&data.feed.collection_window_open===true));source.append(controls);p(source,"Personal, private research only. The anonymous vendor service is revocable; there is no established uptime guarantee or unlimited request quota. One bounded scheduled request per source session, with no automatic retry.");root.append(source);
+    }
     if(data.hold){const held=e("div","options-warning");p(held,`HELD · ${txt(data.hold.request_id)} · ${txt(data.hold.reason)}`);held.append(button("Acknowledge inspected operation",acknowledge,()=>identity.test(txt(data.hold.request_id)),true));root.append(held);}
     const grid=e("div","options-grid"),paper=e("section","options-card"),summary=data.paper?.summary;
     paper.append(e("span","eyebrow","FORWARD / SIMULATED CASH"),e("h3","","Options paper account"));
+    if(summary?.symbol)p(paper,`Instrument: ${txt(summary.symbol)}. The research comparisons below do not change this account's strategy or cash.`);
     if(summary){const metrics=e("div","options-metrics");
       for(const[label,key]of [["Equity","equity"],["Trading P/L","trading_pnl"],["External simulated funding","contributions"],["Monthly net P/L","monthly_pnl"],["Monthly risk committed","monthly_budget_used"],["Monthly risk remaining","monthly_budget_remaining"]])metric(metrics,label,amount(summary[key]));paper.append(metrics);
       p(paper,`Ledger month ${txt(summary.month)} · entries ${Number.isInteger(summary.trade_count)?summary.trade_count:"unknown"} · completed trades ${Number.isInteger(summary.closed_trade_count)?summary.closed_trade_count:"unknown"}. Deposits are excluded from trading P/L.`);
@@ -101,7 +117,7 @@
         paper.append(button("Upgrade pristine account to shared portfolio",upgradePortfolio,runnable));
       }
     }else{p(paper,"Start with $500 simulated cash. Later observed calendar months add $500 of simulated external funding only after the previous month is verified flat. This does not spend your money.");paper.append(button("Start $500 monthly paper experiment",startPaper,runnable));}
-    p(paper,"The 6 AM Chicago brief reads the fixed local quote inbox. There is no connected options subscription. Offline reads and backtests work; absent or stale quotes never become invented fills.");grid.append(paper);
+    p(paper,data.feed?.config?.initialized?"The public source is collected after the market opens. The 6 AM Chicago brief reports the latest saved results. No paid options subscription or broker is connected.":"The 6 AM Chicago brief reads the fixed local quote inbox. There is no connected options subscription. Offline reads and backtests work; absent or stale quotes never become invented fills.");grid.append(paper);
     if(data.portfolio_rule){
       const tracks=e("section","options-card");tracks.append(e("span","eyebrow","REGISTERED / NO WINNER CHASING"),e("h3","","Three hypotheses. One risk ledger."));
       for(const[id,value]of Object.entries(data.portfolio_rule.strategies||{}).slice(0,3)){
@@ -125,6 +141,17 @@
       const form=e("form"),label=e("label","options-field","Archive manifest inside Ariadne Workspace"),input=e("input");input.name="options_manifest_path";input.value=manifestDraft;input.maxLength=1000;input.addEventListener("input",()=>{manifestDraft=input.value;});label.append(input);fields.push(input);form.append(label);
       const submit=e("button","button button-secondary","Register historical archive");submit.type="submit";actions.push({node:submit,allowed:runnable,held:false});form.append(submit);
       form.addEventListener("submit",async event=>{event.preventDefault();if(runnable())try{await mutate("register-archive",{path:manifestDraft});}catch(error){notice=error.message;render();}});study.append(form,button("Compare registered strategies",()=>mutate("compare"),()=>runnable()&&Boolean(data.archive_catalog)));grid.append(study);
+      const research=e("section","options-card options-full");research.append(e("span","eyebrow","FROZEN HYPOTHESES / RESEARCH ONLY"),e("h3","","Regime-filtered strategy research"));
+      p(research,"Three 51-close hypotheses add a 20/50-session trend regime to recovery calls, 20-session breakout calls and breakdown puts. The same $125 entry ceiling, fees and shared $500 monthly research allowance apply. These research accounts cannot trade or adopt your paper funds.");
+      p(research,"Individual strategy ledgers are separate $500 counterfactuals. Their budgets and returns are never added together, and no winning result is automatically selected.");
+      if(data.research){
+        const cards=e("div","options-comparison");
+        for(const[id,value]of [["shared",data.research],["baseline",data.research.baseline||{}],...Object.entries(data.research.strategy_results||{}).slice(0,3)]){
+          const card=e("div","options-strategy"),m=value.metrics||{},c=value.coverage||{};card.append(e("strong","",id==="shared"?"New shared research portfolio":id==="baseline"?"Original frozen portfolio / same input":`${strategyNames[id]||id} / separate counterfactual`));p(card,`P/L excluding deposits ${amount(m.trading_pnl)} · closed ${Number.isInteger(m.closed_trade_count)?m.closed_trade_count:"unknown"} · ${c.complete===true?"complete":"INCOMPLETE / last dated mark"} ${Number.isInteger(c.processed_snapshots)?c.processed_snapshots:"unknown"}/${Number.isInteger(c.source_snapshots)?c.source_snapshots:"unknown"} sessions through ${txt(c.last_processed_date)||"unknown"}. Gate ${txt(value.research_gate)||"not qualified"}.`);cards.append(card);
+        }
+        research.append(cards);const diagnostics=e("details");diagnostics.append(e("summary","","Eligibility, affordability and skipped candidates"),e("pre","",JSON.stringify(data.research.eligibility||{},null,2)));research.append(diagnostics);artifactButtons(research,data.research.artifacts);
+      }
+      p(research,"Previously examined years are exploratory. New retrospective windows are not prospective proof. Comparing partial ledgers with different stop dates cannot establish superiority, and zero trades is not a winning return.","options-warning");research.append(button("Backtest regime hypotheses",()=>mutate("research-compare"),()=>runnable()&&Boolean(data.archive_catalog)));grid.append(research);
     }
     const history=e("section","options-card");history.append(e("span","eyebrow","HISTORICAL / QUOTE-BASED RESEARCH"),e("h3","","Backtest evidence"));
     if(data.backtest){const report=data.backtest,metrics=report.metrics||{};
@@ -150,13 +177,16 @@
     if(!app?.state.authenticated||busy||loading)return;loading=true;controls();const marker=generation,token=app.state.token;
     try{const result=await app.api("/options");if(!current(marker,token))return;
       if(!Number.isSafeInteger(result?.revision)||result.revision<0||typeof result.config?.enabled!=="boolean"||typeof result.config?.paused!=="boolean")throw new Error("Saved options status is incomplete. No action is permitted.");
+      if(result.feed&&(typeof result.feed.config?.enabled!=="boolean"||typeof result.feed.config?.initialized!=="boolean"||typeof result.feed.collection_window_open!=="boolean"))throw new Error("Saved quote-source controls are incomplete. Inspect before another action.");
       data=result;stale=false;if(uncertain)inspected=true;render();
     }catch(error){if(current(marker,token)){notice=error.message;stale=true;if(data)render();else $("options-content")?.replaceChildren(e("p","options-warning",notice));}}
     finally{if(current(marker,token)){loading=false;controls();}}
   }
   async function mutate(kind,extra={},identifier=null){
     if(!writable(kind==="config"||kind==="acknowledge"))return;
-    if(["refresh","backtest","import","paper","portfolio","upgrade-portfolio","register-archive","compare"].includes(kind)&&!runnable())return;
+    if(["refresh","backtest","import","paper","portfolio","upgrade-portfolio","register-archive","compare","feed","collect-feed","research-compare"].includes(kind)&&!runnable())return;
+    if(kind==="refresh"&&data.feed?.config?.initialized)return;
+    if(kind==="collect-feed"&&(data.feed?.config?.enabled!==true||data.feed.collection_window_open!==true))return;
     if(["paper","portfolio"].includes(kind)&&data.paper)return;
     if(kind==="upgrade-portfolio"&&data.paper?.state?.schema!==1)return;
     const body=request(kind,data.revision,identifier||newId(),extra),marker=generation,token=app.state.token;
@@ -173,10 +203,11 @@
   }
   async function startPaper(){if(!runnable()||data.paper)return;await confirmed("Start the options paper experiment?","Start $500 simulated cash with at most $500 committed premium/fees per month across ALL strategies, one position total. No profits recycle the allowance. No cross-month positions or real orders. A restart cannot reset this month's budget.","Start simulated experiment",()=>mutate(data.portfolio_rule?"portfolio":"paper"));}
   async function upgradePortfolio(){if(!runnable()||data.paper?.state?.schema!==1)return;await confirmed("Upgrade this pristine account in place?","Enable all three fixed strategies on the SAME account. Existing $500 simulated cash, contributions, ledger month and monthly allowance remain unchanged. No historical positions, new funding or reset. The server refuses any prior observed or traded account.","Preserve budget and upgrade",()=>mutate("upgrade-portfolio"));}
+  async function configureFeed(){if(!runnable()||!data.feed)return;const enabled=!data.feed.config.enabled;await confirmed(enabled?"Enable the free AAPL daily source?":"Pause the free AAPL source?",!data.feed.config.initialized?"Retarget the pristine QQQ paper portfolio to AAPL on the SAME account. Preserve cash, contributions and the shared $500 monthly allowance. Quotes are delayed EOD; capture starts at 9:35 AM Eastern. No paid service, account, broker or added funding.":"Change only collection permission. Cash, losses, committed risk, source history and existing holds remain. No replay of missed sessions or automatic failure retry.",enabled?"Enable AAPL source":"Pause collection",()=>mutate("feed",{enabled}));}
   async function acknowledge(){if(!writable(true)||!data.hold)return;const identifier=data.hold.request_id;await confirmed("Acknowledge inspected options work?","The failed request stays closed. Partial inputs, fills and files are not adopted, deleted or replayed.","Acknowledge inspected request",()=>mutate("acknowledge",{},identifier));}
   async function archiveExperiment(){if(!writable())return;const body=request("archive",data.revision,newId(),{reason:reasonDraft,archive_data:archiveData});await confirmed("Archive this options experiment?",`${body.reason}\n\nLast marks, history and losses remain retained. No synthetic sell. This cannot replenish a monthly allowance.${body.archive_data?" Both data caches are retained in evidence before clearing.":" Imported data stays cached."}`,"Retain evidence and archive",()=>mutate("archive",{reason:body.reason,archive_data:body.archive_data},body.request_id));}
   function status(){if(data&&lastPause!==Boolean(app?.state.status?.paused))render();else controls();}
   function locked(){generation++;data=null;busy=false;loading=false;stale=false;notice="";uncertain=null;inspected=false;actions=[];fields=[];lastPause=null;importDraft="market-data/options/current.json";manifestDraft="market-data/options/archives/qqq-2022/catalog.json";reasonDraft="";archiveData=false;$("options-content")?.replaceChildren();controls();}
   function attach(value){app=value;const root=$("options-content");if(!root||attached===root)return;attached=root;$("refresh-options")?.addEventListener("click",load);controls();}
-  window.ariadneOptions={attach,load,status,locked,request,path,amount,mutate,startPaper,upgradePortfolio,acknowledge,archiveExperiment};
+  window.ariadneOptions={attach,load,status,locked,request,path,amount,mutate,startPaper,upgradePortfolio,configureFeed,acknowledge,archiveExperiment};
 })();

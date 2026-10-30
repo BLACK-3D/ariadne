@@ -1,6 +1,7 @@
 """Owner-only options routes and saved-evidence daily brief integration."""
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
+import base64
 import io
 import hashlib
 import json
@@ -36,6 +37,8 @@ class OptionsAPITests(unittest.TestCase):
         self.app.briefing.configure({"enabled":True},self.clock-timedelta(days=1),expected_revision=0)
         timer=patch("ariadne.options_workflow._now",side_effect=lambda value=None:value if value is not None else self.clock)
         timer.start();self.addCleanup(timer.stop)
+        feed_timer=patch("ariadne.options_live._now",side_effect=lambda value=None:value if value is not None else self.clock)
+        feed_timer.start();self.addCleanup(feed_timer.stop)
         self.counter=0
 
     def request(self,path="/api/options",method="GET",body=None,*,raw=None,auth=True,origin=None,host="localhost:8080"):
@@ -91,7 +94,7 @@ class OptionsAPITests(unittest.TestCase):
         return relative,hashlib.sha256(raw).hexdigest()
 
     def test_auth_same_origin_and_host_for_all_read_write_routes(self):
-        for tail,method in (("","GET"),("/config","PUT"),*(("/"+name,"POST") for name in ("import","refresh","backtest","paper","acknowledge","archive","register-archive","compare","portfolio","upgrade-portfolio"))):
+        for tail,method in (("","GET"),("/config","PUT"),*(("/"+name,"POST") for name in ("import","refresh","backtest","paper","acknowledge","archive","register-archive","compare","portfolio","upgrade-portfolio","feed","collect-feed","research-compare"))):
             path="/api/options"+tail
             with self.subTest(path=path):
                 self.assertEqual(self.request(path,method,auth=False)["status"],401)
@@ -257,6 +260,164 @@ class OptionsAPITests(unittest.TestCase):
             self.assertEqual(result["status"],200)
             self.assertEqual(result["body"],(self.app.static/name).read_bytes())
             self.assertIn("script-src 'self'",result["headers"]["Content-Security-Policy"])
+
+    def free_feed(self):
+        from ariadne.internet import SETTINGS_KEY
+        from test_options_feed import NOW
+        self.clock=NOW
+        self.store.set_setting(SETTINGS_KEY,{"enabled":True,"revision":1})
+        self.enable();self.action("portfolio",{"acknowledge_simulated":True})
+        before=self.request()["body"]["paper"]
+        configured=self.action("feed",{"enabled":True,"acknowledge_feed":True})
+        return before,configured
+
+    def feed_bundle(self,*,crossed=False):
+        from ariadne.options_feed import normalize_chain,source_url
+        from test_options_feed import fixture as raw_fixture,payload,DAY
+        from decimal import Decimal
+        value=raw_fixture()
+        if crossed:value["ask"][1]=Decimal("0.10")
+        raw=payload(value)
+        normalized=normalize_chain(raw,retrieved_at=self.clock,expected_session=DAY)
+        return {**normalized,"schema":1,"network_requests":1,"raw":{"url":source_url(DAY),"content_base64":base64.b64encode(raw).decode(),
+            "sha256":hashlib.sha256(raw).hexdigest(),"bytes":len(raw),"retrieved_at":self.clock.isoformat(),"http_status":203}}
+
+    def test_free_source_and_research_routes_reject_unknown_authority_and_nonexact_json(self):
+        self.enable();revision=self.request()["body"]["revision"]
+        for action,extra in (("feed",{"enabled":True,"acknowledge_feed":True}),("collect-feed",{}),("research-compare",{})):
+            route="/api/options/"+action
+            with self.subTest(action=action):
+                self.assertEqual(self.request(route,"POST",raw=b'{"request_id":"one","request_id":"two","expected_revision":1}')["status"],400)
+                self.assertEqual(self.request(route,"POST",{"request_id":"bad-revision","expected_revision":True,**extra})["status"],400)
+                for forbidden in ("funding","account_id","broker_token","symbol","strategies","url","api_key"):
+                    self.assertEqual(self.request(route,"POST",{"request_id":"forbidden-field","expected_revision":revision,**extra,forbidden:"do-not-adopt"})["status"],400,forbidden)
+        for extra in ({"enabled":True,"acknowledge_feed":False},{"enabled":True,"acknowledge_feed":"true"},{"enabled":1,"acknowledge_feed":True}):
+            self.assertEqual(self.request("/api/options/feed","POST",{"request_id":"not-explicit","expected_revision":revision,**extra})["status"],400)
+        self.assertEqual(self.request()["body"]["revision"],revision)
+        self.assertIsNone(self.request()["body"]["paper"])
+
+    def test_free_source_explicitly_retargets_the_same_pristine_account_without_funding(self):
+        before,receipt=self.free_feed();after=self.request()["body"]
+        self.assertEqual(receipt["status"],"completed")
+        self.assertEqual(receipt["account_id"],before["id"])
+        self.assertEqual(receipt["simulated_funding_added"],"0")
+        self.assertFalse(receipt["monthly_budget_reset"])
+        self.assertEqual(after["paper"]["id"],before["id"])
+        self.assertEqual(after["paper"]["state"]["symbol"],"AAPL")
+        for key in ("cash","contributions","month","monthly_committed","monthly_start_equity","fees","started_at","rule_sha256"):
+            self.assertEqual(after["paper"]["state"][key],before["state"][key],key)
+        self.assertTrue(after["feed"]["config"]["enabled"])
+        self.assertTrue(after["feed"]["config"]["initialized"])
+        self.assertEqual(after["feed"]["config"]["symbol"],"AAPL")
+        self.assertFalse(after["brokerage_connected"])
+        self.assertIsNone(after["forward_quality"])
+        self.assertEqual(self.store.runs(),[])
+
+    def test_feed_capture_route_validates_raw_quotes_quarantine_and_exact_replay(self):
+        self.free_feed();before=self.request()["body"]["paper"]
+        qqq=self.app.briefing.qqq.status(self.clock);desk=self.app.client_handoff.status()
+        bundle=self.feed_bundle(crossed=True)
+        body={"request_id":"captured-quotes","expected_revision":self.request()["body"]["revision"]}
+        with patch.object(self.app.briefing.options.feed,"_collect",return_value=bundle) as collector,patch("socket.create_connection",side_effect=AssertionError("No external socket")),patch("subprocess.Popen",side_effect=AssertionError("No process")):
+            response=self.request("/api/options/collect-feed","POST",body)
+            self.assertEqual(response["status"],200,response)
+            replay=self.request("/api/options/collect-feed","POST",body)
+            self.assertEqual(replay["status"],200,replay)
+            self.assertTrue(replay["body"]["replayed"])
+            collector.assert_called_once()
+        receipt=response["body"];saved=self.request()["body"]
+        self.assertEqual(receipt["provenance"]["quarantined_rows"],1)
+        self.assertEqual(receipt["source_observed_at"],"2026-10-29T20:00:00+00:00")
+        self.assertEqual(receipt["retrieved_at"],self.clock.isoformat())
+        self.assertEqual(saved["paper"]["id"],before["id"])
+        self.assertEqual(saved["paper"]["state"]["cash"],"500")
+        self.assertEqual(saved["paper"]["state"]["trade_count"],0)
+        self.assertEqual(saved["paper"]["state"]["processed_count"],1)
+        self.assertIsNone(saved["paper"]["summary"]["last_daily_result"])
+        self.assertTrue(saved["forward_quality"]["fresh_now"])
+        self.assertEqual(self.app.briefing.qqq.status(self.clock),qqq)
+        self.assertEqual(self.app.client_handoff.status(),desk)
+        self.assertEqual(self.store.runs(),[])
+
+    def test_feed_source_off_global_pause_and_manual_fallback_never_collect(self):
+        from ariadne.internet import SETTINGS_KEY
+        self.free_feed()
+        def rejected(action,extra=None):
+            value=self.request("/api/options/"+action,"POST",{"request_id":"blocked-"+action,"expected_revision":self.request()["body"]["revision"],**(extra or {})})
+            self.assertIn(value["status"],(400,409),value)
+        with patch.object(self.app.briefing.options.feed,"_collect",side_effect=AssertionError("No source request")) as collector:
+            rejected("refresh")
+            self.action("feed",{"enabled":False,"acknowledge_feed":True})
+            rejected("collect-feed")
+            self.action("feed",{"enabled":True,"acknowledge_feed":True})
+            self.store.set_setting(SETTINGS_KEY,{"enabled":False,"revision":2})
+            rejected("collect-feed")
+            self.store.set_setting("paused",True)
+            for action,extra in (("feed",{"enabled":False,"acknowledge_feed":True}),("collect-feed",{}),("research-compare",{})):
+                rejected(action,extra)
+            collector.assert_not_called()
+        self.assertEqual(self.request()["body"]["paper"]["state"]["cash"],"500")
+
+    def test_six_am_waits_for_publication_and_failed_capture_never_auto_retries(self):
+        self.free_feed();service=self.app.briefing.options.feed
+        morning=self.clock.replace(hour=11,minute=0,second=0,microsecond=0)
+        with patch.object(service,"_collect",side_effect=ValueError("Fixture source unavailable")) as collector:
+            self.assertIsNone(service.run_due(morning));collector.assert_not_called()
+            body={"request_id":"failed-capture","expected_revision":self.request()["body"]["revision"]}
+            result=self.request("/api/options/collect-feed","POST",body)
+            self.assertEqual(result["status"],400,result)
+            collector.assert_called_once()
+            self.assertEqual(self.request()["body"]["hold"]["request_id"],"failed-capture")
+            self.assertIsNone(service.run_due(self.clock+timedelta(minutes=1)))
+            self.assertIsNone(service.run_due(self.clock+timedelta(minutes=2)))
+            collector.assert_called_once()
+        self.assertEqual(self.request()["body"]["paper"]["state"]["processed_count"],0)
+
+    def test_research_route_compares_same_source_and_never_adopts_counterfactual_funds(self):
+        from test_options_research import fixture as research_fixture
+        self.enable();self.action("portfolio",{"acknowledge_simulated":True})
+        before=self.request()["body"]["paper"]
+        self.dataset=research_fixture(60,historical=True)
+        path,digest=self.catalog();self.action("register-archive",{"path":path})
+        with patch("socket.create_connection",side_effect=AssertionError("No network")),patch("subprocess.Popen",side_effect=AssertionError("No worker")):
+            receipt=self.action("research-compare")
+            saved=self.request()["body"]
+        self.assertTrue(receipt["research_only"])
+        self.assertFalse(receipt["execution_qualified"])
+        self.assertEqual(receipt["manifest_sha256"],digest)
+        self.assertEqual(receipt["coverage"]["source_snapshots"],60)
+        self.assertEqual(receipt["baseline"]["coverage"]["source_snapshots"],60)
+        self.assertEqual(len(receipt["strategy_results"]),3)
+        self.assertIn("warmup_sessions",receipt["eligibility"])
+        for strategy in receipt["strategy_results"].values():
+            self.assertIn("eligibility",strategy)
+        self.assertEqual(saved["paper"],before)
+        self.assertIsNone(saved["forward_quality"])
+        self.assertEqual({Path(item["path"]).name for item in receipt["artifacts"]},{"research.json","research-manifest.json"})
+        self.assertEqual(self.store.runs(),[])
+
+    def test_saved_brief_keeps_delayed_source_times_missing_trades_and_research_attribution(self):
+        self.free_feed()
+        with patch.object(self.app.briefing.options.feed,"_collect",return_value=self.feed_bundle()):
+            self.action("collect-feed")
+        result=self.app.briefing.run("free-source-options-brief",self.clock,collect=False)
+        artifacts={Path(item["path"]).suffix:item for item in result["artifacts"]}
+        report=json.loads((self.settings.workspace/artifacts[".json"]["path"]).read_bytes())
+        markdown=(self.settings.workspace/artifacts[".md"]["path"]).read_text()
+        feed=report["options_paper"]["feed"]
+        self.assertEqual(feed["last_run"]["source_observed_at"],"2026-10-29T20:00:00+00:00")
+        self.assertEqual(feed["last_run"]["retrieved_at"],self.clock.isoformat())
+        self.assertIn("Public AAPL source: enabled",markdown)
+        self.assertIn("Source delay does not make a stale quote fresh",markdown)
+        self.assertIn("No forward daily trading result yet",markdown)
+        self.assertIsNone(report["options_paper"]["paper"]["summary"]["last_daily_result"])
+        from ariadne.briefing_summary import compact_summary
+        compact=compact_summary(report,self.clock)["options_paper"]
+        self.assertTrue(compact["public_feed_enabled"])
+        self.assertEqual(compact["symbol"],"AAPL")
+        self.assertEqual(compact["public_feed_observed_at"],"2026-10-29T20:00:00+00:00")
+        self.assertEqual(compact["forward_status"],"waiting_for_first_forward_result")
+        self.assertEqual(compact["trading_pnl"],"0")
 
 
 if __name__=="__main__":unittest.main()

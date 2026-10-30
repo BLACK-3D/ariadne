@@ -61,9 +61,12 @@ class OptionsWorkflow(HandoffDesk):
         self.controls = controls or (lambda: {"enabled": False, "paused": True, "revision": 0})
         self.publication_lease = publication_lease
         self.stopped = threading.Event()
+        from .options_live import OptionsFeedWorkflow
+        self.feed = OptionsFeedWorkflow(self)
 
     def stop(self):
         self.stopped.set()
+        self.feed.stop()
 
     @staticmethod
     def _exists(db):
@@ -213,6 +216,7 @@ class OptionsWorkflow(HandoffDesk):
             if state["processed_count"] == 0 and state["trade_count"] == 0:
                 if any(state[key] != initial[key] for key in ("cash", "contributions", "month", "monthly_start_equity", "monthly_committed", "fees")):
                     raise ValueError("An untouched migrated portfolio cannot change its inherited cash or monthly allowance.")
+        self.feed.verify_account(db, row["id"], state)
         return {"id": row["id"], "state": state, "summary": summary, "started_at": row["started_at"], "policy": _load(row["policy"])}
 
     def _catalog(self, db):
@@ -282,6 +286,10 @@ class OptionsWorkflow(HandoffDesk):
             expected = {base + "backtest.json", base + "accepted-input.json"}
         elif receipt["action"] == "compare":
             expected = {base + "comparison.json", base + "archive-manifest.json"}
+        elif receipt["action"] == "feed_collect":
+            expected = {base + "source.json", base + "snapshot.json", base + "provenance.json"}
+        elif receipt["action"] == "research_compare":
+            expected = {base + "research.json", base + "research-manifest.json"}
         else:
             expected = {base + "archive.json"}
         if type(artifacts) is not list or {item.get("path") for item in artifacts} != expected or len(artifacts) != len(expected):
@@ -304,6 +312,17 @@ class OptionsWorkflow(HandoffDesk):
                 report = _load(raw)
                 if report.get("rule_sha256") != RULE_SHA256 or report.get("accepted_manifest_sha256") != receipt["manifest_sha256"]:
                     raise ValueError("The strategy comparison belongs to another portfolio or archive.")
+            if receipt["action"] == "feed_collect" and item["path"].endswith("source.json") and _digest(raw) != receipt["source_sha256"]:
+                raise ValueError("The public quote source identity changed.")
+            if receipt["action"] == "feed_collect" and item["path"].endswith("provenance.json") and _digest(raw) != receipt["provenance"]["full_provenance_sha256"]:
+                raise ValueError("The full quarantine provenance identity changed.")
+            if receipt["action"] == "research_compare" and item["path"].endswith("research-manifest.json") and _digest(raw) != receipt["manifest_sha256"]:
+                raise ValueError("The research archive manifest changed.")
+            if receipt["action"] == "research_compare" and item["path"].endswith("research.json"):
+                from .options_research import RULE_SHA256
+                report = _load(raw)
+                if report.get("rule_sha256") != RULE_SHA256 or report.get("accepted_manifest_sha256") != receipt["manifest_sha256"]:
+                    raise ValueError("The research report lost its frozen rule/input identity.")
 
     def _read(self, relative, limit=MAX_DATA):
         # registry._path rejects absolute paths, traversal, links and excluded
@@ -335,11 +354,13 @@ class OptionsWorkflow(HandoffDesk):
             data, account = self._info(db, clock), self._account(db, clock)
             forward = self._info(db, clock, forward=True)
             catalog = self._catalog(db)
+            feed = self.feed.snapshot(db, clock)
             runs = [dict(row) for row in db.execute("SELECT request_id,action,day,status FROM opt_runs ORDER BY rowid DESC LIMIT 10")] if self._exists(db) else []
             held = db.execute("SELECT request_id,action,status,receipt FROM opt_runs WHERE status IN ('running','failed') ORDER BY rowid LIMIT 1").fetchone() if self._exists(db) else None
             last = db.execute("SELECT receipt FROM opt_runs ORDER BY rowid DESC LIMIT 1").fetchone() if self._exists(db) else None
             report = db.execute("SELECT opt_reports.receipt FROM opt_reports JOIN opt_runs USING(request_id) WHERE opt_runs.action='backtest' AND opt_runs.status='completed' ORDER BY opt_reports.rowid DESC LIMIT 1").fetchone() if self._exists(db) else None
             comparison = db.execute("SELECT opt_reports.receipt FROM opt_reports JOIN opt_runs USING(request_id) WHERE opt_runs.action='compare' AND opt_runs.status='completed' ORDER BY opt_reports.rowid DESC LIMIT 1").fetchone() if self._exists(db) else None
+            research = db.execute("SELECT opt_reports.receipt FROM opt_reports JOIN opt_runs USING(request_id) WHERE opt_runs.action='research_compare' AND opt_runs.status='completed' ORDER BY opt_reports.rowid DESC LIMIT 1").fetchone() if self._exists(db) else None
             events = [_load(row[0]) for row in db.execute("SELECT value FROM opt_events WHERE account_id=? ORDER BY id DESC LIMIT 20", (account["id"],))] if account else []
         historical = _load(report[0]) if report else None
         if historical:
@@ -347,6 +368,9 @@ class OptionsWorkflow(HandoffDesk):
         compared = _load(comparison[0]) if comparison else None
         if compared:
             self._verify_artifacts(compared)
+        researched = _load(research[0]) if research else None
+        if researched:
+            self._verify_artifacts(researched)
         quality = data["quality"] if data else None
         hold = {"request_id": held["request_id"], "action": held["action"], "status": held["status"], "reason": _load(held["receipt"]).get("reason", "Interrupted owner operation; inspect before acknowledgment.")} if held else None
         return {"schema": 1, "revision": revision, "config": cfg, "rule": RULE, "rule_sha256": RULE_SHA256,
@@ -357,6 +381,8 @@ class OptionsWorkflow(HandoffDesk):
                 "backtest": historical, "inbox": INBOX, "model_calls": 0, "brokerage_connected": False,
                 "portfolio_rule": PORTFOLIO_RULE, "portfolio_rule_sha256": PORTFOLIO_SHA256,
                 "archive_catalog": catalog, "comparison": compared,
+                "feed": feed,
+                "research": researched,
                 "scope": "Simulated options only. $500 monthly non-recycling premium/fee allowance; no cross-month positions. Missing exits hold the ledger and invalidate cap assurance. No real orders, auto-exercise or verified future profitability."}
 
     def configure(self, body, now=None):
@@ -386,6 +412,10 @@ class OptionsWorkflow(HandoffDesk):
 
     def _import(self, body, path, now=None, *, day=None, optional=False):
         self._arguments(body, () if optional else {"path"})
+        if optional:
+            with self.database() as db:
+                if self.feed.config(db)["initialized"]:
+                    raise HandoffConflict("The activated public feed owns forward collection; manual inbox refresh cannot replace its source basis.")
         clock = _now(now)
         receipt = None
         with self._ownership():
@@ -530,6 +560,55 @@ class OptionsWorkflow(HandoffDesk):
                 self._failed(receipt, error)
                 raise
 
+    def research_compare(self, body, now=None):
+        """One streamed archive, one actual portfolio, separate counterfactuals."""
+        self._arguments(body)
+        clock, receipt = _now(now), None
+        with self._ownership():
+            try:
+                with self.database() as db:
+                    db.execute("BEGIN IMMEDIATE")
+                    self._schema(db)
+                    cfg, brief = self._policy(db)
+                    replay = self._reserve(db, "research_compare", body, None, clock)
+                    if replay:
+                        return replay
+                    receipt = {"request_id": body["request_id"], "action": "research_compare", "status": "running", "created_at": clock.isoformat(), "artifacts": [], "model_calls": 0, "replayed": False}
+                    catalog = self._catalog(db)
+                    if not catalog:
+                        raise ValueError("Register a verified historical options archive before comparing strategies.")
+                    accepted = bytes(db.execute("SELECT value FROM opt_catalogs WHERE digest=?", (catalog["manifest_sha256"],)).fetchone()[0])
+                def checkpoint():
+                    with self.database() as db:
+                        self._policy(db, cfg)
+                        if self.controls() != brief:
+                            raise HandoffConflict("Brief permissions changed during the options comparison.")
+                from .options_archive import iter_archive
+                from .options_research import backtest_comparison
+                chunks = iter_archive(self.registry, catalog["path"], expected_manifest_sha256=catalog["manifest_sha256"], checkpoint=checkpoint)
+                report = backtest_comparison(chunks, symbol=catalog["quality"]["symbol"])
+                from .options_portfolio import backtest as baseline_backtest
+                baseline = baseline_backtest(iter_archive(self.registry, catalog["path"], expected_manifest_sha256=catalog["manifest_sha256"], checkpoint=checkpoint), symbol=catalog["quality"]["symbol"])
+                report["baseline_portfolio"] = baseline
+                report.update(request_id=body["request_id"], accepted_manifest_sha256=catalog["manifest_sha256"],
+                              archive_quality=catalog["quality"], input_evidence_scope="Exact archive/chunk hashes were checked during this run. Original private chunks are retained separately; passive views do not rescan all market prices.")
+                payload = _json(report).encode()
+                if len(payload) > 8 * 1024 * 1024:
+                    raise ValueError("Options comparison report exceeds 8 MiB.")
+                receipt.update({key: copy.deepcopy(value) for key, value in report.items() if key in {"metrics", "coverage", "research_gate", "execution_qualified", "symbol", "rule_sha256"}})
+                receipt.update(manifest_sha256=catalog["manifest_sha256"], comparison_scope="Shared $500 portfolio; single-strategy results are separate counterfactual accounts and are never added together.")
+                # Keep compact receipts bounded; complete state, curves and
+                # individual strategy evidence live in the protected report.
+                receipt["baseline"] = {field:baseline.get(field) for field in ("metrics","coverage","research_gate")}
+                receipt["eligibility"] = report.get("eligibility", {})
+                receipt["research_only"] = True
+                receipt["strategy_results"] = {key: {field: value.get(field) for field in ("metrics", "coverage", "research_gate", "eligibility")} for key, value in report["strategy_results"].items()}
+                self._publish(cfg, brief, receipt, (("research.json", payload), ("research-manifest.json", accepted)))
+                return receipt
+            except Exception as error:
+                self._failed(receipt, error)
+                raise
+
     def upgrade_portfolio(self, body, now=None):
         """Upgrade only a pristine legacy account, preserving its budget and ID."""
         self._arguments(body, {"acknowledge_simulated"})
@@ -596,7 +675,7 @@ class OptionsWorkflow(HandoffDesk):
                 self._failed(receipt, error)
                 raise
 
-    def _publish(self, cfg, brief, receipt, files, *, final=None):
+    def _publish(self, cfg, brief, receipt, files, *, final=None, extra_check=None):
         size = sum(len(raw) for _, raw in files)
         with self.database() as db:
             db.execute("BEGIN IMMEDIATE")
@@ -610,6 +689,8 @@ class OptionsWorkflow(HandoffDesk):
         relative = "reports/options-recovery/" + receipt["request_id"]
         folder = self.registry._path(relative)
         def checkpoint():
+            if extra_check:
+                extra_check()
             with self.database() as db:
                 self._unpaused(db)
                 if self.stopped.is_set() or self._meta(db)[1] != cfg or self.controls() != brief:
@@ -655,6 +736,8 @@ class OptionsWorkflow(HandoffDesk):
                     return replay
                 if self._account(db):
                     raise HandoffConflict("The existing options experiment must be explicitly archived; no budget reset is permitted.")
+                if self.feed.config(db)["initialized"]:
+                    raise HandoffConflict("A retained feed activation is bound to its original account; no replacement or budget reset is permitted.")
                 from .qqq_data import exchange_day
                 month = exchange_day(clock).strftime("%Y-%m")
                 # Archiving cannot mint a new monthly risk allowance, even if
@@ -740,6 +823,11 @@ class OptionsWorkflow(HandoffDesk):
         from .briefing import _tz
         with self.database() as db:
             revision, cfg = self._meta(db)
+            # Next-open EOD quotes are unavailable at6AM. Never import the old
+            # prefix then persist a stale/deadline hold before publication.
+            # Explicit source activation remains in force even while disabled.
+            if self.feed.config(db)["initialized"]:
+                return None
             brief = self.controls()
             if self.stopped.is_set() or not cfg["enabled"] or cfg["paused"] or self.store.setting("paused", False) or not brief["enabled"] or brief["paused"] or brief.get("execution_hold"):
                 return None
@@ -757,4 +845,4 @@ class OptionsWorkflow(HandoffDesk):
 
     def brief_snapshot(self, now=None):
         status = self.status(now)
-        return {key: status[key] for key in ("config", "quality", "forward_quality", "paper", "events", "hold", "last_run", "backtest", "rule_sha256", "portfolio_rule_sha256", "archive_catalog", "comparison", "model_calls", "scope", "inbox")}
+        return {key: status[key] for key in ("config", "quality", "forward_quality", "paper", "events", "hold", "last_run", "backtest", "rule_sha256", "portfolio_rule_sha256", "archive_catalog", "comparison", "feed", "research", "model_calls", "scope", "inbox")}

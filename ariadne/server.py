@@ -446,12 +446,13 @@ class Application:
             result = self.briefing.options.status()
         elif parts == ["options", "config"] and method == "PUT":
             result = self.briefing.options.configure(self.client_handoff_body(env))
-        elif len(parts) == 2 and parts[0] == "options" and parts[1] in {"import", "refresh", "backtest", "paper", "acknowledge", "archive", "register-archive", "compare", "portfolio", "upgrade-portfolio"} and method == "POST":
+        elif len(parts) == 2 and parts[0] == "options" and parts[1] in {"import", "refresh", "backtest", "paper", "acknowledge", "archive", "register-archive", "compare", "portfolio", "upgrade-portfolio", "feed", "collect-feed", "research-compare"} and method == "POST":
             handlers = {"import": self.briefing.options.import_data, "refresh": self.briefing.options.refresh,
                         "backtest": self.briefing.options.backtest, "paper": self.briefing.options.start_paper,
                         "acknowledge": self.briefing.options.acknowledge, "archive": self.briefing.options.archive,
                         "register-archive": self.briefing.options.register_archive, "compare": self.briefing.options.compare,
                         "portfolio": self.briefing.options.start_portfolio, "upgrade-portfolio": self.briefing.options.upgrade_portfolio}
+            handlers.update({"feed":self.briefing.options.feed.configure,"collect-feed":self.briefing.options.feed.collect,"research-compare":self.briefing.options.research_compare})
             result = handlers[parts[1]](self.client_handoff_body(env))
         elif parts == ["qqq"] and method == "GET":
             result = self.briefing.qqq.status()
