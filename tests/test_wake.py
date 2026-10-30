@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 from ariadne.config import Settings
-from ariadne.wake import ACK_TAIL_SECONDS, MAX_SESSION_SECONDS, WakeGate, WakeService, windows_speak_response
+from ariadne.wake import ACK_TAIL_SECONDS, CONVERSATION_IDLE_SECONDS, MAX_SESSION_SECONDS, WakeGate, WakeService, windows_speak_response
 
 
 class Clock:
@@ -28,14 +28,14 @@ class WakeGateTests(unittest.TestCase):
             self.assertEqual(self.gate.accept(text)["event"], "ignored")
         self.assertEqual(self.gate.accept("Hey, Ariadne, report status"), {"event": "command", "command": "report status"})
 
-    def test_bare_wake_opens_twelve_second_one_utterance_window(self):
+    def test_bare_wake_opens_initial_window_then_bounded_followups(self):
         self.assertEqual(self.gate.accept("Ariadne!")["event"], "awake")
         self.clock.value += 11.9
         self.assertEqual(self.gate.accept("report status")["event"], "command")
-        self.assertEqual(self.gate.accept("another command")["event"], "ignored")
-        self.gate.accept("Ariadne")
-        self.clock.value += 12
+        self.assertEqual(self.gate.accept("another command")["event"], "command")
+        self.clock.value += CONVERSATION_IDLE_SECONDS
         self.assertEqual(self.gate.accept("too late")["event"], "ignored")
+        self.assertFalse(self.gate.conversation_active)
 
     def test_cancel_does_not_submit_and_closes_window(self):
         self.gate.accept("Ariadne")
@@ -48,12 +48,17 @@ class WakeGateTests(unittest.TestCase):
         self.clock.value += 10
         self.assertEqual(self.gate.accept("Ariadne report status")["event"], "command")
 
-    def test_speech_suppression_clears_open_window(self):
+    def test_speech_suppression_drops_echoes_and_preserves_conversation(self):
         self.gate.accept("Ariadne")
+        conversation = self.gate.conversation_id
         self.gate.suppress(5)
         self.assertEqual(self.gate.accept("Ariadne report status")["event"], "suppressed")
+        self.assertEqual(self.gate.accept("go to sleep")["event"], "suppressed")
+        self.assertEqual(self.gate.accept("stop listening")["event"], "suppressed")
+        self.assertEqual(self.gate.conversation_id, conversation)
         self.clock.value += 5
-        self.assertEqual(self.gate.accept("report status")["event"], "ignored")
+        self.assertEqual(self.gate.accept("report status")["event"], "command")
+        self.assertEqual(self.gate.conversation_id, conversation)
         for value in (-1, 181, float("nan"), float("inf"), True, "5"):
             with self.assertRaises(ValueError):
                 self.gate.suppress(value)
@@ -62,6 +67,56 @@ class WakeGateTests(unittest.TestCase):
         for text in (None, [], "x" * 3001, "Ariadne\x00report"):
             with self.assertRaises(ValueError):
                 self.gate.accept(text)
+
+    def test_idle_timeout_is_bounded_and_only_new_wake_creates_a_new_conversation(self):
+        for value in (True, None, 0, 14, 601, 120.0, "120"):
+            with self.assertRaises(ValueError):
+                WakeGate(self.clock, conversation_idle_timeout=value)
+        gate = WakeGate(self.clock, conversation_idle_timeout=15)
+        gate.accept("Ariadne explain reserves")
+        first = gate.conversation_id
+        self.clock.value += 14
+        self.assertEqual(gate.accept("tell me more")["event"], "command")
+        self.assertEqual(gate.conversation_id, first)
+        self.clock.value += 15
+        self.assertEqual(gate.accept("and now?")["event"], "ignored")
+        self.assertIsNone(gate.conversation_id)
+        gate.accept("Ariadne explain reserves")
+        self.assertNotEqual(gate.conversation_id, first)
+
+    def test_sleep_controls_are_exact_and_work_without_a_wake_prefix(self):
+        for phrase in ("go to sleep", "Ariadne sleep!", "sleep Ariadne", "Hey Ariadne, go to sleep."):
+            with self.subTest(phrase=phrase):
+                self.gate.accept("Ariadne")
+                self.assertEqual(self.gate.accept(phrase)["event"], "asleep")
+                self.assertFalse(self.gate.conversation_active)
+                self.assertIsNone(self.gate.conversation_id)
+                self.assertEqual(self.gate.accept("unarmed followup")["event"], "ignored")
+        self.gate.accept("Ariadne")
+        self.assertEqual(self.gate.accept("explain how batteries go to sleep")["event"], "command")
+        self.assertEqual(self.gate.accept("stop listening")["event"], "stop")
+
+    def test_pending_gate_accepts_controls_only_without_poisoning_replay_history(self):
+        self.gate.accept("Ariadne explain reserves")
+        deadline, last = self.gate.conversation_until, self.gate.last_command
+        self.clock.value += 2
+        for phrase in ("Ariadne", "tell me more", "Ariadne tell me more"):
+            self.assertEqual(self.gate.accept(phrase, controls_only=True)["event"], "ignored")
+        self.assertEqual(self.gate.conversation_until, deadline)
+        self.assertEqual(self.gate.last_command, last)
+        self.assertEqual(self.gate.accept("go to sleep", controls_only=True)["event"], "asleep")
+
+    def test_processing_hold_and_playback_tail_do_not_consume_idle_time(self):
+        self.gate.accept("Ariadne explain reserves")
+        self.gate.hold_conversation()
+        self.clock.value += 1000
+        self.assertTrue(self.gate.conversation_active)
+        self.gate.suppress(2)
+        self.gate.resume_conversation()
+        self.assertEqual(self.gate.conversation_until, self.clock.value + 2 + CONVERSATION_IDLE_SECONDS)
+        self.gate.reset()
+        self.gate.resume_conversation()
+        self.assertFalse(self.gate.conversation_active)
 
 
 class WakeServiceTests(unittest.TestCase):
@@ -115,6 +170,66 @@ class WakeServiceTests(unittest.TestCase):
         self.assertEqual(self.accept("report", 2)["event"], "ignored")
         self.assertEqual(self.submitted, [])
 
+    def test_paused_browser_bare_wake_does_not_latch_after_a_later_resume(self):
+        self.service.blocked = lambda: True
+        self.service.start("browser", session_hours=None)
+        self.assertEqual(self.accept("Ariadne")["event"], "busy")
+        self.assertFalse(self.service.status()["conversation_active"])
+        self.service.blocked = lambda: False
+        self.assertEqual(self.accept("continue", sequence=2)["event"], "ignored")
+        self.assertEqual(self.submitted, [])
+
+    def test_optional_warming_hook_runs_once_per_new_accepted_conversation(self):
+        warm = mock.Mock()
+        self.service.on_awake = warm
+        self.service.start("browser", session_hours=None)
+        self.accept("background conversation")
+        warm.assert_not_called()
+        self.accept("Ariadne", sequence=2)
+        first = self.service.conversation_id
+        warm.assert_called_once_with()
+        self.accept("explain reserves", sequence=3)
+        self.accept("Ariadne explain reserves", sequence=4)  # Duplicate.
+        self.accept("Ariadne", sequence=5)  # Already awake.
+        self.assertEqual(warm.call_count, 1)
+        self.assertEqual(self.service.conversation_id, first)
+        self.accept("sleep", sequence=6)
+        self.accept("Ariadne explain a new topic", sequence=7)
+        self.assertEqual(warm.call_count, 2)
+        self.assertNotEqual(self.service.conversation_id, first)
+        self.clock.value += CONVERSATION_IDLE_SECONDS
+        self.accept("Ariadne", sequence=8)
+        self.assertEqual(warm.call_count, 3)
+
+    def test_warming_hook_never_runs_for_paused_pending_or_suppressed_speech(self):
+        warm = mock.Mock()
+        self.service.on_awake = warm
+        self.service.blocked = lambda: True
+        self.service.start("browser", session_hours=None)
+        self.accept("Ariadne")
+        self.accept("Ariadne explain reserves", sequence=2)
+        warm.assert_not_called()
+        self.service.blocked = lambda: False
+        self.service.pending_run = "already-running"
+        self.accept("Ariadne", sequence=3)
+        self.service.pending_run = None
+        with mock.patch("ariadne.wake.threading.Timer"):
+            self.service.suppress(5)
+        self.accept("Ariadne", sequence=4)
+        self.service.speaking = True
+        self.accept("Ariadne", sequence=5)
+        self.service.speaking = False
+        warm.assert_not_called()
+        self.assertEqual(self.submitted, [])
+
+    def test_warming_hook_failure_does_not_lose_a_valid_spoken_command(self):
+        self.service.on_awake = mock.Mock(side_effect=OSError("No model warming available"))
+        self.service.start("browser", session_hours=None)
+        self.assertEqual(self.accept("Ariadne explain reserves")["event"], "submitted")
+        self.assertTrue(self.service.active)
+        self.assertIn("warming was unavailable", self.service.last_error)
+        self.assertEqual(self.submitted, ["explain reserves"])
+
     def test_status_exposes_command_window_and_playback_suppression_without_text(self):
         self.service.start("browser")
         self.accept("Ariadne")
@@ -123,7 +238,225 @@ class WakeServiceTests(unittest.TestCase):
         self.assertTrue(self.service.status()["suppressed"])
         self.clock.value += 10
         self.assertFalse(self.service.status()["suppressed"])
-        self.assertEqual(self.service.status()["state"], "listening")
+        self.assertEqual(self.service.status()["state"], "conversing")
+        self.assertTrue(self.service.status()["conversation_active"])
+        self.assertEqual(self.service.status()["conversation_idle_timeout_seconds"], 120)
+        self.assertEqual(self.service.status()["sleep_phrases"], ["go to sleep", "Ariadne sleep", "sleep Ariadne", "sleep"])
+        self.assertIn("Ariadne shut down", self.service.status()["stop_phrases"])
+        self.assertEqual(self.service.status()["stop_action"], "microphone_only")
+
+    def test_shutdown_aliases_stop_only_listening_and_plain_shutdown_requires_an_awake_conversation(self):
+        observed = []
+        self.service.on_spoken_stop = lambda: observed.append(self.service.active)
+        for phrase in ("Ariadne shut down", "shut down Ariadne", "Ariadne shutdown", "Ariadneshutdown"):
+            with self.subTest(phrase=phrase):
+                self.service.start("browser", session_hours=None)
+                self.assertEqual(self.accept(phrase)["event"], "stopped")
+                self.assertFalse(self.service.active)
+        self.service.start("browser", session_hours=None)
+        self.assertEqual(self.accept("shut down")["event"], "ignored")
+        self.assertEqual(self.accept("sleep", sequence=2)["event"], "ignored")
+        self.accept("Ariadne explain reserves", sequence=3)
+        self.assertEqual(self.accept("sleep", sequence=4)["event"], "asleep")
+        self.assertTrue(self.service.active)
+        self.accept("Ariadne explain another topic", sequence=5)
+        self.assertEqual(self.accept("shut down", sequence=6)["event"], "stopped")
+        self.assertEqual(observed, [False] * 5)
+        self.assertEqual(self.submitted, ["explain reserves", "explain another topic"])
+
+    def test_rapid_followups_share_context_until_sleep_then_require_a_fresh_wake(self):
+        self.service.start("browser", session_hours=None)
+        self.assertIsNone(self.service.conversation_id)
+        self.assertEqual(self.accept("Ariadne explain reserves")["event"], "submitted")
+        first = self.service.conversation_id
+        self.assertEqual(self.accept("tell me more", sequence=2)["event"], "submitted")
+        self.assertEqual(self.service.conversation_id, first)
+        self.assertEqual(self.accept("go to sleep", sequence=3)["event"], "asleep")
+        self.assertTrue(self.service.active)
+        self.assertIsNone(self.service.conversation_id)
+        self.assertEqual(self.accept("continue", sequence=4)["event"], "ignored")
+        self.assertEqual(self.accept("Ariadne another topic", sequence=5)["event"], "submitted")
+        self.assertNotEqual(self.service.conversation_id, first)
+        self.assertEqual(self.submitted, ["explain reserves", "tell me more", "another topic"])
+
+    def test_pending_followups_are_consumed_and_never_replayed_or_deferred(self):
+        self.service.get_run = lambda run_id: {"status": "completed"}
+        self.service.start("browser", session_hours=None)
+        with mock.patch("ariadne.wake.threading.Thread"):
+            self.assertEqual(self.accept("Ariadne explain reserves")["event"], "submitted")
+            first = self.service.conversation_id
+            for sequence, phrase in enumerate(("tell me more", "Ariadne tell me more", "Ariadne"), 2):
+                self.assertEqual(self.accept(phrase, sequence=sequence)["event"], "busy")
+            self.clock.value += 500
+            self.assertTrue(self.service.status()["conversation_active"])
+            with mock.patch("ariadne.wake.time.sleep"):
+                self.service._watch_run("mission-1", self.service.lease)
+            self.assertEqual(self.submitted, ["explain reserves"])
+            with self.assertRaises(ValueError):
+                self.accept("tell me more", sequence=4)
+            self.assertEqual(self.accept("tell me more", sequence=5)["event"], "submitted")
+            self.assertEqual(self.service.conversation_id, first)
+
+    def test_sleep_during_pending_work_silences_its_response_without_stopping_the_pc_worker(self):
+        spoken, stops = mock.Mock(), mock.Mock()
+        self.pc_ack_session(spoken)
+        self.service.on_spoken_stop = stops
+        self.service.get_run = lambda run_id: {"status": "completed", "context": [{"role": "assistant", "content": "A late answer."}]}
+        with mock.patch("ariadne.wake.threading.Thread"), mock.patch("ariadne.wake.time.sleep"):
+            self.accept("Ariadne explain reserves", source="pc")
+            self.assertEqual(self.accept("sleep Ariadne", sequence=2, source="pc")["event"], "asleep")
+            self.assertEqual(self.service.pending_run, "mission-1")
+            self.assertTrue(self.service.active)
+            self.service._watch_run("mission-1", self.service.lease)
+        spoken.assert_not_called()
+        stops.assert_not_called()
+        self.assertIsNone(self.service.pending_run)
+        self.assertIsNone(self.service.conversation_id)
+        self.assertEqual(self.accept("continue", sequence=3, source="pc")["event"], "ignored")
+
+    def test_unprefixed_stop_works_during_pending_work_and_disables_startup_after_stop(self):
+        observed = []
+        self.service.on_spoken_stop = lambda: observed.append(self.service.active)
+        self.service.get_run = lambda run_id: {"status": "running"}
+        self.service.start("browser", session_hours=None)
+        with mock.patch("ariadne.wake.threading.Thread"):
+            self.accept("Ariadne explain reserves")
+        self.assertEqual(self.accept("stop listening", sequence=2)["event"], "stopped")
+        self.assertEqual(observed, [False])
+        self.assertIsNone(self.service.conversation_id)
+        self.assertEqual(self.submitted, ["explain reserves"])
+
+    def test_pending_suppression_drops_echoed_sleep_stop_and_commands(self):
+        self.service.get_run = lambda run_id: {"status": "running"}
+        self.service.start("browser", session_hours=None)
+        with mock.patch("ariadne.wake.threading.Thread"), mock.patch("ariadne.wake.threading.Timer"):
+            self.accept("Ariadne explain reserves")
+            first = self.service.conversation_id
+            self.service.suppress(5)
+            for sequence, phrase in enumerate(("go to sleep", "stop listening", "Ariadne delete that"), 2):
+                self.assertEqual(self.accept(phrase, sequence=sequence)["event"], "suppressed")
+            self.assertTrue(self.service.active)
+            self.assertEqual(self.service.conversation_id, first)
+            self.clock.value += 5
+            self.assertEqual(self.accept("go to sleep", sequence=5)["event"], "asleep")
+
+    def test_followup_after_paused_rejection_requires_a_new_wake_but_sleep_always_wins(self):
+        self.service.start("browser", session_hours=None)
+        self.accept("Ariadne explain reserves")
+        self.service.blocked = lambda: True
+        self.assertEqual(self.accept("tell me more", sequence=2)["event"], "busy")
+        self.assertIsNone(self.service.conversation_id)
+        self.assertEqual(self.accept("go to sleep", sequence=3)["event"], "asleep")
+        self.service.blocked = lambda: False
+        self.assertEqual(self.accept("continue", sequence=4)["event"], "ignored")
+
+    def test_slow_inference_and_playback_leave_a_full_idle_window_after_audio_tail(self):
+        self.pc_ack_session(None)
+        def completed(run_id):
+            self.clock.value += 90
+            return {"status": "completed", "context": [{"role": "assistant", "content": "Ready."}]}
+        self.service.get_run = completed
+        with mock.patch("ariadne.wake.threading.Thread"), mock.patch("ariadne.wake.threading.Timer"), mock.patch("ariadne.wake.time.sleep"):
+            self.accept("Ariadne explain reserves", source="pc")
+            first = self.service.conversation_id
+            def speak(text):
+                self.clock.value += 30
+                self.assertTrue(self.service.status()["conversation_active"])
+                self.assertEqual(self.accept("go to sleep", sequence=2, source="pc")["event"], "suppressed")
+            self.service.speak = speak
+            self.service._watch_run("mission-1", self.service.lease)
+        self.assertEqual(self.service.gate.conversation_until, self.clock.value + 2 + CONVERSATION_IDLE_SECONDS)
+        self.clock.value += 2 + CONVERSATION_IDLE_SECONDS - .01
+        self.assertEqual(self.service.conversation_id, first)
+        with mock.patch("ariadne.wake.threading.Thread"):
+            self.assertEqual(self.accept("tell me more", sequence=3, source="pc")["event"], "submitted")
+
+    def test_timed_out_result_watcher_clears_context_without_replaying_the_mission(self):
+        self.service.get_run = lambda run_id: {"status": "running"}
+        self.service.start("browser", session_hours=None)
+        with mock.patch("ariadne.wake.threading.Thread"), mock.patch("ariadne.wake.time.sleep"):
+            self.accept("Ariadne explain reserves")
+            self.service._watch_run("mission-1", self.service.lease)
+        self.assertIsNone(self.service.pending_run)
+        self.assertIsNone(self.service.conversation_id)
+        self.assertIn("30 minutes", self.service.last_error)
+        self.assertEqual(self.submitted, ["explain reserves"])
+
+    def test_pc_worker_control_lifecycle_never_replays_sleep_or_stale_utterances(self):
+        self.pc_ack_session(None)
+        lease = self.service.lease
+        messages = [{"event": "ready"}] + [{"event": "utterance", "text": phrase} for phrase in
+            ("Ariadne explain reserves", "tell me more", "go to sleep", "continue", "stop listening")]
+        process = mock.Mock()
+        process.stdout = io.BytesIO(b"".join(json.dumps(message).encode("ascii") + b"\n" for message in messages))
+        process.poll.return_value = None
+        self.service.process = process
+        self.service._read_worker(process, lease)
+        self.assertEqual(self.submitted, ["explain reserves", "tell me more"])
+        self.assertFalse(self.service.active)
+        self.assertIsNone(self.service.conversation_id)
+        self.assertEqual([json.loads(call.args[0]) for call in process.stdin.write.call_args_list],
+                         [{"action": "unmute"}, {"action": "stop"}])
+        process.wait.assert_called_once_with(timeout=1)
+        process.stdin.close.assert_called_once()
+        self.assertTrue(process.stdout.closed)
+
+    def test_pc_start_uses_one_owned_fixed_worker_and_stop_releases_it_without_hardware(self):
+        for duration, seconds in ((8, "28800"), (None, "0")):
+            with self.subTest(duration=duration), \
+                    mock.patch("ariadne.media_tools.load_profile", return_value={}), \
+                    mock.patch("ariadne.media_tools.backend_status", return_value={"ready": True}), \
+                    mock.patch("ariadne.wake.subprocess.Popen") as launch, \
+                    mock.patch("ariadne.wake.threading.Thread") as thread, \
+                    mock.patch("ariadne.wake.threading.Timer"):
+                status = self.service.start("pc", session_hours=duration)
+                self.assertTrue(status["active"])
+                self.assertFalse(status["conversation_active"])
+                self.assertIsNone(status["conversation_id"])
+                argv = launch.call_args.args[0]
+                self.assertEqual(argv[1:3], ["-I", "-B"])
+                self.assertEqual(Path(argv[3]), Path.cwd() / "scripts/wake_listener.py")
+                self.assertEqual(argv[-2:], ["--session-seconds", seconds])
+                self.assertEqual(thread.call_count, 1)
+                launch.return_value.wait.return_value = 0
+                self.service.stop()
+                launch.assert_called_once()
+                launch.return_value.stdin.write.assert_called_once_with(b'{"action":"stop"}\n')
+                launch.return_value.wait.assert_called_once_with(timeout=1)
+                launch.return_value.stdin.close.assert_called_once()
+                launch.return_value.stdout.close.assert_called_once()
+                self.assertFalse(self.service.active)
+
+    def test_old_worker_or_result_cannot_rearm_a_restarted_session(self):
+        self.service.start("browser", session_hours=None)
+        self.accept("Ariadne explain reserves")
+        old = self.service.lease
+        self.service.stop()
+        self.service.start("browser", session_hours=None)
+        process = mock.Mock()
+        process.stdout = io.BytesIO(b'{"event":"utterance","text":"Ariadne stale request"}\n')
+        self.service._read_worker(process, old)
+        self.service.get_run = mock.Mock()
+        self.service.speak = mock.Mock()
+        with mock.patch("ariadne.wake.time.sleep"):
+            self.service._watch_run("old-run", old)
+        self.service.get_run.assert_not_called()
+        self.service.speak.assert_not_called()
+        self.assertTrue(self.service.active)
+        self.assertIsNone(self.service.conversation_id)
+        self.assertEqual(self.submitted, ["explain reserves"])
+
+    def test_result_watcher_start_failure_stops_capture_and_never_retries_submission(self):
+        self.service.get_run = lambda run_id: {"status": "completed"}
+        self.service.start("browser", session_hours=None)
+        with mock.patch("ariadne.wake.threading.Thread", side_effect=RuntimeError("No thread available")):
+            with self.assertRaises(RuntimeError):
+                self.accept("Ariadne explain reserves")
+        self.assertEqual(self.submitted, ["explain reserves"])
+        self.assertFalse(self.service.active)
+        self.assertIsNone(self.service.pending_run)
+        self.assertIsNone(self.service.conversation_id)
+        self.assertIn("saved mission", self.service.last_error)
 
     def test_expiry_and_stop_revoke_listening(self):
         self.service.start("browser")
@@ -274,6 +607,56 @@ class WakeServiceTests(unittest.TestCase):
             self.clock.value += 10
             self.service._arm_after_ack(lease)
         self.assertEqual(self.service.gate.until, self.clock.value + 12)
+
+    def test_sleep_after_ack_tail_before_rearm_keeps_wake_only_worker_unmuted(self):
+        lease = self.pc_ack_session(mock.Mock())
+        with mock.patch("ariadne.wake.threading.Thread"), mock.patch("ariadne.wake.threading.Timer"), \
+                mock.patch.object(self.service, "_worker_command") as command:
+            self.accept("Ariadne", source="pc")
+            first = self.service.conversation_id
+            self.service._acknowledge(lease)
+            self.clock.value += ACK_TAIL_SECONDS
+            self.assertEqual(self.accept("go to sleep", sequence=2, source="pc")["event"], "asleep")
+            command.assert_called_with("unmute")
+            self.service._arm_after_ack(lease)
+            self.assertTrue(self.service.active)
+            self.assertFalse(self.service.status()["acknowledging"])
+            self.assertIsNone(self.service.conversation_id)
+            self.assertEqual(self.service.gate.until, 0)
+            self.assertEqual(self.accept("Ariadne", sequence=3, source="pc")["event"], "awake")
+            self.assertNotEqual(self.service.conversation_id, first)
+
+    def test_stale_same_lease_ack_callbacks_cannot_clear_or_unmute_a_new_ack(self):
+        spoken = mock.Mock()
+        lease = self.pc_ack_session(spoken)
+        with mock.patch("ariadne.wake.threading.Thread") as thread, \
+                mock.patch("ariadne.wake.threading.Timer") as timer, \
+                mock.patch.object(self.service, "_worker_command") as command:
+            self.accept("Ariadne", source="pc")
+            old = self.service.ack_token
+            self.assertEqual(thread.call_args.kwargs["args"], (lease, old))
+            self.service._acknowledge(lease, old)
+            self.assertEqual(timer.call_args.kwargs["args"], (lease, old))
+            self.clock.value += ACK_TAIL_SECONDS
+            self.accept("go to sleep", sequence=2, source="pc")
+            self.accept("Ariadne", sequence=3, source="pc")
+            new = self.service.ack_token
+            self.assertNotEqual(new, old)
+            command.reset_mock()
+            self.service._arm_after_ack(lease, old)
+            self.service._acknowledge(lease, old)
+            command.assert_not_called()
+            self.assertTrue(self.service.speaking)
+            self.assertEqual(self.service.ack_token, new)
+            self.assertTrue(self.service.status()["acknowledging"])
+            spoken.assert_called_once_with("Listening.")
+            self.service._acknowledge(lease, new)
+            self.clock.value += ACK_TAIL_SECONDS
+            self.service._arm_after_ack(lease, new)
+            self.assertFalse(self.service.speaking)
+            self.assertFalse(self.service.status()["acknowledging"])
+            command.assert_called_once_with("unmute")
+            self.assertEqual(self.accept("tell me more", sequence=4, source="pc")["event"], "submitted")
 
     def test_browser_bare_wake_uses_no_pc_speaker_and_combined_command_needs_no_ack(self):
         spoken = mock.Mock()

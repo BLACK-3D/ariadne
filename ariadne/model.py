@@ -8,6 +8,8 @@ from urllib.parse import urlparse
 
 # Serialize local GPU consumers across mission threads and optional generators.
 GPU_LOCK = threading.RLock()
+KEEP_ALIVE = "15m"
+CONTEXT_TOKENS = 16384
 
 
 class ModelError(RuntimeError):
@@ -79,14 +81,48 @@ class Ollama:
         with GPU_LOCK:
             return self._chat(model, messages, tools)
 
-    def _chat(self, model, messages, tools):
+    def chat_fast(self, model, messages, tools):
+        """A small conversational payload; workspace missions retain their budget."""
+        with GPU_LOCK:
+            return self._chat(model, messages, tools, output_tokens=384, profile="conversation")
+
+    def warm(self, model):
+        """Load the selected installed model once, without generating a token.
+
+        Never queue behind a real GPU consumer, poll, download or unload another
+        model. Keeping the same context allocation avoids a profile reload.
+        """
+        if not GPU_LOCK.acquire(blocking=False):
+            return {"state": "busy", "model": model, "inference_tokens": 0}
+        try:
+            resident = self.request("/api/ps", timeout=3).get("models", [])
+            if any(type(row) is dict and row.get("name", row.get("model")) == model
+                   and row.get("context_length") == CONTEXT_TOKENS for row in resident):
+                return {"state": "ready", "model": model, "inference_tokens": 0, "already_resident": True}
+            if any(type(row) is dict and row.get("name", row.get("model")) != model for row in resident):
+                return {"state": "busy", "model": model, "inference_tokens": 0,
+                        "reason": "Another model is resident; automatic loading was skipped."}
+            result = self.request("/api/chat", {"model": model, "messages": [], "stream": False,
+                "keep_alive": KEEP_ALIVE, "options": {"num_ctx": CONTEXT_TOKENS}}, timeout=90)
+            if result.get("eval_count", 0) not in (0, None):
+                raise ModelError("Model warm-up unexpectedly generated output.")
+            return {"state": "ready", "model": model, "inference_tokens": 0,
+                    "load_seconds": round(result.get("load_duration", 0)/1e9, 6), "keep_alive": KEEP_ALIVE}
+        finally:
+            GPU_LOCK.release()
+
+    def _chat(self, model, messages, tools, *, output_tokens=2048, profile="mission"):
         payload = {"model": model, "messages": messages, "tools": tools, "stream": False,
-                   "options": {"temperature": 0.2, "num_ctx": 16384, "num_predict": 2048}, "keep_alive": "5m"}
+                   "options": {"temperature": 0.2, "num_ctx": CONTEXT_TOKENS, "num_predict": output_tokens}, "keep_alive": KEEP_ALIVE}
         if model.split(":")[0].lower() in {"qwen3", "qwen3.5"}:
             payload["think"] = False
         result = self.request("/api/chat", payload)
         usage = {"model": model, "prompt_tokens": result.get("prompt_eval_count", 0), "output_tokens": result.get("eval_count", 0),
-                 "duration_seconds": round(result.get("total_duration", 0) / 1e9, 3)}
+                 "duration_seconds": round(result.get("total_duration", 0) / 1e9, 3), "profile": profile,
+                 "cached_prompt_tokens": result.get("prompt_eval_cached_count"),
+                 "load_seconds": round(result["load_duration"]/1e9, 6) if "load_duration" in result else None,
+                 "prefill_seconds": round(result["prompt_eval_duration"]/1e9, 6) if "prompt_eval_duration" in result else None,
+                 "decode_seconds": round(result["eval_duration"]/1e9, 6) if "eval_duration" in result else None}
         if result.get("done_reason") == "length":
             raise ModelError("Model reached its output budget before finishing. Narrow the mission or select a stronger installed model.", usage=usage)
         message = result.get("message")

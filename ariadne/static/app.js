@@ -113,7 +113,7 @@ function bytes(value) {
 function storageGet() { try { return sessionStorage.getItem("ariadne.access") || ""; } catch { return ""; } }
 function storageSet(value) { try { value ? sessionStorage.setItem("ariadne.access", value) : sessionStorage.removeItem("ariadne.access"); } catch { /* Pairing still works without storage. */ } }
 const state = {
-  token: storageGet(), authenticated: false, status: null, runs: [], detail: null,
+  token: storageGet(), authenticated: false, pairingGeneration:0, status: null, runs: [], detail: null,
   commandAllMissions: false,
   selectedId: null, sessionId: null, view: "missions", creating: false,
   statusTimer: null, runTimer: null, runRequest: 0, renderKey: "", eventOpen: new Set(),
@@ -140,7 +140,8 @@ function toast(message, error = false) {
   setTimeout(() => item.remove(), error ? 8500 : 4500);
 }
 async function api(path, options = {}) {
-  const headers = {Authorization:`Bearer ${state.token}`, ...options.headers};
+  const requestToken = state.token, requestPairing = state.pairingGeneration;
+  const headers = {Authorization:`Bearer ${requestToken}`, ...options.headers};
   let body = options.body;
   if (body !== undefined && !(body instanceof Blob) && !(body instanceof ArrayBuffer)) {
     headers["Content-Type"] = "application/json";
@@ -158,7 +159,7 @@ async function api(path, options = {}) {
     try { const data = await response.json(); message = data.error || data.detail || message; } catch { /* Use the status message. */ }
     const error = new Error(typeof message === "string" ? message : pretty(message));
     error.status = response.status;
-    if ((response.status === 401 || response.status === 403) && state.authenticated) lockSession("Your access key was rejected. Pair this tab again.");
+    if ((response.status === 401 || response.status === 403) && !options.signal?.aborted && state.authenticated && state.token === requestToken && state.pairingGeneration === requestPairing) lockSession("Your access key was rejected. Pair this tab again.");
     throw error;
   }
   if (options.blob) return response.blob();
@@ -224,7 +225,7 @@ function renderStatus(status) {
 }
 async function refreshStatus({quiet = false} = {}) {
   if (!state.authenticated || state.refreshingStatus) return;
-  const token = state.token, speechPreferenceConfirmed = state.speechPreferenceConfirmed;
+  const token = state.token, speechPreferenceConfirmed = state.speechPreferenceConfirmed, wakeSnapshot = wakeStatusRevision;
   state.refreshingStatus = true;
   try {
     const status = await api("/status");
@@ -234,6 +235,9 @@ async function refreshStatus({quiet = false} = {}) {
     if (state.speechPreferenceConfirmed !== speechPreferenceConfirmed && state.status) {
       for (const key of ["speech_backend", "speech_voice", "speech_speed"]) if (Object.hasOwn(state.status, key)) status[key] = state.status[key];
     }
+    // A confirmed mic action or lightweight wake read can finish before an
+    // older full-status response. Keep its newer wake snapshot only.
+    if (wakeStatusRevision !== wakeSnapshot && state.status) status.wake = state.status.wake;
     const previousActive = state.status?.active_runs;
     state.status = status;
     renderStatus(status);
@@ -249,6 +253,8 @@ async function refreshStatus({quiet = false} = {}) {
   } finally { state.refreshingStatus = false; }
 }
 async function connect() {
+  state.pairingGeneration += 1;
+  resetWakeControls();
   const connectButton = $("#pairing-submit");
   connectButton.disabled = true;
   $("#pairing-error").hidden = true;
@@ -280,8 +286,10 @@ async function connect() {
 }
 function lockSession(message = "") {
   internetGeneration += 1;
+  state.pairingGeneration += 1;
   state.authenticated = false;
   state.token = "";
+  resetWakeControls();
   storageSet("");
   clearInterval(state.statusTimer);
   clearTimeout(state.runTimer);
@@ -1212,13 +1220,21 @@ async function speak(text, control) {
     state.speechUrl = URL.createObjectURL(audio);
     const player = $("#speech-player"); player.src = state.speechUrl;
     if (state.status?.wake?.active) {
+      const wakeSession = wakeGeneration;
       const wake = await api("/voice/wake/suppress", {method:"POST", body:{seconds:10}});
       if (!current() || !state.speechUrl) return;
-      state.status.wake = wake;
-      renderWakeStatus(state.status.wake);
+      if (wakeGeneration !== wakeSession) { stopSpeech(); return; }
+      confirmWakeSnapshot(wake);
       state.speechMuteTimer = setInterval(async () => {
-        if (!current() || player.paused) return;
-        try { const wake = await api("/voice/wake/suppress", {method:"POST", body:{seconds:10}}); if (current()) { state.status.wake = wake; renderWakeStatus(wake); } }
+        if (!current() || player.paused || wakeRequest || state.status?.wake?.active === false) return;
+        const wakeSession = wakeGeneration;
+        try {
+          const wake = await api("/voice/wake/suppress", {method:"POST", body:{seconds:10}});
+          if (current()) {
+            if (wakeGeneration !== wakeSession) { stopSpeech(); return; }
+            confirmWakeSnapshot(wake);
+          }
+        }
         catch { if (current()) stopSpeech(); }
       }, 6000);
     }
@@ -2420,7 +2436,8 @@ $("#lock-button").addEventListener("click", () => lockSession());
 $("#settings-lock").addEventListener("click", () => lockSession());
 $("#pause-toggle").addEventListener("click", togglePause);
 // Specialist roles and deterministic daily reporting share the same local server.
-let agentCatalog = [], wakeRequest = false, wakeRememberDirty = false, briefRequest = false, briefConfig = null;
+let agentCatalog = [], wakeRequest = false, wakeRememberDirty = false, wakeGeneration = 0, wakeStatusRevision = 0, briefRequest = false, briefConfig = null;
+let wakePollTimer = null, wakePollRequest = null, wakePollGeneration = 0;
 let briefViewRequest = 0, briefLoadRequest = 0, briefPosterUrl = null, briefPoster = null;
 async function loadAgents({quiet = false} = {}) {
   if (!state.authenticated) return;
@@ -2450,31 +2467,119 @@ async function loadAgents({quiet = false} = {}) {
     renderWakeStatus(state.status?.wake);
   } catch (error) { if (!quiet) toast(error.message, true); }
 }
+function wakePresentation(wake) {
+  if (!wake || typeof wake !== "object" || typeof wake.active !== "boolean") return {known:false, active:false, label:"Voice unavailable", description:"Refresh system status to see the PC microphone state."};
+  const active = wake.active === true;
+  if (!active) return {known:true, active:false, label:"Mic off", description:"Microphone off. Turn it on when you want to talk."};
+  if (wake.speaking === true) return {known:true, active:true, label:"Ariadne speaking", description:"Ariadne is speaking. Recognition is paused during her reply."};
+  if (wake.suppressed === true || wake.acknowledging === true) return {known:true, active:true, label:"Listening paused", description:"Recognition is paused for playback. Wait before speaking."};
+  if (wake.state === "starting") return {known:true, active:true, label:"Starting microphone", description:"Starting local PC microphone capture."};
+  if (wake.state === "working" || wake.pending_run_id) return {known:true, active:true, label:"Working", description:"Working on your request. Wait for the reply before a follow-up."};
+  if (wake.conversation_active === true) return {known:true, active:true, label:"Awake", description:"Awake. Keep talking without repeating “Ariadne”."};
+  return {known:true, active:true, label:"Waiting for Ariadne", description:"Say “Ariadne” to begin. The PC microphone is listening locally."};
+}
+function applyWakeSnapshot(wake) {
+  wakeStatusRevision += 1;
+  if (state.status) state.status.wake = wake;
+  renderWakeStatus(wake);
+}
+function confirmWakeSnapshot(wake) {
+  cancelWakePolling();
+  applyWakeSnapshot(wake);
+}
 function renderWakeStatus(wake) {
-  if (!wake) return;
-  const active = Boolean(wake.active);
-  $("#wake-indicator").classList.toggle("active", active);
-  $("#wake-indicator-label").textContent = active ? wake.speaking ? "Ariadne speaking" : wake.suppressed ? "Playback muted" : `Mic · ${wake.state}` : "Mic off";
-  facts($("#wake-facts"), [["Microphone", active ? `${humanize(wake.mode)} · ${wake.suppressed ? "Playback muted" : humanize(wake.state)}` : "Off"], ["Wake word", "Ariadne"], ["Listening session", wake.session_limit_hours === null ? "Until stopped" : `${wake.session_limit_hours || 8} hours`], ["Ambient audio saved", wake.audio_saved ? "Yes" : "No"], ["Idle LLM calls", String(wake.idle_llm_calls ?? 0)]]);
-  if (active || !wakeRememberDirty) $("#wake-remember").checked = Boolean(wake.auto_start);
-  $("#wake-remember").disabled = active || wakeRequest;
-  $("#wake-error").textContent = wake.last_error || ""; $("#wake-error").hidden = !wake.last_error;
-  $("#wake-start").disabled = active || wakeRequest || !state.authenticated || !wake.pc_supported;
-  $("#wake-stop").disabled = !active || wakeRequest || !state.authenticated;
+  const view = wakePresentation(state.authenticated ? wake : null);
+  const indicator = $("#wake-indicator");
+  indicator.classList.toggle("active", view.active);
+  indicator.title = `${view.label}. Open voice controls`;
+  indicator.setAttribute("aria-label", indicator.title);
+  $("#wake-indicator-label").textContent = view.label;
+  $("#wake-conversation-status").textContent = state.authenticated ? view.description : "Pair this tab to see the PC microphone state. Locking this tab does not stop PC listening.";
+  const timeout = wake?.conversation_idle_timeout_seconds;
+  const idle = Number.isInteger(timeout) && timeout > 0 && timeout <= 86400 ? timeout % 60 === 0 ? `${timeout / 60} minutes` : `${timeout} seconds` : "Unavailable";
+  const phrases = Array.isArray(wake?.sleep_phrases) ? wake.sleep_phrases.filter(value => typeof value === "string" && value.length <= 80).slice(0, 4) : [];
+  facts($("#wake-facts"), view.known ? [["Microphone", view.active ? `${humanize(wake.mode)} · on` : "Off"], ["Conversation idle timeout", idle], ["Return to wake word", phrases.length ? phrases.map(value => `“${value}”`).join(", ") : "Go to sleep"], ["Listening session", wake.session_limit_hours === null ? "Until stopped" : Number.isInteger(wake.session_limit_hours) ? `${wake.session_limit_hours} hours` : "Unavailable"], ["Startup listening", typeof wake.auto_start === "boolean" ? wake.auto_start ? "Enabled" : "Off" : "Unavailable"], ["Ambient audio saved", wake.audio_saved === true ? "Yes" : "No"], ["Idle model calls", String(wake.idle_llm_calls ?? 0)]] : []);
+  if (!view.known) $("#wake-remember").checked = false;
+  else if (view.active || !wakeRememberDirty) $("#wake-remember").checked = wake.auto_start === true;
+  $("#wake-remember").disabled = !view.known || view.active || wakeRequest;
+  const error = view.known && typeof wake.last_error === "string" ? wake.last_error : "";
+  $("#wake-error").textContent = error; $("#wake-error").hidden = !error;
+  $("#wake-start").disabled = !view.known || view.active || wakeRequest || wake.pc_supported !== true;
+  // An explicit stop remains available after an uncertain start or with startup listening enabled.
+  $("#wake-stop").disabled = !state.authenticated || wakeRequest || (view.known && !view.active && wake.auto_start !== true);
+  syncWakePolling(state.authenticated ? wake : null);
+}
+function cancelWakePolling() {
+  wakePollGeneration += 1;
+  if (wakePollTimer !== null) clearTimeout(wakePollTimer);
+  wakePollTimer = null;
+  // Retain the in-flight slot until the aborted read settles: never overlap reads.
+  if (wakePollRequest) wakePollRequest.controller.abort();
+}
+function syncWakePolling(wake) {
+  if (!state.authenticated || wake?.active !== true || wakeRequest) { cancelWakePolling(); return; }
+  if (wakePollTimer !== null || wakePollRequest !== null) return;
+  const generation = wakePollGeneration, token = state.token;
+  const timer = setTimeout(() => {
+    if (wakePollTimer !== timer) return;
+    wakePollTimer = null;
+    refreshWakeStatus(generation, token);
+  }, 2000);
+  wakePollTimer = timer;
+}
+async function refreshWakeStatus(generation, token) {
+  if (!state.authenticated || state.token !== token || generation !== wakePollGeneration || wakeRequest || state.status?.wake?.active !== true || wakePollRequest !== null) return;
+  const request = {controller:new AbortController(), generation, token};
+  wakePollRequest = request;
+  const current = () => state.authenticated && state.token === token && generation === wakePollGeneration && !wakeRequest && wakePollRequest === request;
+  try {
+    const wake = await api("/voice/wake", {signal:request.controller.signal});
+    if (!current()) return;
+    applyWakeSnapshot(wake);
+  } catch (error) {
+    if (current() && error.name !== "AbortError") {
+      // The existing full-status refresh can recover this view. Do not claim
+      // capture stopped, keep retrying a failed read, or issue any mic action.
+      applyWakeSnapshot(null);
+    }
+  } finally {
+    if (wakePollRequest === request) {
+      wakePollRequest = null;
+      syncWakePolling(state.status?.wake);
+    }
+  }
+}
+function resetWakeControls() {
+  wakeGeneration += 1; wakeRequest = false; wakeRememberDirty = false;
+  confirmWakeSnapshot(null);
 }
 async function setWakeListening(start) {
-  if (wakeRequest || !state.authenticated) return;
-  const remember = $("#wake-remember").checked;
+  if (wakeRequest || !state.authenticated || $(start ? "#wake-start" : "#wake-stop").disabled) return;
+  const remember = $("#wake-remember").checked, token = state.token, generation = ++wakeGeneration;
+  const current = () => state.authenticated && state.token === token && wakeGeneration === generation;
   if (start) stopSpeech();
+  wakeStatusRevision += 1;
   wakeRequest = true;
   renderWakeStatus(state.status?.wake);
   try {
     const wake = await api(`/voice/wake/${start ? "start" : "stop"}`, {method:"POST", body:start ? {mode:"pc", remember} : {}});
+    if (!current()) return;
     wakeRememberDirty = false;
-    state.status.wake = wake; renderWakeStatus(wake);
-    toast(start ? "Starting the local PC microphone. Say Ariadne followed by a request." : "Microphone listening stopped.");
-  } catch (error) { toast(error.message, true); }
-  finally { wakeRequest = false; await refreshStatus({quiet:true}); renderWakeStatus(state.status?.wake); }
+    confirmWakeSnapshot(wake);
+    toast(start ? "PC microphone enabled. Say Ariadne once, then keep talking. Say go to sleep to return to the wake word." : "PC microphone and startup listening are off.");
+  } catch (error) {
+    if (current()) {
+      confirmWakeSnapshot(null);
+      toast(`${error.message} Checking microphone status; the request is not retried.`, true);
+    }
+  } finally {
+    if (current()) {
+      wakeRequest = false;
+      renderWakeStatus(state.status?.wake);
+      await refreshStatus({quiet:true});
+      if (current()) renderWakeStatus(state.status?.wake);
+    }
+  }
 }
 async function loadBriefing() {
   if (!state.authenticated || briefRequest) return;

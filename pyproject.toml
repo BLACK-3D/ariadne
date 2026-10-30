@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ariadne-box"
-version = "0.17.0"
+version = "0.18.0"
 description = "A local AI workspace with bounded autonomy, durable memory and explicit tool authority"
 requires-python = ">=3.11"
 dependencies = []

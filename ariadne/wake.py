@@ -23,14 +23,24 @@ from .config import _allowed_path
 ROOT = Path(__file__).resolve().parents[1]
 MAX_SESSION_SECONDS = 8 * 60 * 60
 ACK_TAIL_SECONDS = 0.4
+CONVERSATION_IDLE_SECONDS = 120
+SLEEP_PHRASES = ("go to sleep", "Ariadne sleep", "sleep Ariadne", "sleep")
+STOP_PHRASES = ("stop listening", "Ariadne shut down", "shut down Ariadne", "Ariadne shutdown", "shut down")
+_STOP_PHRASES = {"stop listening", "stop microphone", "disable wake word", "stop wake word"}
 _WAKE = re.compile(r"^\s*(?:hey[\s,]+)?ariadne(?=$|[\s,.:;!?—–-])[\s,.:;!?—–-]*", re.I)
 
 
 class WakeGate:
-    """A final-utterance gate with a bounded command window and replay guard."""
+    """A bounded conversation latch; final utterances are never queued here."""
 
-    def __init__(self, clock=time.monotonic):
+    def __init__(self, clock=time.monotonic, *, conversation_idle_timeout=CONVERSATION_IDLE_SECONDS):
+        if type(conversation_idle_timeout) is not int or not 15 <= conversation_idle_timeout <= 600:
+            raise ValueError("Conversation idle timeout must be 15 to 600 seconds.")
         self.clock = clock
+        self.conversation_idle_timeout = conversation_idle_timeout
+        self.conversation_until = 0.0
+        self.conversation_held = False
+        self.conversation_id = None
         self.until = 0.0
         self.suppressed_until = 0.0
         self.last_command = ""
@@ -38,14 +48,45 @@ class WakeGate:
 
     def reset(self):
         self.until = 0.0
+        self.conversation_until = 0.0
+        self.conversation_held = False
+        self.conversation_id = None
+
+    @property
+    def conversation_active(self):
+        if self.conversation_until and (self.conversation_held or self.clock() < self.conversation_until):
+            return True
+        self.reset()
+        return False
+
+    def hold_conversation(self):
+        """Processing and playback do not consume the owner's idle window."""
+        if self.conversation_active:
+            self.conversation_held = True
+        self.until = 0.0
+
+    def resume_conversation(self):
+        # A spoken sleep/reset removes the latch; a late result cannot recreate it.
+        if self.conversation_held and self.conversation_until:
+            self.conversation_until = max(self.clock(), self.suppressed_until) + self.conversation_idle_timeout
+            self.conversation_held = False
+
+    def _open_conversation(self, now):
+        if not self.conversation_active:
+            self.conversation_id = secrets.token_urlsafe(18)
+        self.conversation_until = now + self.conversation_idle_timeout
 
     def suppress(self, seconds):
         if type(seconds) not in {int, float} or not math.isfinite(seconds) or not 0 <= seconds <= 180:
             raise ValueError("Wake suppression must be between zero and 180 seconds.")
-        self.reset()
-        self.suppressed_until = max(self.suppressed_until, self.clock() + seconds)
+        now = self.clock()
+        active = self.conversation_active
+        self.until = 0.0
+        self.suppressed_until = max(self.suppressed_until, now + seconds)
+        if active:
+            self.conversation_until = max(self.conversation_until, self.suppressed_until + self.conversation_idle_timeout)
 
-    def accept(self, text):
+    def accept(self, text, *, controls_only=False):
         if type(text) is not str or len(text) > 3000 or any(ord(c) < 32 and c not in "\n\t\r" for c in text):
             raise ValueError("A final utterance must be text within 3000 characters without controls.")
         now = self.clock()
@@ -57,19 +98,33 @@ class WakeGate:
         wake = _WAKE.match(text)
         if wake:
             text = text[wake.end():].strip()
+        canonical = text.casefold().strip(" .!?,:;—–-")
+        # Controls are exact utterances, accepted even while a mission is pending.
+        # Suppression above always wins so spoken output cannot stop or rearm us.
+        awake = self.conversation_active
+        if (canonical in _STOP_PHRASES or canonical in {"shut down ariadne", "shutdown ariadne", "ariadneshutdown"}
+                or canonical in {"shut down", "shutdown"} and (wake or awake)):
+            self.reset()
+            return {"event": "stop"}
+        if canonical in {"go to sleep", "sleep ariadne"} or canonical == "sleep" and (wake or awake):
+            self.reset()
+            return {"event": "asleep"}
+        if controls_only:
+            return {"event": "ignored"}
+        if wake:
+            self._open_conversation(now)
             if not text:
                 self.until = now + 12
                 return {"event": "awake", "command_window_seconds": 12}
-        elif now >= self.until:
+        elif not self.conversation_active and now >= self.until:
             return {"event": "ignored"}
-        self.reset()
-        if text.casefold().strip(" .!?,") in {"stop listening", "stop microphone", "disable wake word", "stop wake word"}:
-            return {"event": "stop"}
-        if text.casefold().strip(" .!?,") in {"cancel", "cancel that", "never mind", "nevermind", "go to sleep"}:
+        self.until = 0.0
+        if canonical in {"cancel", "cancel that", "never mind", "nevermind"}:
+            self.reset()
             return {"event": "cancelled"}
-        canonical = text.casefold().strip(" .!?,")
         if canonical == self.last_command and now - self.last_command_at < 10:
             return {"event": "duplicate"}
+        self._open_conversation(now)
         self.last_command, self.last_command_at = canonical, now
         return {"event": "command", "command": text}
 
@@ -99,13 +154,15 @@ class WakeService:
     submit(command) returns the newly queued run dictionary. blocked() returns
     true when the server is paused or should reject another mission. get_run(id)
     returns the existing run, and speak(text) blocks through local playback.
-    No callback is invoked for background speech without a leading wake word.
+    A wake word opens a bounded conversation. Sleep closes that latch without
+    shutting down the computer; stop listening revokes the microphone session.
     """
 
-    def __init__(self, settings, submit, *, blocked=None, get_run=None, speak=None, on_spoken_stop=None, clock=time.monotonic):
+    def __init__(self, settings, submit, *, blocked=None, get_run=None, speak=None, on_spoken_stop=None, on_awake=None, clock=time.monotonic):
         self.settings, self.submit = settings, submit
         self.blocked, self.get_run, self.speak = blocked, get_run, speak
         self.on_spoken_stop = on_spoken_stop
+        self.on_awake = on_awake
         self.clock = clock
         self.lock = threading.RLock()
         self.gate = WakeGate(clock)
@@ -119,25 +176,39 @@ class WakeService:
         self.last_event = None
         self.last_error = None
         self.pending_run = None
+        self.pending_silent = False
         self.speaking = False
         self.expiry_timer = None
         self.session_hours = 8
         self.ack_lease = None
         self.ack_timer = None
+        self.ack_generation = 0
+        self.ack_token = None
+
+    @property
+    def conversation_id(self):
+        with self.lock:
+            return self.gate.conversation_id if self.active and self.gate.conversation_active else None
 
     def status(self):
         with self.lock:
             if self.active and self.session_hours is not None and self.clock() - self.started >= self.session_hours * 3600:
                 self._stop("expired")
             suppressed = self.speaking or self.clock() < self.gate.suppressed_until
+            conversation = bool(self.active and self.gate.conversation_active)
             state = self.state
             if self.active and self.state == "listening" and not suppressed:
-                state = "working" if self.pending_run else "awaiting_command" if self.clock() < self.gate.until else "listening"
+                state = "working" if self.pending_run else "awaiting_command" if self.clock() < self.gate.until else "conversing" if conversation else "listening"
             return {"word": "Ariadne", "active": self.active, "mode": self.mode, "state": state,
                     "lease": self.lease if self.active else None, "last_event": self.last_event,
                     "last_error": self.last_error, "pending_run_id": self.pending_run,
                     "speaking": self.speaking, "suppressed": suppressed, "session_limit_hours": self.session_hours,
                     "acknowledging": bool(self.active and self.ack_lease == self.lease),
+                    "conversation_active": conversation,
+                    "conversation_id": self.gate.conversation_id if conversation else None,
+                    "conversation_idle_timeout_seconds": self.gate.conversation_idle_timeout,
+                    "sleep_phrases": list(SLEEP_PHRASES),
+                    "stop_phrases": list(STOP_PHRASES), "stop_action": "microphone_only",
                     "command_window_seconds": 12, "idle_llm_calls": 0,
                     "pc_supported": os.name == "nt", "audio_saved": False,
                     "note": "Speech is not identity verification. Existing mission limits and approvals still apply."}
@@ -161,6 +232,7 @@ class WakeService:
             self.active, self.mode, self.state = True, mode, "starting" if mode == "pc" else "listening"
             self.last_event = "started"
             self.last_error, self.pending_run = None, None
+            self.pending_silent = False
             if mode == "pc":
                 try:
                     from .media_tools import backend_status, load_profile
@@ -197,6 +269,7 @@ class WakeService:
             self.ack_timer.cancel()
             self.ack_timer = None
         self.ack_lease = None
+        self.ack_token = None
         if self.expiry_timer:
             self.expiry_timer.cancel()
             self.expiry_timer = None
@@ -204,6 +277,7 @@ class WakeService:
         self.active, self.state, self.lease = False, state, ""
         self.gate.reset()
         self.speaking = False
+        self.pending_run, self.pending_silent = None, False
         if process:
             try:
                 if process.stdin:
@@ -263,7 +337,9 @@ class WakeService:
             self.sequence = sequence
             if self.speaking:
                 return {"event": "suppressed"}
-            event = self.gate.accept(text)
+            previous_conversation = self.conversation_id
+            controls_only = bool(self.pending_run or self.ack_lease)
+            event = self.gate.accept(text, controls_only=controls_only)
             if event["event"] == "stop":
                 self._stop("stopped")
                 self.last_event = "stopped"
@@ -274,10 +350,24 @@ class WakeService:
                         self.last_error = "Listening stopped, but the startup preference could not be saved. Disable resume in the console before restarting Ariadne."
                         return {"event": "stopped", "warning": self.last_error}
                 return {"event": "stopped"}
-            if event["event"] == "awake" and self.mode == "pc" and self.speak:
-                if self.ack_lease:
-                    self.gate.reset()
-                    return {"event": "acknowledging"}
+            if event["event"] == "asleep":
+                if self.ack_timer:
+                    self.ack_timer.cancel()
+                    self.ack_timer = None
+                self.ack_lease = None
+                self.ack_token = None
+                self.pending_silent = bool(self.pending_run)
+                # A queued final control can beat the ACK rearm timer after its
+                # tail expires. The accepted control is unsuppressed; do not
+                # leave the still-active wake-only worker muted in that race.
+                self._worker_command("unmute")
+                self.last_event = "asleep"
+                return {"event": "asleep", "conversation_active": False,
+                        "message": "Conversation ended. Listening only for Ariadne; the PC remains on."}
+            if controls_only and event["event"] != "suppressed":
+                self.last_event = "busy" if self.pending_run else "acknowledging"
+                return {"event": self.last_event, "message": "Ariadne is already working; this utterance was discarded."}
+            if event["event"] in {"awake", "command"}:
                 try:
                     blocked = self.pending_run or self.blocked and self.blocked()
                 except Exception:
@@ -288,29 +378,27 @@ class WakeService:
                     self.gate.reset()
                     self.last_event = "busy"
                     return {"event": "busy", "message": "Ariadne is paused or already working. Review the current mission."}
+                if self.on_awake and previous_conversation != self.conversation_id:
+                    try:
+                        self.on_awake()
+                    except Exception:
+                        self.last_error = "Local model warming was unavailable; spoken requests can still run normally."
+            if event["event"] == "awake" and self.mode == "pc" and self.speak:
                 self.ack_lease = self.lease
+                self.ack_generation += 1
+                self.ack_token = self.ack_generation
                 self.speaking = True
-                self.gate.reset()
+                self.gate.hold_conversation()
                 self._worker_command("mute")
                 self.last_event = "acknowledging"
                 try:
-                    threading.Thread(target=self._acknowledge, args=(self.lease,), name="ariadne-wake-ack", daemon=True).start()
+                    threading.Thread(target=self._acknowledge, args=(self.lease, self.ack_token), name="ariadne-wake-ack", daemon=True).start()
                 except Exception:
                     self._stop("error")
                     self.last_error = "The local wake acknowledgement could not start. Restart listening from the console."
                     raise
                 return {**event, "acknowledging": True}
             if event["event"] == "command":
-                try:
-                    blocked = self.pending_run or self.blocked and self.blocked()
-                except Exception:
-                    self._stop("error")
-                    self.last_error = "Mission state could not be checked. Review the console before restarting listening."
-                    raise
-                if blocked:
-                    self.gate.reset()
-                    self.last_event = "busy"
-                    return {"event": "busy", "message": "Ariadne is paused or already working. Review the current mission."}
                 try:
                     run = self.submit(event["command"])
                 except Exception:
@@ -325,40 +413,49 @@ class WakeService:
                     raise ValueError(self.last_error)
                 self.last_event = "submitted"
                 self.pending_run = run["id"] if self.get_run else None
+                self.pending_silent = False
                 if self.get_run:
-                    threading.Thread(target=self._watch_run, args=(run["id"], self.lease), name="ariadne-spoken-result", daemon=True).start()
+                    self.gate.hold_conversation()
+                    try:
+                        threading.Thread(target=self._watch_run, args=(run["id"], self.lease), name="ariadne-spoken-result", daemon=True).start()
+                    except Exception:
+                        self._stop("error")
+                        self.last_error = "The spoken result watcher could not start. Review the saved mission in the console before restarting listening."
+                        raise
                 return {"event": "submitted", "run": run}
             if event["event"] not in {"ignored", "suppressed"}:
                 self.last_event = event["event"]
             return event
 
-    def _acknowledge(self, lease):
+    def _acknowledge(self, lease, token=None):
         """One short PC acknowledgement; no mission or LLM call is made."""
         with self.lock:
-            if not self.active or self.lease != lease or self.ack_lease != lease:
+            token = self.ack_token if token is None else token
+            if not self.active or self.lease != lease or self.ack_lease != lease or self.ack_token != token:
                 return
         try:
             self.speak("Listening.")
         except Exception:
             with self.lock:
-                if self.active and self.lease == lease and self.ack_lease == lease:
+                if self.active and self.lease == lease and self.ack_lease == lease and self.ack_token == token:
                     self._stop("error")
                     self.last_error = "The wake acknowledgement could not be played. Listening stopped; check PC audio output and restart listening."
             return
         with self.lock:
-            if not self.active or self.lease != lease or self.ack_lease != lease:
+            if not self.active or self.lease != lease or self.ack_lease != lease or self.ack_token != token:
                 return
             self.speaking = False
             self.gate.suppress(ACK_TAIL_SECONDS)
-            self._arm_after_ack(lease)
+            self._arm_after_ack(lease, token)
 
-    def _arm_after_ack(self, lease):
+    def _arm_after_ack(self, lease, token=None):
         with self.lock:
-            if not self.active or self.lease != lease or self.ack_lease != lease:
+            token = self.ack_token if token is None else token
+            if not self.active or self.lease != lease or self.ack_lease != lease or self.ack_token != token:
                 return
             remaining = self.gate.suppressed_until - self.clock()
             if remaining > 0:
-                self.ack_timer = threading.Timer(remaining, self._arm_after_ack, args=(lease,))
+                self.ack_timer = threading.Timer(remaining, self._arm_after_ack, args=(lease, token))
                 self.ack_timer.daemon = True
                 self.ack_timer.start()
                 return
@@ -370,10 +467,12 @@ class WakeService:
                 self.last_error = "Mission state could not be checked. Review the console before restarting listening."
                 return
             self.ack_lease = None
+            self.ack_token = None
             if blocked:
                 self.gate.reset()
                 self.last_event = "busy"
             else:
+                self.gate.resume_conversation()
                 self.gate.until = self.clock() + 12
                 self.last_event = "awake"
             self._worker_command("unmute")
@@ -445,6 +544,7 @@ class WakeService:
         return "The mission is complete. Its result is in the console."
 
     def _watch_run(self, run_id, lease):
+        terminal_seen = False
         try:
             approval_announced = False
             for _ in range(1800):  # 30 minutes; never replay a mission on timeout.
@@ -464,6 +564,7 @@ class WakeService:
                 approval_announced = False
                 if run.get("status") not in {"completed", "failed", "interrupted", "cancelled", "exhausted"}:
                     continue
+                terminal_seen = True
                 self._play_response(run, lease)
                 return
             with self.lock:
@@ -477,15 +578,20 @@ class WakeService:
             with self.lock:
                 if self.lease == lease and self.pending_run == run_id:
                     self.pending_run = None
+                    if terminal_seen and not self.pending_silent:
+                        self.gate.resume_conversation()
+                    else:
+                        self.gate.reset()
+                    self.pending_silent = False
 
     def _play_response(self, run, lease):
         with self.lock:
             if not self.active or self.lease != lease:
                 return False
-            if not self.speak or self.mode != "pc":
+            if not self.speak or self.mode != "pc" or self.pending_silent:
                 return True
             self.speaking = True
-            self.gate.reset()
+            self.gate.hold_conversation()
             self._worker_command("mute")
         try:
             self.speak(self.response_text(run))

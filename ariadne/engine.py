@@ -11,6 +11,7 @@ from .locking import InstanceLock
 from .tools import ToolRegistry
 from .verification import verify, validate_checks
 from .agents import AgentRegistry
+from .conversation import can_converse, compact_messages, delegate_schema, accept_reply
 
 
 SYSTEM = """You are Ariadne, a practical local assistant running on the owner's server.
@@ -163,6 +164,36 @@ class Engine:
         self.thread = None
         self.last_scheduler_check = 0
         self.lock = InstanceLock(settings.data_dir / "server.lock")
+        self.model_warm_lock = threading.Lock()
+        self.model_warm_thread = None
+        self.model_warm_state = {"state": "idle", "inference_tokens": 0}
+
+    def warm_selected_model(self):
+        """One bounded load on startup/explicit wake; no idle polling/inference."""
+        warmer = getattr(self.model, "warm", None)
+        if not callable(warmer) or self.stopping.is_set() or self.is_paused():
+            return
+        with self.model_warm_lock:
+            if self.model_warm_thread and self.model_warm_thread.is_alive():
+                return
+            selected = self.store.setting("model", self.settings.model)
+            self.model_warm_state = {"state": "warming", "model": selected, "inference_tokens": 0}
+            def prepare():
+                try:
+                    if self.stopping.is_set() or self.is_paused():
+                        result = {"state": "held", "model": selected, "inference_tokens": 0}
+                    else:
+                        result = warmer(selected)
+                except Exception:
+                    result = {"state": "unavailable", "model": selected, "inference_tokens": 0}
+                with self.model_warm_lock:
+                    self.model_warm_state = result
+            self.model_warm_thread = threading.Thread(target=prepare, name="ariadne-model-load", daemon=True)
+            try:
+                self.model_warm_thread.start()
+            except (OSError, RuntimeError):
+                self.model_warm_thread = None
+                self.model_warm_state = {"state": "unavailable", "model": selected, "inference_tokens": 0}
 
     def start(self):
         self.lock.acquire()
@@ -382,6 +413,26 @@ class Engine:
             self.store.approval_status(approval["id"], "executed")
         return result
 
+    def _finish_reply(self, run, context, step):
+        """Shared completion/verification contract for every tool-free reply."""
+        run_id, message = run["id"], context[-1]
+        if not message["content"].strip():
+            raise ModelError("Model returned an empty answer")
+        checks = validate_checks(run.get("checks", []), self.tools)
+        verification = verify(checks, self.tools)
+        attempt = run.get("verification_attempts", 0) + (1 if checks else 0)
+        self.store.event(run_id, "verification", verification)
+        if verification["status"] == "failed" and attempt < 2 and step < self.settings.max_steps:
+            feedback = {"message": "Expected file checks failed. Repair the workspace outputs with available tools, then finish. No external action is authorized by this feedback.", "checks": verification["checks"]}
+            context.append({"role": "user", "content": json.dumps(feedback, ensure_ascii=False)})
+            self.store.update_run(run_id, context=context, step_count=step, verification={**verification, "status": "pending", "repairing": True}, verification_status="pending", verification_attempts=attempt)
+            self.store.event(run_id, "repair", {"message": "A bounded repair pass was requested after output checks failed."})
+            return False
+        self.store.update_run(run_id, context=context, step_count=step, status="completed", verification=verification, verification_status=verification["status"], verification_attempts=attempt,
+                              error="Expected output checks failed. Review the artifact checks before continuing." if verification["status"] == "failed" else None)
+        self.store.event(run_id, "completed", {"message": message["content"], "verification_status": verification["status"]})
+        return True
+
     def _process(self, run_id):
         voice_reply = self.store.is_voice_run(run_id)
         while self.still_running(run_id) and not self.stopping.is_set():
@@ -411,6 +462,24 @@ class Engine:
             if sum(len(json.dumps(m, ensure_ascii=False)) for m in context) > 45000:
                 self.store.update_run(run_id, status="exhausted", error="Context budget reached. Start a focused follow-up mission.")
                 return
+            fast = getattr(self.model, "chat_fast", None)
+            if callable(fast) and can_converse(run):
+                self.store.event(run_id, "thinking", {"step": 1, "profile": "conversation"})
+                model_name = self.store.setting("model", self.settings.model)
+                message, usage = fast(model_name, compact_messages(run, voice=voice_reply), [delegate_schema()])
+                if not self.still_running(run_id) or self.stopping.is_set():
+                    return
+                self.store.event(run_id, "model_usage", usage)
+                step = run["step_count"]+1
+                if not accept_reply(message):
+                    # The only compact tool is a routing request. Never execute
+                    # a returned call or persist it as an authorized action.
+                    self.store.event(run_id, "conversation_route", {"route": "full_mission", "reason": "Tools or verified evidence are needed."})
+                    self.store.update_run(run_id, step_count=step)
+                    continue
+                if self._finish_reply(run, context+[message], step):
+                    return
+                continue
             recalled = {"memories": self.store.search(run["prompt"]), "knowledge": self.store.search(run["prompt"], knowledge=True)}
             system = SYSTEM + "\nCurrent step: " + str(run["step_count"] + 1) + "/" + str(self.settings.max_steps)
             system += "\n" + self.agents.prompt(run.get("agent_id"))
@@ -452,22 +521,9 @@ class Engine:
             context = context + [message]
             calls = message.get("tool_calls", [])
             if not calls:
-                if not message["content"].strip():
-                    raise ModelError("Model returned an empty answer")
-                checks = validate_checks(run.get("checks", []), self.tools)
-                verification = verify(checks, self.tools)
-                attempt = run.get("verification_attempts", 0) + (1 if checks else 0)
-                self.store.event(run_id, "verification", verification)
-                if verification["status"] == "failed" and attempt < 2 and step < self.settings.max_steps:
-                    feedback = {"message": "Expected file checks failed. Repair the workspace outputs with available tools, then finish. No external action is authorized by this feedback.", "checks": verification["checks"]}
-                    context.append({"role": "user", "content": json.dumps(feedback, ensure_ascii=False)})
-                    self.store.update_run(run_id, context=context, step_count=step, verification={**verification, "status": "pending", "repairing": True}, verification_status="pending", verification_attempts=attempt)
-                    self.store.event(run_id, "repair", {"message": "A bounded repair pass was requested after output checks failed."})
-                    continue
-                self.store.update_run(run_id, context=context, step_count=step, status="completed", verification=verification, verification_status=verification["status"], verification_attempts=attempt,
-                                      error="Expected output checks failed. Review the artifact checks before continuing." if verification["status"] == "failed" else None)
-                self.store.event(run_id, "completed", {"message": message["content"], "verification_status": verification["status"]})
-                return
+                if self._finish_reply(run, context, step):
+                    return
+                continue
             pending = [{"name": c["function"]["name"], "args": c["function"]["arguments"], "key": f"{step}:{i}"} for i, c in enumerate(calls)]
             self.store.update_run(run_id, context=context, step_count=step, pending=pending)
             if message["content"]:

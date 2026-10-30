@@ -323,7 +323,7 @@
     "workspace-path"
   ],
   "critical_handler_sha256": {
-    "api": "0ab4acb31fa50b80b8bd1098cdf67ae6575000e4a5c01c6cf191cfd4823cebad",
+    "api": "cd676b76ee9b073417d9457d56593efb9111f0ebb60a8bae78f00be0b628ccac",
     "renderApprovals": "119e32c600c589e2a9c5661856fbc6e5a42ac875c364d5b4dfd745361247e042",
     "launchMission": "27b3edd7312066f4c0ebf19a2838ab540c010c37be4c64fa71172d4d2f2157d8",
     "cancelRun": "bfbb42e4a038bbe5895c6edde233ecc30d42f86914da2239fda686b1802d0608",
@@ -331,5 +331,11 @@
     "renderSettings": "f108345a5e815fce2e103664661bb817232ce88977fb8c53304c1965e096a812",
     "saveModel": "f8d1124c5c32dea1e90240cfb9b8f7b92a78cd143e2be85376d6a09849adb5f0",
     "toggleRecording": "5a33cbb70fa30bdffba4bbaea8219e43c16ccb31c27482ace73d1f33e8c021f2"
+  },
+  "reviewed_handler_updates": {
+    "api": {
+      "version": "0.18.0",
+      "reason": "Guard stale/aborted 401/403 responses with the originating pairing generation and token. Independently reviewed with deferred same/different-token regressions; permissions are unchanged."
+    }
   }
 }

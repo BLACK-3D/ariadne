@@ -161,8 +161,9 @@ class Store:
         for row in reversed(rows):
             previous = json.loads(row["context"])
             answer = next((m.get("content", "") for m in reversed(previous) if m["role"] == "assistant" and not m.get("tool_calls")), "")
-            context.extend([{"role": "user", "content": row["prompt"][:4000]}, {"role": "assistant", "content": answer[:6000]}])
-        while context and sum(len(m["content"]) for m in context) > 12000:
+            prompt_limit, reply_limit = (1000, 1500) if interaction == "voice" else (4000, 6000)
+            context.extend([{"role": "user", "content": row["prompt"][:prompt_limit]}, {"role": "assistant", "content": answer[:reply_limit]}])
+        while context and sum(len(m["content"]) for m in context) > (4000 if interaction == "voice" else 12000):
             context = context[2:]
         context.append({"role": "user", "content": prompt})
         stamp = now()

@@ -71,7 +71,7 @@ class Application:
         self.engine.briefing_provider = self.briefing_read
         self.wake_voice = WakeService(settings, self.submit_voice, blocked=self.voice_blocked,
                                       get_run=self.store.run, speak=self.speak_on_pc,
-                                      on_spoken_stop=self.disable_wake_startup)
+                                      on_spoken_stop=self.disable_wake_startup, on_awake=self.engine.warm_selected_model)
         self.engine.tools.media._voice = self.voice
         seed_workflows(self.store)
         self.static = Path(__file__).parent / "static"
@@ -85,6 +85,7 @@ class Application:
     def start_services(self):
         self.briefing.start()
         self.warm_voice()
+        self.engine.warm_selected_model()
         preferences = self.store.setting("wake_preferences", {})
         if isinstance(preferences, dict) and preferences.get("enabled") is True:
             try:
@@ -202,7 +203,12 @@ class Application:
         if self.voice_blocked():
             raise ValueError("Ariadne is paused or a mission is active; voice requests are held")
         profile = self.engine.agents.select(command, "auto")
-        run = self.store.new_run(command, agent_id=profile["id"], interaction="voice")
+        conversation = getattr(getattr(self, "wake_voice", None), "conversation_id", None)
+        if conversation:
+            # Keep public session IDs compatible with typed follow-ups. This
+            # ID groups context; it authenticates neither a voice nor a person.
+            conversation = hashlib.sha256(("voice:"+conversation).encode()).hexdigest()[:32]
+        run = self.store.new_run(command, session_id=conversation, agent_id=profile["id"], interaction="voice")
         self.engine.wake.set()
         return self.public_run(run)
 
@@ -497,6 +503,7 @@ class Application:
                 self.wake_voice.stop()
                 raise
             result = self.wake_status()
+            self.engine.warm_selected_model()
         elif parts == ["voice", "wake", "stop"] and method == "POST":
             self.body(env)
             try:
@@ -791,6 +798,17 @@ class Application:
                 {"name": s["function"]["name"], "description": s["function"]["description"],
                  "approval_required": self.engine.tools.policy(s["function"]["name"], {}) == "approval"}
                 for s in self.engine.tools.schemas()]}
+        elif parts == ["model", "warm"] and method == "GET":
+            with self.engine.model_warm_lock:
+                result = dict(self.engine.model_warm_state)
+        elif parts == ["model", "warm"] and method == "POST":
+            if self.body(env):
+                raise ValueError("Model warming accepts an empty object.")
+            if self.engine.is_paused():
+                raise HTTPError(409, "Autonomy is paused; model loading is held.")
+            self.engine.warm_selected_model()
+            with self.engine.model_warm_lock:
+                result = dict(self.engine.model_warm_state)
         elif parts == ["settings"] and method == "GET":
             result = {"model": self.store.setting("model", self.settings.model), "max_steps": self.settings.max_steps}
         elif parts == ["settings"] and method == "POST":
@@ -799,6 +817,7 @@ class Application:
             if model not in {m["name"] for m in available.get("models", [])}:
                 raise ValueError("Choose an installed model. Provisioning models is a separate operator step.")
             self.store.set_setting("model", model)
+            self.engine.warm_selected_model()
             result = {"model": model}
         elif parts == ["voice", "transcribe"] and method == "POST":
             if not self.voice_lock.acquire(blocking=False):
