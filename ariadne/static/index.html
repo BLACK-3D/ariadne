@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="/static/venture.css">
   <link rel="stylesheet" href="/static/handoff.css">
   <link rel="stylesheet" href="/static/client_handoff.css">
+  <link rel="stylesheet" href="/static/qqq.css">
   <script src="/static/command.js" defer></script>
   <script src="/static/routines.js" defer></script>
   <script src="/static/operations.js" defer></script>
@@ -19,6 +20,7 @@
   <script src="/static/venture.js" defer></script>
   <script src="/static/handoff.js" defer></script>
   <script src="/static/client_handoff.js" defer></script>
+  <script src="/static/qqq.js" defer></script>
   <script src="/static/app.js" defer></script>
 </head>
 <body class="command-console">
@@ -110,6 +112,8 @@
         <section class="view content-view" id="view-venture" hidden>
           <div class="page-heading"><div><span class="eyebrow">IDEAS / EVIDENCE / LOCAL PROGRESS</span><h1>Venture Lab</h1><p>Business experiments and disciplined ETF research. Your daily brief advances the next local draft.</p></div><div><button id="refresh-venture" class="button button-secondary">Refresh</button> <button id="run-venture" class="button button-primary">Create today's check-in</button></div></div>
           <div id="venture-content" aria-live="polite"></div>
+          <div class="page-heading"><div><span class="eyebrow">FIXED RULE / FORWARD PAPER EVIDENCE</span><h2>QQQ recovery lab</h2></div><button id="refresh-qqq" class="button button-secondary">Inspect paper account</button></div>
+          <div id="qqq-content" aria-live="polite"></div>
         </section>
         <section class="view content-view" id="view-handoff" hidden>
           <div class="page-heading handoff-heading"><div><span class="eyebrow">LOCAL BUSINESS / CLIENT WORKFLOW</span><h1>Service desk</h1></div><div><button id="refresh-client-handoff" class="button button-secondary">Refresh clients</button><button id="refresh-handoff" class="button button-secondary" hidden>Refresh demo</button></div></div>

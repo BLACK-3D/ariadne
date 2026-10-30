@@ -222,6 +222,7 @@ function renderStatus(status) {
   window.ariadneRoutines?.status(status);
   window.ariadneOperationWorkflows?.status(status);
   window.ariadneVenture?.status(status);
+  window.ariadneQQQ?.status(status);
   window.ariadneHandoff?.status(status);
   window.ariadneClientHandoff?.status(status);
 }
@@ -320,6 +321,7 @@ function lockSession(message = "") {
   window.ariadneRoutines?.locked();
   window.ariadneOperationWorkflows?.locked();
   window.ariadneVenture?.locked();
+  window.ariadneQQQ?.locked();
   window.ariadneHandoff?.locked();
   window.ariadneClientHandoff?.locked();
   $("#access-token").focus();
@@ -359,7 +361,7 @@ async function showView(view) {
 }
 async function loadView(view) {
   if (view === "operations") { await window.ariadneOperations?.load(); return; }
-  if (view === "venture") { await window.ariadneVenture?.load(); return; }
+  if (view === "venture") { await window.ariadneVenture?.load(); await window.ariadneQQQ?.load(); return; }
   if (view === "handoff") { await loadServiceDesk(); return; }
   if (view === "settings") { renderSettings(); return; }
   const loaders = {agents:loadAgents, briefing:loadBriefing, internet:loadInternet, knowledge:loadKnowledge, survival:loadSurvival, workflows:loadWorkflows, memory:loadMemory, schedules:loadSchedules, files:loadFiles, connectors:loadConnectors};
@@ -2997,6 +2999,7 @@ window.ariadneRoutines?.attach({state, api, node, button, icon, openArtifact, do
 window.ariadneOperations?.attach({state, api, node, button, openArtifact, newMission, showView, resizeComposer});
 window.ariadneOperationWorkflows?.attach({state, api, node, button, showView, setWorkflowTab, confirmAction, toast});
 window.ariadneVenture?.attach({state, api, node, button, openArtifact, showView, confirmAction, toast});
+window.ariadneQQQ?.attach({state, api, node, button, openArtifact, confirmAction, toast});
 window.ariadneHandoff?.attach({state, api, node, button, openArtifact, downloadArtifact, showView, confirmAction, toast});
 window.ariadneClientHandoff?.attach({state, api, node, button, openArtifact, downloadArtifact, confirmAction, toast});
 let serviceDeskMode = "real";

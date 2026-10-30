@@ -293,6 +293,8 @@ class Application:
                           "/static/handoff.css": ("handoff.css", "text/css"),
                           "/static/client_handoff.js": ("client_handoff.js", "text/javascript"),
                           "/static/client_handoff.css": ("client_handoff.css", "text/css"),
+                          "/static/qqq.js": ("qqq.js", "text/javascript"),
+                          "/static/qqq.css": ("qqq.css", "text/css"),
                           "/static/operations_workflows.js": ("operations_workflows.js", "text/javascript")}
                 if path not in assets:
                     raise HTTPError(404, "Not found")
@@ -438,6 +440,14 @@ class Application:
                 else:
                     arguments[key] = int(values[0])
             result = self.client_handoff.status(**arguments)
+        elif parts == ["qqq"] and method == "GET":
+            result = self.briefing.qqq.status()
+        elif parts == ["qqq", "config"] and method == "PUT":
+            result = self.briefing.qqq.configure(self.client_handoff_body(env))
+        elif parts in (["qqq", "refresh"], ["qqq", "backtest"], ["qqq", "paper"], ["qqq", "acknowledge"], ["qqq", "archive"]) and method == "POST":
+            handlers = {"refresh":self.briefing.qqq.refresh,"backtest":self.briefing.qqq.backtest,
+                        "paper":self.briefing.qqq.start_paper,"acknowledge":self.briefing.qqq.acknowledge,"archive":self.briefing.qqq.archive}
+            result = handlers[parts[1]](self.client_handoff_body(env))
         elif len(parts) == 3 and parts[0] == "service-desk" and parts[1] in {"clients", "intakes", "documents"} and method == "GET":
             readers = {"clients": self.client_handoff.get_client, "intakes": self.client_handoff.get_intake,
                        "documents": self.client_handoff.get_document}

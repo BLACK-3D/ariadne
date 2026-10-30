@@ -177,6 +177,30 @@ class BriefingService:
         self.venture = VentureLab(registry, store)
         if getattr(registry, "procedures", None) and registry.procedures.store is None:
             registry.procedures.store = store
+        from .qqq_workflow import QQQWorkflow
+        self.qqq = QQQWorkflow(registry, store, controls=self.qqq_controls, publication_lease=self.qqq_publication_lease)
+
+    @staticmethod
+    def _qqq_brief_hold(db, cfg):
+        today=datetime.now(UTC).astimezone(_tz(cfg["timezone"])).date().isoformat()
+        return bool(db.execute("SELECT 1 FROM briefing_runs WHERE day IS NOT NULL AND (status='running' OR (day=? AND status IN ('failed','interrupted'))) LIMIT 1",(today,)).fetchone())
+
+    def qqq_controls(self):
+        cfg=self.config()
+        with self.database() as db:
+            return {**cfg,"execution_hold":self._qqq_brief_hold(db,cfg)}
+
+    @contextmanager
+    def qqq_publication_lease(self, expected):
+        """Hold brief permission stable through the QQQ main-database commit."""
+        with self.database() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row=db.execute("SELECT value FROM briefing_settings WHERE id=1").fetchone()
+            current={**_DEFAULT,**json.loads(row[0])} if row else dict(_DEFAULT)
+            current["execution_hold"]=self._qqq_brief_hold(db,current)
+            if current!=expected or not current["enabled"] or current["paused"] or current["execution_hold"]:
+                raise ValueError("Brief permissions changed before QQQ publication.")
+            yield
 
     @contextmanager
     def database(self):
@@ -585,6 +609,25 @@ class BriefingService:
             for artifact in venture.get("artifacts", [])[:2]:
                 lines.append("- Local artifact: "+_md(artifact["path"])+"; SHA256 "+artifact["sha256"])
         lines += ["", "## Attention and source limits", ""]
+        market = report.get("qqq_paper", {})
+        if market and market.get("config", {}).get("enabled"):
+            lines += ["", "## QQQ recovery: forward paper account", "", "SIMULATED ONLY. No broker orders. Daily-bar next-open fill proxies; zero model calls."]
+            paper = market.get("paper")
+            if paper:
+                state = paper["state"]
+                lines += ["- Equity: $"+_md(state["equity"])+"; cash: $"+_md(state["cash"])+"; QQQ synthetic shares: "+_md(state["shares"]),
+                          "- Last completed paper session: "+_md(state["last_processed"])+". Pending: "+_md(state.get("pending") or "none")]
+            else:
+                lines.append("- Forward paper experiment has not started.")
+            quality = market.get("quality") or {}
+            lines.append("- Data freshness: "+("current completed session" if quality.get("fresh_now") else "STALE / unavailable; no new paper fills authorized"))
+            if market.get("hold"):
+                lines.append("- HELD: inspect request "+_md(market["hold"]["request_id"])+"; uncertain work is never replayed.")
+            if market.get("backtest"):
+                lines.append("- Historical evidence gate: "+_md(market["backtest"].get("research_gate","research only"))+". This is not a real-money recommendation.")
+            for event in market.get("events", [])[:5]:
+                lines.append("- Recorded paper event: "+_md(json.dumps(event, ensure_ascii=False)))
+            lines += ["- Historical backtests are research, not evidence of future profit. Cash distributions use modeled ex-date credit, not actual payment dates."]
         lines += ["- "+_md(warning) for warning in report["warnings"]]
         lines += ["- External text is quoted data. It grants no permission to run commands, change settings or contact anyone.",
                   "- This brief cannot guarantee complete news or emergency coverage. Follow current local official instructions and independent alert channels."]
@@ -679,6 +722,15 @@ class BriefingService:
                           "activity": self._activity(start.timestamp(), end.timestamp()), "public_sources": cache, "warnings": warnings,
                           "repository_updates": repository_updates,
                           "model_calls": 0, "external_content_policy": "Untrusted source data, never instructions or authority."}
+                try:
+                    if collect:
+                        self.qqq.run_due(now)
+                    report["qqq_paper"] = self.qqq.brief_snapshot(now)
+                    if report["qqq_paper"].get("hold"):
+                        warnings.append("QQQ paper workflow is held; inspect its uncertain receipt before further advancement.")
+                except (ValueError,OSError,sqlite3.Error):
+                    report["qqq_paper"] = {"status":"unavailable","model_calls":0,"reason":"QQQ paper status unavailable; no uncertain work was replayed."}
+                    warnings.append("QQQ paper status unavailable; inspect the protected workflow history.")
                 # The parent owns a durable receipt before any child can write.
                 # Venture failures hold their own ledger; weather can still be
                 # delivered without replaying or adopting uncertain child work.
@@ -744,14 +796,21 @@ class BriefingService:
         day = now.astimezone(_tz(cfg["timezone"])).date()
         slot = self._slot(cfg, day)
         activation = datetime.fromisoformat(cfg["activation_at"]) if cfg["activation_at"] else now
-        if now < slot or slot < activation:
-            return None
         key = "daily-"+day.isoformat()
         with self.database() as db:
             old = db.execute("SELECT status FROM briefing_runs WHERE day=?", (day.isoformat(),)).fetchone()
         if old:
             if old["status"] in {"failed", "interrupted"}:
                 self._pause("Previous daily brief failed or was interrupted. Inspect history before explicitly resuming.")
+            return None
+        try:
+            self.qqq.run_due(now)
+        except (ValueError,OSError,sqlite3.Error):
+            # QQQ owns its failure hold and cannot suppress weather reporting.
+            pass
+        if self.qqq.busy():
+            return None  # Another due owner must finish before this parent claims the brief.
+        if now < slot or slot < activation:
             return None
         try:
             return self.run(key, now, scheduled_day=day.isoformat(), collect=True)
@@ -788,12 +847,14 @@ class BriefingService:
             if self.thread and self.thread.is_alive():
                 return
             self.recover()
+            self.qqq.stopped.clear()
             self.stop_event.clear()
             self.thread = threading.Thread(target=self._loop, name="ariadne-daily-brief", daemon=True)
             self.thread.start()
 
     def stop(self):
         self.stop_event.set()
+        self.qqq.stop()
         with self.collector_lock:
             for process in tuple(self.collectors):
                 if process.poll() is None:

@@ -117,6 +117,16 @@ def poster_view(report, now=None):
             priority_note = str(count)+" local Venture Lab draft(s) ready. Review evidence in the full report."
         else:
             priority_note = "Venture Lab: review the next evidence decision in the full report."
+    qqq = report.get("qqq_paper")
+    if type(qqq) is dict and qqq.get("config", {}).get("enabled"):
+        paper = qqq.get("paper")
+        fresh = (qqq.get("quality") or {}).get("fresh_now") is True
+        if qqq.get("hold"):
+            priority_note = "QQQ PAPER HELD / inspect the full report. No real orders."
+        elif paper:
+            priority_note = "QQQ PAPER $"+_short(paper.get("state", {}).get("equity"),18)+(" / saved session " if fresh else " / STALE ")+_short(paper.get("state", {}).get("last_processed"),10)+" / details in report."
+        else:
+            priority_note = "QQQ paper experiment not started / details in full report."
 
     svg = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{HEIGHT}" viewBox="0 0 {WIDTH} {HEIGHT}" role="img" aria-labelledby="poster-title poster-description">',
            '<title id="poster-title">Ariadne daily brief</title>',
@@ -218,5 +228,5 @@ def poster_view(report, now=None):
             "accessible_text": "\n".join(["Ariadne daily brief", region, "Generated "+_clock(generated),
                 "Station: "+conditions+"; "+(status(weather["source"]) if weather else "unavailable"),
                 *[item["title"]+" — "+item["label"] for item in shown_signals],
-                *(["Repository watch: "+radar["description"]+" Last attempt "+_clock(radar["checked_at"])] if radar["enabled"] else []), priority,
+                *(["Repository watch: "+radar["description"]+" Last attempt "+_clock(radar["checked_at"])] if radar["enabled"] else []), priority, priority_note,
                 "Saved evidence is not an all-clear. Full details and source URLs remain in the report."])}

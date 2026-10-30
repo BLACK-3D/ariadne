@@ -170,6 +170,18 @@ def compact_summary(report, now=None):
                                         "text_clipped": region_cut, "urls": 0, "warnings": 0},
     }
     radar = repository_summary(report, now)
+    paper = report.get("qqq_paper")
+    if type(paper) is dict and paper.get("config", {}).get("enabled") is True:
+        account = paper.get("paper") or {}
+        state = account.get("state") or {}
+        quality = paper.get("quality") or {}
+        result["qqq_paper"] = {"simulated_only":True,"session":_short(state.get("last_processed"),10)[0],
+            "equity":_short(state.get("equity"),44)[0],"cash":_short(state.get("cash"),44)[0],
+            "shares":_short(state.get("shares"),44)[0],"pending_action":_short((state.get("pending") or {}).get("action") or "none",12)[0],
+            "held":bool(paper.get("hold")),"fresh_at_report_generation":quality.get("fresh_now") is True,
+            "source_retrieved_at":_short(quality.get("retrieved_at"),40)[0],
+            "historical_gate":_short((paper.get("backtest") or {}).get("research_gate"),60)[0],
+            "note":"Saved paper simulation, not broker fills or live prices. Freshness flag belongs to this report's generation time."}
     if radar["enabled"]:
         # Reserve a small explicit repository header in the model-facing view;
         # full row metadata and URLs remain in the verified Markdown/JSON.
