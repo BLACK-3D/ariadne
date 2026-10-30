@@ -1,0 +1,105 @@
+{
+  "schema": 1,
+  "checked_at": "2026-10-30T23:08:05.837681+00:00",
+  "scope": "Bounded primary-source follow-up on public no-account VIX/VIXW option data. Research findings only; no quote dataset, API entitlement, runtime access or trading authority.",
+  "outcome": "None of these three candidates qualifies a permitted free no-account recurring VIX/VIXW option BBO source with actual side sizes and quote-event timestamps. These observations are not proof that every possible source is absent.",
+  "qualified_feed": false,
+  "sources": [
+    {
+      "name": "ChartExchange",
+      "primary_urls": [
+        "https://chartexchange.com/symbol/index-vix/optionchain/",
+        "https://chartexchange.com/products/api/",
+        "https://chartexchange.com/docs/api/v1/",
+        "https://chartexchange.com/policies/"
+      ],
+      "observed_public_fields": [
+        "strike",
+        "contract link",
+        "last price",
+        "change",
+        "volume",
+        "open interest",
+        "last date"
+      ],
+      "quote_coverage": "Public VIX chain displays delayed rows; the inspected table has no bid/ask, per-side sizes or quote-event timestamp. Last trade/date and volume/OI do not supply those missing fields.",
+      "automation": "Official API reference requires an API key and a subscription tier. Marketing page offers anonymous demonstrations trimmed to three rows; a recurring anonymous VIX quote entitlement was not established. API option chain summary, historical max pain or option bars cannot be presumed full contract BBO.",
+      "historical_vs_forward": "Public display is a saved/delayed chain view, not qualified forward execution evidence. No adequate historical VIX BBO dataset downloaded.",
+      "qualification": "not_qualified"
+    },
+    {
+      "name": "Options Analysis Suite",
+      "primary_urls": [
+        "https://www.optionsanalysissuite.com/index/vix/options-chain",
+        "https://www.optionsanalysissuite.com/about",
+        "https://www.optionsanalysissuite.com/developers/mcp",
+        "https://www.optionsanalysissuite.com/documentation/api-access"
+      ],
+      "observed_public_fields": [
+        "snapshot date",
+        "type",
+        "strike",
+        "expiration",
+        "volume",
+        "open interest",
+        "IV",
+        "bid",
+        "ask"
+      ],
+      "quote_coverage": "Public server-rendered VIX page contains nine selected most-active rows dated October29 2026, not a full verified quote response. Per-side sizes and contract quote-event clocks are absent. Page summary says front expiry33days while its table lists a6-day expiry, so summary consistency also needs qualification.",
+      "automation": "Official MCP is included with Pro subscription and account sign-in. REST documentation states all /v1/* endpoints require an API key on API tier. Authenticated real-time chains use owner-provided broker integrations. No sanctioned anonymous full-chain export/API qualified.",
+      "historical_vs_forward": "Provider describes EOD historical snapshots as reconstructed state rather than trade-by-trade replay. Displayed dated rows are not qualified forward-fill evidence or adequate historical execution data.",
+      "qualification": "not_qualified_free_no_account"
+    },
+    {
+      "name": "Obelion",
+      "primary_urls": [
+        "https://www.obelion.net/options/VIX/options-chain",
+        "https://www.obelion.net/methodology",
+        "https://www.obelion.net/terms",
+        "https://www.obelion.net/faq"
+      ],
+      "quote_coverage": "Direct VIX detail open was unavailable in the research tool. Official methodology lists delayed Cboe chains with Polygon/Yahoo fallbacks; supplied chain fields include bid/ask but do not establish actual side sizes or individual quote-event clocks. Some Greeks are modeled, which must not be mistaken for observed data.",
+      "automation": "Official terms section03 prohibit automated extraction unless expressly authorized in writing. No documented permitted anonymous export/API was found. Signed-in users may use their own provider keys, which does not meet the no-account condition.",
+      "historical_vs_forward": "Methodology describes shared delayed cache and different refresh cadences by source. Cache/receipt time is not individual quote-event or availability time. No multi-session VIX BBO history obtained.",
+      "qualification": "not_qualified"
+    },
+    {
+      "name": "Optionistics",
+      "primary_urls": [
+        "https://www.optionistics.com/s/download_historical_data",
+        "https://www.optionistics.com/subscribe"
+      ],
+      "quote_coverage": "Public pricing lists delayed free tools, but does not establish a no-account executable VIX BBO source with quoted side sizes and quote-event timestamps.",
+      "automation": "The historical download page redirected to login. Historical data downloads are a subscription feature; the published historical-download explanation states automated downloading is unsupported.",
+      "historical_vs_forward": "Historical downloads and delayed viewing tools do not establish a permitted recurring current VIX quote feed.",
+      "qualification": "not_qualified_free_no_account"
+    }
+  ],
+  "remaining_execution_requirements": [
+    "Permitted recurring source access without new account or subscription under current owner preference",
+    "Actual VIX/VIXW contract identity, bid/ask, quoted side sizes and separate observation/availability/retrieval clocks",
+    "Official calendar and matching-expiry individual VX reference required by frozen rule",
+    "Qualified atomic integration with the existing sole shared500USD monthly options allowance"
+  ],
+  "actions": {
+    "production_edits": 0,
+    "owner_state_changes": 0,
+    "source_code_executed": 0,
+    "registrations": 0,
+    "agreements_accepted": 0,
+    "paid_services": 0,
+    "credentials_sent": false,
+    "private_endpoints_used": false,
+    "brokerage_orders": 0,
+    "raw_quote_rows_downloaded_or_adopted": 0,
+    "E_drive_accessed": false
+  },
+  "current_product_scope": {
+    "runtime_changed": false,
+    "vix_paper_fills_enabled": false,
+    "shared_monthly_cap": "500.00",
+    "new_funding": "0",
+    "offline_local_file_imports": "Existing strict VIX research imports remain available; no relaxed schemas or modeled quotes added."
+  }
+}
