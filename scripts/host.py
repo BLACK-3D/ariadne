@@ -20,7 +20,7 @@ from ariadne.locking import InstanceLock
 from scripts.windows_host import StopEvent, ServiceJob, detach, in_any_job, process_identity, same_process
 
 ENVIRONMENT_KEYS = frozenset({"ARIADNE_DATA_DIR", "ARIADNE_HOST", "ARIADNE_PORT", "ARIADNE_MODEL", "ARIADNE_MAX_STEPS",
-    "ARIADNE_MODEL_TIMEOUT", "ARIADNE_OFFLINE", "ARIADNE_OLLAMA_URL", "ARIADNE_ENABLE_DOCKER", "ARIADNE_DOCKER_IMAGE"})
+    "ARIADNE_MODEL_TIMEOUT", "ARIADNE_OFFLINE", "ARIADNE_OLLAMA_URL", "ARIADNE_MODEL_PORT", "ARIADNE_FLOW_PORT", "ARIADNE_ENABLE_DOCKER", "ARIADNE_DOCKER_IMAGE"})
 
 
 def host_directory():
@@ -49,6 +49,10 @@ def clean_environment(overrides=None):
     overrides = overrides or {}
     if type(overrides) is not dict or set(overrides) - ENVIRONMENT_KEYS or any(type(value) is not str or len(value) > 2048 or "\x00" in value for value in overrides.values()):
         raise ValueError("Unsupported host environment.")
+    from ariadne.config import local_service_port
+    for name, default in (("ARIADNE_MODEL_PORT", 11434), ("ARIADNE_FLOW_PORT", 1880)):
+        if name in overrides:
+            local_service_port(name, default, environ=overrides)
     if "ARIADNE_DATA_DIR" in overrides:
         selected = _allowed_path(overrides["ARIADNE_DATA_DIR"])
         if not selected.is_relative_to(ROOT):

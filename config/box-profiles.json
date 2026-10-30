@@ -64,12 +64,6 @@
             }
           }
         },
-        "piper": {
-          "assets": {
-            "model": {"path": "runtime/media/piper/en_GB-cori-medium.onnx", "sha256": "1899f98e5fb8310154f3c2973f4b8a929ba7245e722b3d3a85680b833d95f10d"},
-            "config": {"path": "runtime/media/piper/en_GB-cori-medium.onnx.json", "sha256": "e262c16d7f192f69d4edd6b4ef8a5915379e67495fcc402f1ab15eeb33da3d36"}
-          }
-        },
         "silero": {
           "assets": {
             "model": {
@@ -115,6 +109,18 @@
             "manifest": {
               "path": "runtime/media/flux/ariadne-manifest.json",
               "sha256": "58d277cb867def17c4741109dbdfc436f85741402664e858334c6349e50c1325"
+            }
+          }
+        },
+        "piper": {
+          "assets": {
+            "model": {
+              "path": "runtime/media/piper/en_GB-cori-medium.onnx",
+              "sha256": "1899f98e5fb8310154f3c2973f4b8a929ba7245e722b3d3a85680b833d95f10d"
+            },
+            "config": {
+              "path": "runtime/media/piper/en_GB-cori-medium.onnx.json",
+              "sha256": "e262c16d7f192f69d4edd6b4ef8a5915379e67495fcc402f1ab15eeb33da3d36"
             }
           }
         }

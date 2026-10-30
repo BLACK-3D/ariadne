@@ -6,9 +6,18 @@ import os
 import json
 import secrets
 import stat
+import re
 from dataclasses import dataclass
 from pathlib import Path, PureWindowsPath
 from urllib.parse import urlsplit
+
+
+def local_service_port(name: str, default: int, *, environ=None) -> int:
+    """Select a port for an owned numeric-loopback service, never a host/URL."""
+    raw = (os.environ if environ is None else environ).get(name, str(default))
+    if type(raw) is not str or not re.fullmatch(r"[1-9][0-9]{0,4}", raw) or not 1 <= int(raw) <= 65535:
+        raise ValueError(name + " must be a decimal port from 1 to 65535.")
+    return int(raw)
 
 
 def _allowed_path(value: str | Path) -> Path:
@@ -128,7 +137,8 @@ def load_settings() -> Settings:
 
     settings = Settings(
         data_dir=data_dir,
-        ollama_url=os.environ.get("ARIADNE_OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/"),
+        ollama_url=(os.environ.get("ARIADNE_OLLAMA_URL") or
+                    f"http://127.0.0.1:{local_service_port('ARIADNE_MODEL_PORT', 11434)}").rstrip("/"),
         model=os.environ.get("ARIADNE_MODEL", "qwen3:4b"),
         host=os.environ.get("ARIADNE_HOST", "127.0.0.1"),
         port=int(os.environ.get("ARIADNE_PORT", "8080")),

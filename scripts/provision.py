@@ -18,7 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from ariadne.config import _allowed_path
+from ariadne.config import _allowed_path, local_service_port
 VERSION = "0.40.12"
 URL = f"https://github.com/ollama/ollama/releases/download/v{VERSION}/ollama-windows-amd64.zip"
 SHA256 = "21814944f3e50d3f07b6bb3af75baddb96f59e91353c332ac9c5063b3bfd1041"
@@ -74,14 +74,14 @@ def local_env():
     profile.mkdir(parents=True, exist_ok=True)
     env.update({"OLLAMA_MODELS": str(data / "models"), "OLLAMA_TMPDIR": str(data / "tmp"),
                 "TMP": str(data / "tmp"), "TEMP": str(data / "tmp"), "OLLAMA_NO_CLOUD": "1",
-                "OLLAMA_HOST": "127.0.0.1:11434", "OLLAMA_NUM_PARALLEL": "1", "OLLAMA_MAX_LOADED_MODELS": "1",
+                "OLLAMA_HOST": f"127.0.0.1:{local_service_port('ARIADNE_MODEL_PORT', 11434)}", "OLLAMA_NUM_PARALLEL": "1", "OLLAMA_MAX_LOADED_MODELS": "1",
                 "HOME": str(profile), "USERPROFILE": str(profile), "APPDATA": str(profile), "LOCALAPPDATA": str(profile)})
     return env
 
 
 def api(path):
     client = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-    with client.open("http://127.0.0.1:11434" + path, timeout=3) as response:
+    with client.open(f"http://127.0.0.1:{local_service_port('ARIADNE_MODEL_PORT', 11434)}" + path, timeout=3) as response:
         return json.load(response)
 
 
@@ -112,6 +112,8 @@ def owned_model_server(executable):
 
 
 def start_model_server(executable, env, allow_owned=False, on_process=None, create_process=None):
+    port = local_service_port("ARIADNE_MODEL_PORT", 11434)
+    env = {**env, "OLLAMA_HOST": f"127.0.0.1:{port}"}
     try:
         api("/api/version")
     except Exception:
@@ -127,7 +129,7 @@ def start_model_server(executable, env, allow_owned=False, on_process=None, crea
                 if process.poll() is not None:
                     raise SystemExit("The new Ollama process exited; the previous PID record was preserved.")
                 (ROOT / "data" / "ollama.pid").write_text(str(process.pid), encoding="ascii")
-                print("Local-only Ollama service ready on 127.0.0.1:11434", flush=True)
+                print(f"Local-only Ollama service ready on 127.0.0.1:{port}", flush=True)
                 return
             except Exception:
                 if process.poll() is not None:
@@ -142,9 +144,12 @@ def start_model_server(executable, env, allow_owned=False, on_process=None, crea
                 process.wait(timeout=5)
         raise SystemExit("Ollama did not become ready in 60 seconds. Previous PID record preserved; inspect data/ollama.log.")
     else:
-        if allow_owned and owned_model_server(executable):
+        # The legacy foreground PID file does not identify a TCP listener's
+        # port. Never use that weaker record to adopt an explicitly selected
+        # alternate port. Independent hosts already prohibit all adoption.
+        if allow_owned and "ARIADNE_MODEL_PORT" not in os.environ and owned_model_server(executable):
             return
-        raise SystemExit("Port 11434 already has a model server. Refusing to change its storage or offline policy. Stop it or use that server explicitly.")
+        raise SystemExit(f"Port {port} already has a model server. Refusing to change its storage or offline policy. Stop it or use that server explicitly.")
 
 
 def main():

@@ -24,7 +24,7 @@ Then **double-click `Start Ariadne.cmd`**, or run:
 
 Open `http://127.0.0.1:8080` and pair using the token shown locally by the launcher. The launcher prefers bundled `runtime/python/python.exe`, then `.venv`, then system Python. It starts the owned model service and opens the browser after the application binds.
 
-The factory bootstrap selects **`qwen3.5:9b`** in a new database. For a smaller installation, provision `qwen3:4b` instead, then select that installed model in **Settings** before launching a mission. An existing owner's model choice is preserved. Model downloads record digests; a qualified model tag whose upstream digest changes fails validation rather than silently accepting replacement bytes.
+The factory bootstrap selects **`qwen3.5:9b`** in a new database. The pinned `qwen3:4b` remains optional, but its Thinking 2507 build exhausted the fixed 2,048-token response budget before tools on one fresh-copy file-proof mission. Do not assume that smaller weights provide the same tool reliability or faster completion. Review [model qualification limits](SQLITE_RELIABILITY_0_16_1.md) before selecting another installed model in **Settings**. An existing owner's choice is preserved. Model downloads record digests; a qualified model tag whose upstream digest changes fails validation rather than silently accepting replacement bytes.
 
 New installations have Internet access and PC wake-word listening **off**. Enable them deliberately in the interface after the corresponding dependencies are ready. The Internet switch controls public web reading and briefing collection; it does not install models or packages. Initial provisioning commands contact their upstream sources directly.
 

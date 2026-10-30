@@ -13,7 +13,7 @@ from contextlib import contextmanager, closing
 from pathlib import Path, PureWindowsPath
 from urllib.parse import urlsplit
 
-from .config import _allowed_path
+from .config import _allowed_path, local_service_port
 from .atomic import publish_bytes, commit_staged, sync_directory
 
 PROFILE_NAMES = ("voice-config.json", "ocr-config.json", "media-config.json", "knowledge-config.json")
@@ -186,7 +186,7 @@ def _flow_payloads(root):
 
 
 def _flow_config():
-    routes = [{"id": identifier, "method": method, "url": "http://127.0.0.1:1880/ariadne/" + path,
+    routes = [{"id": identifier, "method": method, "url": f"http://127.0.0.1:{local_service_port('ARIADNE_FLOW_PORT', 1880)}/ariadne/" + path,
         "token_file": "flows.token", "description": "Fixed local runtime " + path + "; no external effect"}
         for identifier, method, path in [("flows_health", "GET", "health"), ("local_event", "POST", "event")]]
     return {"apps": [], "flows": routes, "erpnext": None}

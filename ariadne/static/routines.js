@@ -13,7 +13,8 @@
   const current = token => token === generation && app.state.authenticated;
   const idOf = run => run.id || run.request_id;
   const procedure = id => data.procedures.find(item => item.id === id);
-  const nameOf = id => procedure(id)?.name || app.humanize(id);
+  const operationOf = value => value && typeof value === "object" ? value.operation : typeof value === "string" && value.startsWith("operation_") ? value.slice(10) : null;
+  const nameOf = id => (data.operations || []).find(item => item.id === operationOf(id))?.name || procedure(id)?.name || app.humanize(operationOf(id) || id);
   function error(message = "") { $("routine-error").textContent = message; $("routine-error").hidden = !message; }
   function savePending(value) {
     pending = value;
@@ -277,6 +278,9 @@
   }
   function openEditor(definition = null) {
     if (busy || !app.state.authenticated) return;
+    if (definition?.steps.some(step => typeof step !== "string")) {
+      window.ariadneOperationWorkflows?.edit(definition).catch(failure => error(failure.message)); return;
+    }
     editor = {id:definition?.id || null, revision:definition?.revision ?? null, steps:[...(definition?.steps || (data.procedures[0] ? [data.procedures[0].id] : []))]};
     $("routine-editor-title").textContent = editor.id ? "Edit offline routine" : "Create offline routine";
     $("routine-name").value = definition?.name || ""; $("routine-interval").value = definition?.interval_minutes || 1440;

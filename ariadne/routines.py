@@ -80,11 +80,19 @@ class Routines:
         with self.lock, self.procedures.registry._directory(self.store.path.parent):
             for suffix in ("", "-journal", "-wal", "-shm"):
                 path = _allowed_path(str(self.store.path)+suffix)
-                if path.exists():
-                    info = path.stat()
-                    if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
-                        raise ValueError("Routine database files must be regular files with one link.")
-            with self.store.connect() as db:
+                try:
+                    info = path.lstat()
+                except FileNotFoundError:
+                    # SQLite legitimately removes these optional files when
+                    # another connection closes. Their absence is not a lost
+                    # routine or permission to recreate the main database.
+                    if suffix in {"-journal", "-wal", "-shm"}:
+                        continue
+                    raise ValueError("The initialized routine database is missing; owner review is required.") from None
+                if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+                        or getattr(info, "st_file_attributes", 0) & 0x400):
+                    raise ValueError("Routine database files must be regular files with one link and no reparse points.")
+            with self.store.connect(require_existing=True) as db:
                 db.execute("PRAGMA trusted_schema=OFF")
                 deadline = time.monotonic()+5
                 db.set_progress_handler(lambda: int(time.monotonic() > deadline), 10_000)
@@ -143,9 +151,7 @@ class Routines:
     def save(self, name, steps, interval_minutes=1440, enabled=False, routine_id=None, *, expected_revision=None):
         if type(name) is not str or not 1 <= len(name.strip()) <= 120 or any(ord(char) < 32 for char in name):
             raise ValueError("Routine name needs 1–120 printable characters.")
-        allowed = {row["id"] for row in self.procedures.catalog()["procedures"]}
-        if type(steps) is not list or not 1 <= len(steps) <= MAX_STEPS or any(type(step) is not str or step not in allowed for step in steps) or len(set(steps)) != len(steps):
-            raise ValueError("Choose 1–4 different installed fixed procedures.")
+        steps = self._validate_steps(steps)
         if type(interval_minutes) is not int or not 5 <= interval_minutes <= 525600:
             raise ValueError("Routine intervals must be 5–525,600 whole minutes.")
         if type(enabled) is not bool:
@@ -161,13 +167,15 @@ class Routines:
                 raise ValueError("At most 32 local routines may be configured.")
             if expected_revision is not None and (previous is None or previous["revision"] != expected_revision):
                 raise RoutineConflict(routine_id, "conflict", "Routine settings changed. Refresh and review the current state before saving or enabling recurrence.")
+            if previous and previous["last_error"] and enabled and expected_revision is None:
+                raise RoutineConflict(routine_id, "conflict", "A held routine requires its reviewed revision before recurrence can resume.")
             routine_id = routine_id or uuid.uuid4().hex
             next_run = (previous["next_run"] if previous and previous["enabled"] and previous["interval_minutes"] == interval_minutes
                         else time.time()+interval_minutes*60) if enabled else None
             revision = previous["revision"]+1 if previous else 1
             db.execute("INSERT OR REPLACE INTO routine_definitions VALUES(?,?,?,?,?,?,?,?,?)",
                 (routine_id, name.strip(), _json(steps), interval_minutes, int(enabled), next_run,
-                 previous["last_run_id"] if previous else None, None, revision))
+                 previous["last_run_id"] if previous else None, previous["last_error"] if previous and not enabled else None, revision))
             if not enabled:
                 for row in db.execute("SELECT * FROM routine_runs WHERE routine_id=? AND trigger='scheduled' AND status IN ('queued','running')", (routine_id,)).fetchall():
                     run = self._run(row)
@@ -185,14 +193,20 @@ class Routines:
             db.execute("DELETE FROM routine_definitions WHERE id=?", (routine_id,))
             self._bump(db)
 
-    def _plan(self, definition):
+    def _validate_steps(self, steps):
+        allowed = {row["id"] for row in self.procedures.catalog()["procedures"]}
+        if type(steps) is not list or not 1 <= len(steps) <= MAX_STEPS or any(type(step) is not str or step not in allowed for step in steps) or len(set(steps)) != len(steps):
+            raise ValueError("Choose 1–4 different installed fixed procedures.")
+        return list(steps)
+
+    def _plan(self, definition, db=None):
         outputs = {row["id"]: row["outputs"] for row in self.procedures.catalog()["procedures"]}
         return {"routine_id": definition["id"], "name": definition["name"], "revision": definition["revision"],
                 "steps": list(definition["steps"]), "outputs": {step: outputs[step] for step in definition["steps"]},
                 "interval_minutes": definition["interval_minutes"], "model_calls": 0}
 
     def _enqueue(self, db, definition, request_id, trigger):
-        plan = self._plan(definition)
+        plan = self._plan(definition, db)
         previous = db.execute("SELECT * FROM routine_runs WHERE id=?", (request_id,)).fetchone()
         if previous:
             run = self._run(previous)
@@ -369,6 +383,9 @@ class Routines:
         except (OSError, ValueError, KeyError):
             return None
 
+    def _run_child(self, run, step):
+        return self.procedures.run(step["procedure_id"], step["request_id"])
+
     def tick(self):
         if self.store.setting("paused", False):
             return False
@@ -424,7 +441,7 @@ class Routines:
                         self._update(db, fresh)
                     return True
             try:
-                receipt = self.procedures.run(step["procedure_id"], step["request_id"])
+                receipt = self._run_child(run, step)
                 step.update(status="completed", receipt=receipt, completed_at=time.time())
                 self._verify_step(run, step)
                 error = None

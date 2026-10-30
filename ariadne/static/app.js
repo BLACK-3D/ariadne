@@ -219,6 +219,7 @@ function renderStatus(status) {
   updateComposer();
   window.ariadneCommand?.status(status);
   window.ariadneRoutines?.status(status);
+  window.ariadneOperationWorkflows?.status(status);
 }
 async function refreshStatus({quiet = false} = {}) {
   if (!state.authenticated || state.refreshingStatus) return;
@@ -306,6 +307,7 @@ function lockSession(message = "") {
   setMenu(false);
   window.ariadneCommand?.locked();
   window.ariadneRoutines?.locked();
+  window.ariadneOperationWorkflows?.locked();
   $("#access-token").focus();
 }
 
@@ -2752,7 +2754,7 @@ $("#speech-backend").addEventListener("change", () => saveSpeechPreferences());
 $("#speech-voice").addEventListener("change", () => saveSpeechPreferences());
 $("#speech-speed").addEventListener("change", () => saveSpeechPreferences());
 $("#speech-preview").addEventListener("click", previewSpeech);
-$("#copy-pull").addEventListener("click", () => copyText("ollama pull qwen3:4b"));
+$("#copy-pull").addEventListener("click", () => copyText("ollama pull qwen3.5:9b"));
 $("#voice-record").addEventListener("click", toggleRecording);
 $("#speech-player").addEventListener("ended", stopSpeech);
 document.addEventListener("keydown", event => {
@@ -2880,4 +2882,5 @@ window.addEventListener("pagehide", () => { if (state.recording) stopRecording(t
 window.ariadneCommand?.attach({state, api, node, button, icon, selectRun, newMission, showView, dateLabel, humanize, modelReady, refreshStatus, loadRuns});
 window.ariadneRoutines?.attach({state, api, node, button, icon, openArtifact, downloadArtifact, confirmAction, toast, dateLabel, bytes, humanize});
 window.ariadneOperations?.attach({state, api, node, button, openArtifact, newMission, showView, resizeComposer});
+window.ariadneOperationWorkflows?.attach({state, api, node, button, showView, setWorkflowTab, confirmAction, toast});
 if (state.token) connect(); else $("#access-token").focus();

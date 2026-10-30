@@ -94,8 +94,14 @@ class Store:
             db.execute("CREATE UNIQUE INDEX IF NOT EXISTS document_origin ON documents(source_id, source_path) WHERE source_id IS NOT NULL")
 
     @contextmanager
-    def connect(self):
-        db = sqlite3.connect(self.path, timeout=10)
+    def connect(self, *, require_existing=False):
+        if type(require_existing) is not bool:
+            raise ValueError("require_existing must be boolean")
+        # Bootstrap keeps its established create-if-needed behavior. Callers
+        # inspecting an initialized state can forbid accidental recreation if
+        # the main database disappears after their filesystem preflight.
+        db = (sqlite3.connect(self.path.as_uri()+"?mode=rw", uri=True, timeout=10)
+              if require_existing else sqlite3.connect(self.path, timeout=10))
         db.row_factory = sqlite3.Row
         db.execute("PRAGMA busy_timeout=10000")
         try:

@@ -57,3 +57,6 @@ service-account*.json
 htmlcov/
 node_modules/
 .operations-test-*/
+.operations-workflows-test-*/
+.portable-update-test-*/
+.routine-review-*/

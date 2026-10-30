@@ -333,9 +333,16 @@ def compare_routines(service, current_id, previous_id=None):
         if previous is None:
             result["state"] = "first_run"
             result["warnings"].append("No older completed invocation with the same routine and ordered procedure sequence is available.")
-            result["steps"] = [{"procedure_id": step["procedure_id"], "state": "first_run", "current_source": _primary(current, step), "baseline_source": None,
-                "current_status": step["status"], "baseline_status": None,
-                "changes": [], "observed_differences": None, "metadata_only": False} for step in current["steps"]]
+            result["steps"] = []
+            for step in current["steps"]:
+                try:
+                    source = _primary(current, step)
+                except ValueError:
+                    source = None
+                    result["warnings"].append("Structural comparison does not support this step's report; its verified execution receipt remains available.")
+                result["steps"].append({"procedure_id": step["procedure_id"], "state": "first_run" if source else "unsupported", "current_source": source, "baseline_source": None,
+                    "current_status": step["status"], "baseline_status": None,
+                    "changes": [], "observed_differences": None, "metadata_only": False})
             return _bounded(result)
     else:
         previous = service.detail(previous_id)

@@ -1,5 +1,9 @@
 # Ariadne — local AI in a box
 
+Version 0.16.1 fixes a Windows SQLite status-read race: normal removal of temporary WAL files could briefly make a completed workflow appear unavailable. Routine access now distinguishes transient sidecars from the main database and refuses to recreate a missing main database. The complete package uses `qwen3.5:9b` by default; the optional pinned 4B model reached its response budget before tools in one fresh-copy test. See [reliability and qualification scope](docs/SQLITE_RELIABILITY_0_16_1.md).
+
+Version 0.16 connects business reports, market audits/studies and saved device observations to **autonomous offline routines**. Runs freeze their accepted inputs, use the existing single worker, verify artifacts and hold recurrence after failures or interruptions. Configure them in **Operations → Connect the work**, then run, verify and manage them under **Workflows → Offline routines**. Factory recurrence remains off. See [autonomous operations](docs/AUTONOMOUS_OPERATIONS_0_16.md) and [the full one-click package](docs/PORTABLE_0_16.md).
+
 Version 0.15 adds the **Operations desk**: offline business snapshots and ERPNext-export audits, exact draft quotes/invoices, OpenBB-compatible historical-data audits and strategy replay, and a scoped Home Assistant gateway with approved actions and durable uncertainty receipts. Open **All systems → Operations** for zero-model local reports and explicit synthetic examples. Two new specialists and three checked AI workflows use these tools. No ERP, brokerage or Home Assistant installation is implied. See [operations and setup](docs/OPERATIONS_0_15.md).
 
 Version 0.14 adds a **daily repository watch** to the local 6 AM brief: selected business, trading, control and AI upstreams, first-observation baselines, changed/unchanged metadata and dated offline results. It uses no language model and installs nothing. See [daily repository operation](docs/REPOSITORY_WATCH_0_14.md).

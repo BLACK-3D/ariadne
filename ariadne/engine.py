@@ -155,8 +155,8 @@ class Engine:
         self.tools.knowledge.store = store
         self.tools.procedures.store = store
         self.tools.local_controls.store = store
-        from .routines import Routines
-        self.routines = Routines(self.tools.procedures.service(), store)
+        from .operations_workflows import OperationsWorkflows
+        self.routines = OperationsWorkflows(self.tools.procedures.service(), store)
         self.tools.media.model_resolver = lambda: store.setting("model", settings.model)
         self.stopping = threading.Event()
         self.wake = threading.Event()

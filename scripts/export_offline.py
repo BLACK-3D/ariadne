@@ -33,6 +33,7 @@ DOCS.update({"SIGNAL_ROOM_0_12.md", "INDEPENDENT_HOST_0_12.md", "DAILY_SIGNAL_0_
 DOCS.add("CHECKED_BACKUPS_0_13.md")
 DOCS.add("REPOSITORY_WATCH_0_14.md")
 DOCS.update({"BUSINESS_OPS_0_15.md", "MARKET_RESEARCH_0_15.md", "LOCAL_CONTROLS_0_15.md", "OPERATIONS_0_15.md"})
+DOCS.update({"PORTABLE_0_16.md", "AUTONOMOUS_OPERATIONS_0_16.md"})
 EXAMPLE_FILES = {"business-erpnext-demo.json", "business-quote-demo.json", "market-demo.csv", "market-demo.json",
                  "control-connectors.json", "control-home-assistant.json", "control-states-demo.json"}
 RUNTIME_DIRS = ("runtime/python", "runtime/ollama", "runtime/whisper", "runtime/ocr/models", "runtime/ocr/wheels", "runtime/ocr/notices",
@@ -53,6 +54,7 @@ EXCLUDED = ["All owner databases, pairing/API tokens, credentials, MCP/HTTP regi
 OPTIONAL_PACKAGE_BINS = frozenset(prefix + "/bin" for prefix in ("runtime/knowledge/python", "runtime/media/python",
     "runtime/media/flux-python", "runtime/media/piper-python", "runtime/production/python", "runtime/production/blender-python", "runtime/automation/python"))
 PUBLIC_MODEL_TAGS = frozenset({"qwen3.5:9b", "qwen3:8b", "qwen3:4b"})
+SPEECH_CATALOG_SHA256 = "e73b1d43373b2916e167773fee99d9b69128213bfcf3d978a48b8a1cab146873"
 NOTICE_ASSETS = frozenset({"ollama/LICENSE", "whisper/LICENSE.whisper.cpp", "whisper/LICENSE.llama.cpp",
     "whisper/LICENSE.SDL2", "whisper/LICENSE.Whisper-model", "whisper/WHISPER_MODEL_CARD.md"})
 _SHA256 = re.compile(r"[a-f0-9]{64}\Z")
@@ -217,6 +219,69 @@ def _runtime_notice_files(root):
     return files, hashes
 
 
+def _speech_pins(root, profiles):
+    """Bind a selected fast-voice installation before its files are streamed.
+
+    Hashes are checked by the existing export stream, avoiding a second pass over
+    the installed native package. Unselected repair-only caches remain optional.
+    """
+    selected = profiles.get("profiles", {}).get("media-config.json", {}).get("backends", {}).get("piper")
+    manifest_path = root / "runtime/media/piper/INSTALL-MANIFEST.json"
+    if not selected and not manifest_path.exists():
+        return {}
+    catalog_path = root / "config/speech-assets.json"
+    raw = _small(catalog_path)
+    if hashlib.sha256(raw).hexdigest() != SPEECH_CATALOG_SHA256:
+        raise ValueError("Fast-voice catalog differs from the reviewed public Cori recipe; review/provision it before export.")
+    catalog = json.loads(raw)
+    expected = {"runtime/media/piper/wheels/piper_tts-1.8.0-cp39-abi3-win_amd64.whl",
+                "runtime/media/piper/wheels/pathvalidate-3.3.1-py3-none-any.whl",
+                "runtime/media/piper/en_GB-cori-medium.onnx", "runtime/media/piper/en_GB-cori-medium.onnx.json",
+                "runtime/media/piper/notices/Cori-MODEL_CARD", "runtime/media/piper/notices/Piper-COPYING"}
+    if (type(catalog) is not dict or type(catalog.get("schema")) is not int or catalog["schema"] != 1
+            or type(catalog.get("assets")) is not list or len(catalog["assets"]) != len(expected)):
+        raise ValueError("A selected fast voice requires the complete pinned public catalog.")
+    pins = {"config/speech-assets.json": hashlib.sha256(raw).hexdigest()}
+    seen = set()
+    for asset in catalog["assets"]:
+        if (type(asset) is not dict or set(asset) != {"path", "bytes", "sha256", "url"}
+                or type(asset["path"]) is not str or asset["path"] not in expected or asset["path"] in seen
+                or type(asset["bytes"]) is not int or not 0 < asset["bytes"] < 200_000_000
+                or type(asset["sha256"]) is not str or not _SHA256.fullmatch(asset["sha256"])
+                or type(asset["url"]) is not str or not re.fullmatch(r"https://(?:files\.pythonhosted\.org|huggingface\.co|raw\.githubusercontent\.com)/[^?#]+", asset["url"])):
+            raise ValueError("Invalid pinned fast-voice catalog asset.")
+        if _regular(root / asset["path"]).st_size != asset["bytes"]:
+            raise ValueError("Fast-voice asset size differs from its pin.")
+        seen.add(asset["path"]); pins[asset["path"]] = asset["sha256"]
+    if selected is not None:
+        expected_assets = {"model": {"path": "runtime/media/piper/en_GB-cori-medium.onnx", "sha256": pins["runtime/media/piper/en_GB-cori-medium.onnx"]},
+                           "config": {"path": "runtime/media/piper/en_GB-cori-medium.onnx.json", "sha256": pins["runtime/media/piper/en_GB-cori-medium.onnx.json"]}}
+        if selected != {"assets": expected_assets}:
+            raise ValueError("Factory fast voice differs from the pinned public Cori assets.")
+    if {name for name, _, _ in _walk(root, "runtime/media/piper")} != expected | {"runtime/media/piper/INSTALL-MANIFEST.json"}:
+        raise ValueError("Fast-voice asset directory differs from its fixed public inventory.")
+    installed_raw = _small(manifest_path, 1_000_000)
+    installed = json.loads(installed_raw)
+    if (type(installed) is not dict or set(installed) != {"schema", "catalog_sha256", "packages", "files"}
+            or type(installed["schema"]) is not int or installed["schema"] != 1
+            or installed["catalog_sha256"] != pins["config/speech-assets.json"]
+            or installed["packages"] != {"piper-tts": "1.8.0", "pathvalidate": "3.3.1"}
+            or type(installed["files"]) is not dict or not installed["files"] or len(installed["files"]) > 2000):
+        raise ValueError("Fast-voice installed-package provenance is missing or invalid.")
+    actual = {name.removeprefix("runtime/media/piper-python/"): size for name, _, size in _walk(root, "runtime/media/piper-python")}
+    if set(actual) != set(installed["files"]):
+        raise ValueError("Fast-voice installed-file inventory differs from its qualified manifest.")
+    for name, record in installed["files"].items():
+        if (type(name) is not str or not name or "\\" in name or any(part in {"", ".", ".."} for part in name.split("/"))
+                or type(record) is not dict or set(record) != {"bytes", "sha256"}
+                or type(record["bytes"]) is not int or record["bytes"] != actual[name]
+                or type(record["sha256"]) is not str or not _SHA256.fullmatch(record["sha256"])):
+            raise ValueError("Fast-voice package member pin is invalid.")
+        pins["runtime/media/piper-python/" + name] = record["sha256"]
+    pins["runtime/media/piper/INSTALL-MANIFEST.json"] = hashlib.sha256(installed_raw).hexdigest()
+    return pins
+
+
 def _walk(root, relative):
     base = _allowed_path(root / relative)
     if not base.exists():
@@ -333,7 +398,7 @@ def plan(root=ROOT):
     root = _allowed_path(root)
     profiles = write_template(root)
     files = inventory(root)
-    pinned = {**_public_model_files(root)[1], **_runtime_notice_files(root)[1]}
+    pinned = {**_public_model_files(root)[1], **_runtime_notice_files(root)[1], **_speech_pins(root, profiles)}
     missing = [name for name in ("runtime/python/python.exe", "runtime/python/PORTABLE-MANIFEST.json", "runtime/ollama/ollama.exe")
         if not (root / name).is_file()]
     portable = root / "runtime/python/PORTABLE-MANIFEST.json"

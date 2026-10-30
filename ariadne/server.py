@@ -267,7 +267,8 @@ class Application:
                           "/static/command.js": ("command.js", "text/javascript"), "/static/command.css": ("command.css", "text/css"),
                           "/static/routines.js": ("routines.js", "text/javascript"),
                           "/static/operations.js": ("operations.js", "text/javascript"),
-                          "/static/operations.css": ("operations.css", "text/css")}
+                          "/static/operations.css": ("operations.css", "text/css"),
+                          "/static/operations_workflows.js": ("operations_workflows.js", "text/javascript")}
                 if path not in assets:
                     raise HTTPError(404, "Not found")
                 filename, mime = assets[path]

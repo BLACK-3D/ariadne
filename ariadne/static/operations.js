@@ -113,6 +113,7 @@
     try {
       await app.api("/operations");
       $("ops-status").textContent = "Ready for a local run. Saved device observations may be stale; imported files retain their source identities.";
+      await window.ariadneOperationWorkflows?.load();
     } catch (error) { setError(error.message); }
   }
   window.ariadneOperations = {attach, load, requestFor};
