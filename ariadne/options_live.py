@@ -88,6 +88,8 @@ class OptionsFeedWorkflow:
             raise ValueError("An untouched feed account cannot change inherited funding or allowance.")
 
     def _policy(self,db,*,expected_feed_revision=None):
+        if self.owner.eod.config(db)["initialized"]:
+            raise HandoffConflict("The retained AAPL source is inactive after the Ford EOD migration; no fallback or second paper book.")
         cfg,brief=self.owner._policy(db)
         feed=self.config(db)
         internet=self.owner.store.setting(SETTINGS_KEY,None)
@@ -132,6 +134,8 @@ class OptionsFeedWorkflow:
             with owner.database() as db:cfg,brief=owner._policy(db)
             with owner._committing(brief) as db:
                 owner._policy(db,cfg)
+                if owner.eod.config(db)["initialized"]:
+                    raise HandoffConflict("Ford EOD owns the existing shared account. The retained AAPL source cannot be reactivated.")
                 replay=owner._reserve(db,"feed_config",body,None,clock)
                 if replay:return replay
                 self._schema(db);feed=self.config(db);account=owner._account(db)

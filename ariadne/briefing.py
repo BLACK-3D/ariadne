@@ -87,6 +87,82 @@ def _md(value):
     return html.escape(_text(value, 8000), quote=False).replace("|", "\\|").replace("[", "\\[").replace("]", "\\]")
 
 
+def options_eod_brief_view(options):
+    """Pure bounded facts from a verified saved schema3 account; no source work.
+
+    Receipt clocks and source dates stay separate. Financial values are copied
+    from its saved summary, never reconstructed from funding or outside prices.
+    """
+    if type(options) is not dict:
+        return None
+    account = options.get("paper") if type(options.get("paper")) is dict else {}
+    summary = account.get("summary") if type(account.get("summary")) is dict else {}
+    if type(summary.get("schema")) is not int or summary["schema"] != 3:
+        return None
+    def mapping(value):
+        return value if type(value) is dict else {}
+    def text(value, maximum=100):
+        return _text(value, maximum) if type(value) is str else None
+    def day(value):
+        if type(value) is not str or not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", value):
+            return None
+        try:
+            return datetime.fromisoformat(value).date().isoformat()
+        except ValueError:
+            return None
+    def stamp(value):
+        if type(value) is not str or len(value) > 40:
+            return None
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return parsed.astimezone(UTC).isoformat() if parsed.tzinfo is not None and parsed.utcoffset() is not None else None
+        except ValueError:
+            return None
+    def count(value):
+        return value if type(value) is int and 0 <= value <= 1000000000000 else None
+    def money(value):
+        return value if type(value) is str and len(value) <= 44 and re.fullmatch(r"-?(?:0|[1-9][0-9]{0,20})(?:\.[0-9]{1,8})?", value) else None
+    eod = mapping(options.get("eod"))
+    quality = mapping(eod.get("quality")) or mapping(options.get("forward_quality"))
+    last = mapping(eod.get("last_run"))
+    config = mapping(eod.get("config"))
+    daily = mapping(summary.get("last_daily_result"))
+    hold = mapping(options.get("hold")) or mapping(summary.get("hold"))
+    assurance = mapping(eod.get("publication_assurance"))
+    source_day = day(quality.get("last_source_date")) or day(summary.get("last_source_date"))
+    expected = day(quality.get("expected_last_session_now")) or day(eod.get("expected_market_session"))
+    receipt = stamp(quality.get("last_received_at"))
+    status = last.get("status")
+    check_status = status if type(status) is str and status in {"completed", "failed", "running", "interrupted"} else "unavailable"
+    missing = bool(expected and (not source_day or source_day < expected))
+    fresh = bool(quality.get("fresh_now") is True and source_day and receipt and expected == source_day)
+    source_status = ("failed_check" if check_status == "failed" else "uncertain_check" if check_status in {"running", "interrupted"}
+        else "waiting_for_first_source" if not source_day else "missing_source_session" if missing
+        else "saved_current_session" if fresh else "saved_stale_or_unverified")
+    position, pending = mapping(summary.get("position")), mapping(summary.get("pending"))
+    return {"schema":3, "symbol":text(summary.get("symbol"), 8), "source_id":text(summary.get("source_id"), 40),
+        "profile":"experimental_eod_date_only_paper", "execution_qualified":False,
+        **{key:money(summary.get(key)) for key in ("equity", "cash", "contributions", "trading_pnl", "monthly_pnl", "monthly_budget_used", "monthly_budget_remaining", "fees")},
+        "monthly_cap":"500.00", "entry_all_in_cap":"100.00", "shared_portfolio":True,
+        "trade_count":count(summary.get("trade_count")), "closed_trade_count":count(summary.get("closed_trade_count")),
+        "cap_qualified":summary.get("cap_qualified") is True, "held":bool(hold),
+        "hold_reason":text(hold.get("reason") or hold.get("message") or hold.get("code") or hold.get("request_id"),160),
+        "position":text(position.get("contract_id"),40), "pending_action":text(pending.get("action"),20),
+        "latest_result_date":day(daily.get("date")), "daily_pnl":money(daily.get("daily_pnl")),
+        "result_recorded_at":stamp(daily.get("recorded_at")), "source_date":source_day,
+        "source_received_at":receipt, "expected_source_date":expected, "missing_source_session":missing,
+        "source_status":source_status, "partial_chain":quality.get("partial_chain") if type(quality.get("partial_chain")) is bool else None,
+        "fresh_at_report_generation":fresh, "quote_observed_at":None,
+        "baseline_count":count(eod.get("baseline_count")), "quote_count":count(quality.get("quotes")),
+        "source_enabled":config.get("enabled") is True, "last_check_status":check_status,
+        "last_check_at":stamp(last.get("completed_at")) or stamp(last.get("created_at")),
+        "last_check_id":text(last.get("request_id"),64), "last_check_reason":text(last.get("reason") or last.get("error"),160),
+        "configured_check_at":stamp(eod.get("collection_check_at")), "window_open_at_report_generation":eod.get("collection_window_open") is True,
+        "next_check_window":"After09:35Eastern on a market session; publication time unknown; failed work is not retried.",
+        "waiting_for_disposal_source":assurance.get("waiting_for_disposal_source") is True,
+        "disposal_source_date":day(assurance.get("deadline_source_date")), "rule_sha256":text(summary.get("rule_sha256"),64)}
+
+
 def _source_url(value, *, official=False):
     if type(value) is not str or len(value) > 2000:
         raise ValueError("A source must have a bounded HTTPS URL.")
@@ -632,8 +708,13 @@ class BriefingService:
             lines += ["- Historical backtests are research, not evidence of future profit. Cash distributions use modeled ex-date credit, not actual payment dates."]
         options = report.get("options_paper", {})
         if options and options.get("config", {}).get("enabled"):
+            eod_view = options_eod_brief_view(options)
             lines += ["", "## Aggressive options: $500 monthly simulated loss budget", "",
                       "SIMULATED ONLY. Fully paid long calls/puts share ONE $500 monthly allowance and one open position; no broker, exercise or real orders. Net loss from a flat month start is bounded in the model; this is not a trailing drawdown guarantee."]
+            if eod_view:
+                lines += ["- Active "+_md(eod_view["symbol"] or "unavailable")+" source: "+_md(eod_view["source_id"] or "unavailable")+". EXPERIMENTAL DATE-ONLY EOD PAPER PRICE PROXIES; no execution qualification or live-price claim.",
+                          "- All-in entry ceiling: $100 including premium, entry fee and reserved exit fee. All strategies share the existing $500 monthly gross commitment allowance; profits do not replenish it and migration adds no funding.",
+                          "- Indicator baseline: "+_md(eod_view["baseline_count"] if eod_view["baseline_count"] is not None else "unavailable")+" saved stock references. Seeds are not trades or returns."]
             account = options.get("paper")
             if account:
                 summary = account.get("summary", {})
@@ -641,28 +722,48 @@ class BriefingService:
                     lines.append("- "+label+": $"+_md(summary.get(key, "not measured")))
                 lines.append("- Monthly cap assurance: "+("within modeled assumptions" if summary.get("cap_qualified") else "UNAVAILABLE / held; no new risk permitted"))
                 lines.append("- Positions: "+_md(summary.get("position") or "none")+". Pending: "+_md(summary.get("pending") or "none"))
+                if eod_view:
+                    lines.append("- Saved cash: $"+_md(eod_view["cash"] or "not measured")+". Recorded cumulative fees: $"+_md(eod_view["fees"] or "not measured")+". Modeled entries: "+_md(eod_view["trade_count"] if eod_view["trade_count"] is not None else "unavailable")+"; closed positions: "+_md(eod_view["closed_trade_count"] if eod_view["closed_trade_count"] is not None else "unavailable")+".")
                 daily = summary.get("last_daily_result")
-                if daily:
+                if daily and eod_view:
+                    lines.append("- Latest saved model result: source date "+_md(eod_view["latest_result_date"] or "unavailable")+", daily P/L $"+_md(eod_view["daily_pnl"] or "not measured")+", actually recorded "+_md(eod_view["result_recorded_at"] or "unavailable")+". This is dated paper accounting, not a verified market fill.")
+                elif daily:
                     lines.append("- Latest dated paper result: "+_md(json.dumps(daily, ensure_ascii=False)))
                 else:
                     lines.append("- No forward daily trading result yet; starting cash and indicator warmup are not returns.")
-                if summary.get("schema") == 2:
-                    lines.append("- Active portfolio rule SHA-256: "+_md(options.get("portfolio_rule_sha256")))
+                if summary.get("schema") in {2, 3}:
+                    lines.append("- Active portfolio rule SHA-256: "+_md(eod_view["rule_sha256"] if eod_view else options.get("portfolio_rule_sha256")))
                     lines.append("- Next fixed selector priority: "+_md(summary.get("next_strategy"))+". Priority rotates after fills, never by backtest profit.")
                     for strategy, stats in summary.get("strategy_stats", {}).items():
                         lines.append("- Forward strategy attribution "+_md(strategy)+": "+_md(json.dumps(stats, ensure_ascii=False)))
             else:
                 lines.append("- Forward options experiment has not started.")
             quality = options.get("quality") or {}
-            lines.append("- Options data evidence: "+_md(json.dumps(quality, ensure_ascii=False)))
+            lines.append(("- Retained historical archive evidence: " if eod_view else "- Options data evidence: ")+_md(json.dumps(quality, ensure_ascii=False)))
             forward_quality = options.get("forward_quality") or {}
-            lines.append("- Forward quote evidence: "+_md(json.dumps(forward_quality, ensure_ascii=False)) if forward_quality else "- Forward quotes: waiting_for_recorded_quotes. No new forward daily trading result is available.")
-            if forward_quality and not forward_quality.get("fresh_now"):
-                lines.append("- Forward quotes are STALE at this report's generation; no fresh price or completed fill is asserted.")
+            if eod_view:
+                lines += ["- Saved source session: "+_md(eod_view["source_date"] or "unavailable")+". Actual receipt: "+_md(eod_view["source_received_at"] or "unavailable")+". Option quote-event clock: UNKNOWN; no timestamp is inferred from the source date.",
+                          "- Returned chain: "+("PARTIAL" if eod_view["partial_chain"] is True else "no partial warning recorded" if eod_view["partial_chain"] is False else "unavailable")+"; saved quotes: "+_md(eod_view["quote_count"] if eod_view["quote_count"] is not None else "unavailable")+". Missing strikes and side sizes are never reconstructed.",
+                          "- Source check: "+_md(eod_view["source_status"])+"; expected completed session: "+_md(eod_view["expected_source_date"] or "unavailable")+". Saved data is "+("current for that session at report generation" if eod_view["fresh_at_report_generation"] else "STALE / unavailable at report generation")+"; this does not establish current executable prices.",
+                          "- Collector: "+("enabled" if eod_view["source_enabled"] else "paused / disabled")+". Next eligible check window: "+_md(eod_view["next_check_window"])+" Recorded configured slot: "+_md(eod_view["configured_check_at"] or "unavailable")+"; window "+("open" if eod_view["window_open_at_report_generation"] else "closed")+" at report generation.",
+                          "- Last saved collection receipt: "+_md(eod_view["last_check_status"])+" / "+_md(eod_view["last_check_id"] or "unavailable")+" / "+_md(eod_view["last_check_at"] or "unavailable")+". No failed or interrupted work is automatically replayed."]
+                if eod_view["missing_source_session"]:
+                    lines.append("- Missing publication / source-session gap: no new fill or settlement is inferred; existing exposure and holds remain.")
+                if eod_view["last_check_reason"]:
+                    lines.append("- Recorded source-check failure: "+_md(eod_view["last_check_reason"]))
+                if eod_view["held"]:
+                    lines.append("- HELD: "+_md(eod_view["hold_reason"] or "inspect the protected saved receipt")+". No new risk or funding reset is inferred.")
+                if eod_view["waiting_for_disposal_source"]:
+                    lines.append("- Required disposal source "+_md(eod_view["disposal_source_date"] or "unavailable")+" is missing. Waiting for publication is not a sale or authority to roll funding.")
+                lines.append("- Source limitations: personal educational research; original-provider rights, standard contract deliverables and ongoing reliability are not independently verified. This model cannot establish a profitable strategy.")
+            else:
+                lines.append("- Forward quote evidence: "+_md(json.dumps(forward_quality, ensure_ascii=False)) if forward_quality else "- Forward quotes: waiting_for_recorded_quotes. No new forward daily trading result is available.")
+                if forward_quality and not forward_quality.get("fresh_now"):
+                    lines.append("- Forward quotes are STALE at this report's generation; no fresh price or completed fill is asserted.")
             if options.get("hold"):
                 lines.append("- HELD: "+_md(options["hold"].get("reason", options["hold"].get("request_id"))))
             feed = options.get("feed") or {}
-            if feed.get("config", {}).get("initialized"):
+            if not eod_view and feed.get("config", {}).get("initialized"):
                 lines.append("- Public AAPL source: "+("enabled" if feed["config"].get("enabled") else "paused")+". "+_md(feed.get("publication")))
                 lines.append("- Source delay does not make a stale quote fresh or clear a persisted hold. No account/key or paid data subscription is connected.")
                 lines.append("- Source/research retention capacity: "+_md(json.dumps(feed.get("retention") or {},ensure_ascii=False)))
@@ -930,7 +1031,7 @@ class BriefingService:
                 # This source publishes after the open, independently of the
                 # immutable6AM brief which may already be complete today.
                 try:
-                    self.options.feed.run_due()
+                    self.options.collect_due()
                 except (ValueError, OSError, sqlite3.Error):
                     pass  # Its durable failure hold must not pause regional reporting.
                 self.run_due()

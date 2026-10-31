@@ -11,7 +11,7 @@ import math
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
-from .briefing import _AGE_LIMITS
+from .briefing import _AGE_LIMITS, options_eod_brief_view
 
 MAX_SUMMARY_CHARS = 5500
 MAX_SOURCE_ENTRIES = 9
@@ -207,6 +207,25 @@ def compact_summary(report, now=None):
             "comparison_gate": _short((options.get("comparison") or {}).get("research_gate"),80)[0],
             "comparison_coverage": {"source_snapshots":_count(((options.get("comparison") or {}).get("coverage") or {}).get("source_snapshots")),"processed_snapshots":_count(((options.get("comparison") or {}).get("coverage") or {}).get("processed_snapshots")),"last_processed_date":_short(((options.get("comparison") or {}).get("coverage") or {}).get("last_processed_date"),10)[0]},
             "note": "Saved options simulation, not live quotes/broker fills. Contributions are not returns; cap applies to modeled monthly net loss, not peak drawdown."}
+        eod = options_eod_brief_view(options)
+        if eod:
+            # Keep this branch smaller than the legacy research/comparison
+            # view. It reports recorded accounting and source availability,
+            # never converts date-only data into a quote-event timestamp.
+            fields = ("symbol", "source_id", "monthly_cap", "entry_all_in_cap", "shared_portfolio",
+                      "equity", "cash", "contributions", "trading_pnl", "monthly_pnl", "fees",
+                      "monthly_budget_used", "monthly_budget_remaining", "trade_count", "closed_trade_count",
+                      "cap_qualified", "held", "position", "pending_action", "baseline_count",
+                      "latest_result_date", "daily_pnl", "source_date", "source_received_at",
+                      "partial_chain", "source_status", "missing_source_session", "source_enabled",
+                      "last_check_status", "waiting_for_disposal_source", "disposal_source_date")
+            result["options_paper"] = {key:eod[key] for key in fields}
+            result["options_paper"].update(simulated_only=True, profile=eod["profile"],
+                execution_qualified=False, quote_observed_at=None,
+                fresh_at_report_generation=eod["fresh_at_report_generation"],
+                configured_check_at=eod["configured_check_at"],
+                next_check_window=eod["next_check_window"],
+                note="Saved experimental EOD model; source dates are not quote-event times. Contributions are not returns; no verified market fills.")
     if type(options) is dict and options.get("config", {}).get("enabled") is True and options.get("vix"):
         vix = options["vix"]
         result["options_paper"]["vix"] = {"paper_status":_short(vix.get("paper_status"),64)[0], "paper_fills_enabled":False,

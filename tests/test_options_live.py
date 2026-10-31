@@ -391,7 +391,9 @@ class OptionsLiveTests(unittest.TestCase):
         service=object.__new__(BriefingService);service.stop_event=Event()
         class Feed:
             def run_due(self):calls.append("source")
-        class Options:feed=Feed()
+        class Options:
+            feed=Feed()
+            def collect_due(self):return self.feed.run_due()
         service.options=Options();service.run_due=lambda:calls.append("existing brief read-only return")
         service._pause=lambda reason:(_ for _ in ()).throw(AssertionError(reason))
         service._loop()
@@ -407,7 +409,9 @@ class OptionsLiveTests(unittest.TestCase):
         service=object.__new__(BriefingService);service.stop_event=Event()
         class Feed:
             def run_due(self):raise ValueError("Source failed; feed owns its hold")
-        class Options:feed=Feed()
+        class Options:
+            feed=Feed()
+            def collect_due(self):return self.feed.run_due()
         service.options=Options();service.run_due=lambda:calls.append("weather brief remains permitted")
         service._pause=lambda reason:calls.append("WRONG whole brief pause")
         service._loop()

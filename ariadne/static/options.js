@@ -6,7 +6,8 @@
   let notice="", uncertain=null, inspected=false, actions=[], fields=[], lastPause=null;
   let importDraft="market-data/options/current.json", manifestDraft="market-data/options/archives/qqq-2022/catalog.json", reasonDraft="", archiveData=false;
   let vixSignalDraft="market-data/vix/index-history.json",vixQuoteDraft="market-data/vix/option-history.json";
-  const strategyNames={recovery_call_v1:"Recovery / calls",breakout_call_v1:"Breakout / calls",breakdown_put_v1:"Breakdown / puts",regime_recovery_call_v1:"Trend-filtered recovery / calls",trend_breakout_call_v1:"Trend breakout / calls",trend_breakdown_put_v1:"Trend breakdown / puts"};
+  let baselineDraft="";
+  const strategyNames={recovery_call_v1:"Recovery / calls",breakout_call_v1:"Breakout / calls",breakdown_put_v1:"Breakdown / puts",eod_recovery_call_v1:"EOD recovery / calls",eod_breakout_call_v1:"EOD breakout / calls",eod_breakdown_put_v1:"EOD breakdown / puts",regime_recovery_call_v1:"Trend-filtered recovery / calls",trend_breakout_call_v1:"Trend breakout / calls",trend_breakdown_put_v1:"Trend breakdown / puts"};
   const $=id=>document.getElementById(id), e=(tag,cls="",value)=>app.node(tag,cls,value);
   const txt=value=>typeof value==="string"?value:"";
   const identity=/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
@@ -30,6 +31,11 @@
     }
     if(typeof identifier!=="string"||!identity.test(identifier))throw new Error("Use a unique bounded request ID.");
     const body={request_id:identifier,expected_revision:revision};
+    if(kind==="eod-config"){
+      if(typeof extra.enabled!=="boolean")throw new Error("Choose an explicit EOD collection setting.");
+      return {...body,enabled:extra.enabled,acknowledge_source:true};
+    }
+    if(kind==="eod-migrate")return {...body,acknowledge_simulated:true,acknowledge_partial_eod:true,baseline_path:extra.baseline_path==null||extra.baseline_path===""?null:path(extra.baseline_path)};
     if(kind==="feed"){
       if(typeof extra.enabled!=="boolean")throw new Error("Choose an explicit feed setting.");
       return {...body,enabled:extra.enabled,acknowledge_feed:true};
@@ -41,11 +47,12 @@
       if(!reason||reason.length>1000||typeof extra.archive_data!=="boolean")throw new Error("Supply an archive reason and explicit data choice.");
       return {...body,reason,archive_data:extra.archive_data};
     }
-    if(!["refresh","backtest","compare","collect-feed","research-compare","acknowledge"].includes(kind))throw new Error("Unsupported options action.");
+    if(!["refresh","backtest","compare","collect-feed","research-compare","acknowledge","eod-collect"].includes(kind))throw new Error("Unsupported options action.");
     return body;
   }
   function writable(held=false){return Boolean(app?.state.authenticated&&data&&!busy&&!loading&&!stale&&!uncertain&&!app.state.status?.paused&&(held||!data.hold));}
   function runnable(){return writable()&&data.config.enabled&&!data.config.paused;}
+  function eodActive(){return Boolean(data?.eod?.config?.initialized||data?.paper?.state?.schema===3||data?.paper?.summary?.schema===3);}
   function controls(){
     if($("refresh-options"))$("refresh-options").disabled=busy||loading||!app?.state.authenticated;
     for(const item of actions)item.node.disabled=!writable(item.held)||!item.allowed();
@@ -58,6 +65,11 @@
   function metric(parent,label,value){const box=e("div","options-metric");box.append(e("span","",label),e("strong","",value));parent.append(box);}
   function coverage(parent,quality,label){
     if(!quality){p(parent,label==="Historical"?"No historical options dataset imported.":"Forward quotes: not connected; waiting for a recorded, current dataset in the local inbox.");return;}
+    if(quality.quote_time_basis==="vendor_eod_date_only"){
+      p(parent,`${label} source-date coverage: ${txt(quality.first_source_date)||"unknown start"} to ${txt(quality.last_source_date)||"unknown end"} · ${Number.isInteger(quality.snapshots)?quality.snapshots:"unknown"} sessions · ${Number.isInteger(quality.quotes)?quality.quotes.toLocaleString("en-US"):"unknown"} returned contract quotes.`);
+      p(parent,`${quality.fresh_now===true?"Latest expected source session saved":"Saved or stale source date"}. ${quality.partial_chain===true?"Partial returned chain":"Chain completeness unverified"}; option quote-event time UNKNOWN. Date-only EOD price proxy, research only; execution is not qualified.`);
+      const details=e("details");details.append(e("summary","","Source provenance and validation limits"),e("pre","",JSON.stringify(quality,null,2)));parent.append(details);return;
+    }
     p(parent,`${label} coverage: ${txt(quality.first_observed_at).slice(0,10)||"unknown start"} to ${txt(quality.last_observed_at).slice(0,10)||"unknown end"} · ${Number.isInteger(quality.snapshots)?quality.snapshots:"unknown"} sessions · ${Number.isInteger(quality.quotes)?quality.quotes.toLocaleString("en-US"):"unknown"} contract quotes.`);
     p(parent,quality.quote_time_basis==="assumed_eod"?"Quote times assumed from daily dates. Retrospective research only; source accuracy and completeness remain unverified.":`${quality.fresh_now?"Latest completed session available":"Saved or stale observations"}. Recorded source times; price accuracy and executable liquidity remain unverified.`);
     const details=e("details");details.append(e("summary","","Source provenance and validation limits"),e("pre","",JSON.stringify(quality,null,2)));parent.append(details);
@@ -86,8 +98,32 @@
     root.append(warning);
     const row=e("div","options-actions");row.append(button(data.config.enabled?"Disable options workflow":"Enable options workflow",()=>mutate("config",{enabled:!data.config.enabled,paused:data.config.paused}),()=>true,true));
     row.append(button(data.config.paused?"Resume options workflow":"Pause options workflow",()=>mutate("config",{enabled:data.config.enabled,paused:!data.config.paused}),()=>data.config.enabled,true));
-    row.append(button("Read forward quote inbox",()=>mutate("refresh"),()=>runnable()&&!data.feed?.config?.initialized),button("Backtest imported history",()=>mutate("backtest"),()=>runnable()&&Boolean(data.quality)));root.append(row);
-    if(data.feed){
+    if(!eodActive())row.append(button("Read forward quote inbox",()=>mutate("refresh"),()=>runnable()&&!data.feed?.config?.initialized),button("Backtest imported history",()=>mutate("backtest"),()=>runnable()&&Boolean(data.quality)));root.append(row);
+    if(data.eod){
+      const source=e("section","options-card");source.append(e("span","eyebrow","F / EXPERIMENTAL EOD / NO ACCOUNT"),e("h3","","Under-$100 options paper source"));
+      p(source,"Actual vendor bid/ask values and quoted sizes from a partial returned F chain. Option quote-event time UNKNOWN: date-only EOD price proxies, lower-evidence research only. No live feed, execution qualification or guaranteed publication.","options-warning");
+      p(source,"The underlying share price must be strictly below $100 at each new entry. One standard long contract total; each entry is at most $100 including premium and both fees. The SAME account shares ONE $500 monthly commitment across all strategies. Profits never replenish it.");
+      p(source,eodActive()?`Source ${data.eod.config.enabled?"enabled":"paused"}; existing account identity, cash, contributions and monthly allowance retained. Migration adds NO new funding and never resets risk.`:"Migrate only a healthy, zero-trade, unspent existing shared account. Prior observations are retained as evidence. No second account, added funding, historical fills or monthly reset.");
+      p(source,"Collection checks after 9:35 AM Eastern for the previous completed source session. Provider timing is not guaranteed. The 6 AM brief reads saved results; offline, failed or uncertain work never invents a fill or retries itself.");
+      if(data.eod.quality)coverage(source,data.eod.quality,"Experimental EOD");else p(source,"No F option source session accepted yet. Starting cash and stock warmup are not trading returns.");
+      if(eodActive()){
+        const history=data.paper?.state?.history,reference=Array.isArray(history)?history[history.length-1]:null;
+        if(reference)p(source,`Dated underlying reference ${txt(reference.source_date)||"unknown"}: ${amount(reference.underlying_close)} per share, unadjusted regular last bar; not a current live price.`);
+        p(source,`Stock indicator seeds: ${Number.isInteger(data.eod.baseline_count)?data.eod.baseline_count:"unknown"}. Seeds never adopt historical trades; 14 completed references are required before a signal.`);
+      }
+      if(data.eod.last_run)p(source,`Latest EOD operation: ${txt(data.eod.last_run.status)||"unknown"} · source date ${txt(data.eod.last_run.source_date)||"not accepted"} · recorded ${txt(data.eod.last_run.created_at)||"not recorded"}. Quote-event time remains unknown.`);
+      if(data.eod.publication_assurance?.waiting_for_disposal_source)p(source,`Disposal source ${txt(data.eod.publication_assurance.deadline_source_date)||"unknown"} remains unverified. Awaiting publication is not a verified sale or permission for funding rollover.`,"options-warning");
+      if(Number.isInteger(data.eod.retention?.remaining_evidence_operations))p(source,`Retained evidence capacity: ${data.eod.retention.remaining_evidence_operations} operations remaining. Full storage stops collection for reviewed maintenance.`);
+      const controls=e("div","options-actions");
+      if(!eodActive()){
+        const advanced=e("details");advanced.append(e("summary","","Optional stock warmup manifest"));p(advanced,"Optional local onclick_f_stock_baseline manifest. Its verified prior stock references seed indicators only, never past option trades. Leave blank to start without warmup.");
+        const label=e("label","options-field","Baseline manifest inside Ariadne Workspace"),input=e("input");input.name="options_eod_baseline_path";input.maxLength=1000;input.value=baselineDraft;input.addEventListener("input",()=>{baselineDraft=input.value;});label.append(input);fields.push(input);advanced.append(label);source.append(advanced);
+        controls.append(button("Migrate shared account to F EOD",migrateEOD,()=>runnable()&&data.eod.migration_eligible===true));
+        if(data.eod.migration_eligible!==true)p(source,"Migration is unavailable for this saved account. Its evidence or existing activity must be reviewed; no replacement account is created.");
+      }else controls.append(button(data.eod.config.enabled?"Pause F EOD source":"Resume F EOD source",configureEOD,runnable),button("Capture available F EOD quotes",()=>mutate("eod-collect"),()=>runnable()&&data.eod.config.enabled===true&&data.eod.collection_window_open===true));
+      source.append(controls);root.append(source);
+    }
+    if(data.feed&&!eodActive()){
       const source=e("section","options-card");source.append(e("span","eyebrow","PUBLIC QUOTES / NO ACCOUNT"),e("h3","","AAPL daily quote source"));
       p(source,"Actual vendor end-of-day bid/ask snapshots and quoted sizes. The previous session becomes available after the next market open; collection starts at 9:35 AM Eastern. This is delayed paper research, not a live feed.");
       p(source,data.feed.config.initialized?`Source ${data.feed.config.enabled?"enabled":"paused"} on the existing AAPL account. One shared $500 allowance remains in force.`:"Optional activation retargets only a pristine QQQ paper account to AAPL in place. Its account ID, $500 cash and monthly allowance are preserved. No extra account or funding.");
@@ -105,12 +141,13 @@
     if(summary){const metrics=e("div","options-metrics");
       for(const[label,key]of [["Equity","equity"],["Trading P/L","trading_pnl"],["External simulated funding","contributions"],["Monthly net P/L","monthly_pnl"],["Monthly risk committed","monthly_budget_used"],["Monthly risk remaining","monthly_budget_remaining"]])metric(metrics,label,amount(summary[key]));paper.append(metrics);
       p(paper,`Ledger month ${txt(summary.month)} · entries ${Number.isInteger(summary.trade_count)?summary.trade_count:"unknown"} · completed trades ${Number.isInteger(summary.closed_trade_count)?summary.closed_trade_count:"unknown"}. Deposits are excluded from trading P/L.`);
-      p(paper,summary.cap_qualified?"Monthly cap: within the modeled premium and fee budget.":"CAP ASSURANCE UNAVAILABLE. Missing disposal or ledger evidence blocks new risk.",summary.cap_qualified?"options-small":"options-warning");
+      const capKnown=summary.cap_qualified===true&&summary.cap_assurance!=="unverified_missing_disposal_source";
+      p(paper,capKnown?"Monthly cap: within the modeled premium and fee budget.":"CAP ASSURANCE UNAVAILABLE. Missing disposal or ledger evidence blocks new risk.",capKnown?"options-small":"options-warning");
       if(summary.hold)p(paper,JSON.stringify(summary.hold).slice(0,1800),"options-warning");
       p(paper,summary.position?`Open contract: ${txt(summary.position.contract_id)} · last bid mark ${amount(summary.position.marked_bid)} per share.`:"No open option position.");
       p(paper,summary.pending?`Pending paper decision: ${JSON.stringify(summary.pending).slice(0,1200)}`:"No pending paper decision. Cash is a valid outcome.");
       p(paper,summary.last_daily_result?`Latest dated result: ${JSON.stringify(summary.last_daily_result).slice(0,2200)}`:"No forward daily trading result yet. Starting cash is not a return.");
-      if(summary.schema===2){
+      if(summary.schema===2||summary.schema===3){
         p(paper,`ONE shared $500 allowance for all enabled strategies. One open position total. Next selector priority: ${strategyNames[summary.next_strategy]||txt(summary.next_strategy)}.`);
         for(const[id,stats]of Object.entries(summary.strategy_stats||{}).slice(0,3))p(paper,`${strategyNames[id]||id}: ${Number.isInteger(stats.entry_count)?stats.entry_count:"unknown"} entries / ${Number.isInteger(stats.closed_count)?stats.closed_count:"unknown"} closed · realized P/L ${amount(stats.realized_pnl)} · month committed ${amount(stats.monthly_committed)}.`);
       }else if(data.paper.state?.schema===1&&data.portfolio_rule){
@@ -118,13 +155,15 @@
         paper.append(button("Upgrade pristine account to shared portfolio",upgradePortfolio,runnable));
       }
     }else{p(paper,"Start with $500 simulated cash. Later observed calendar months add $500 of simulated external funding only after the previous month is verified flat. This does not spend your money.");paper.append(button("Start $500 monthly paper experiment",startPaper,runnable));}
-    p(paper,data.feed?.config?.initialized?"The public source is collected after the market opens. The 6 AM Chicago brief reports the latest saved results. No paid options subscription or broker is connected.":"The 6 AM Chicago brief reads the fixed local quote inbox. There is no connected options subscription. Offline reads and backtests work; absent or stale quotes never become invented fills.");grid.append(paper);
-    if(data.portfolio_rule){
+    if(summary?.schema===3){p(paper,"EXPERIMENTAL EOD PROXY · source dates are not quote-event timestamps; no execution qualification.","options-warning");if(summary.disposal)p(paper,`Disposal source ${txt(summary.disposal.required_source_date)} · ${txt(summary.disposal.status)}. Missing evidence is not a sale.`);if(summary.cap_assurance==="unverified_missing_disposal_source")p(paper,"CAP ASSURANCE UNVERIFIED · required disposal source evidence is missing.","options-warning");}
+    p(paper,eodActive()?"The 6 AM Chicago brief reports dated saved F EOD experimental results. No paid options subscription, brokerage or real orders.":data.feed?.config?.initialized?"The public source is collected after the market opens. The 6 AM Chicago brief reports the latest saved results. No paid options subscription or broker is connected.":"The 6 AM Chicago brief reads the fixed local quote inbox. There is no connected options subscription. Offline reads and backtests work; absent or stale quotes never become invented fills.");grid.append(paper);
+    if(data.portfolio_rule||eodActive()){
       const tracks=e("section","options-card");tracks.append(e("span","eyebrow","REGISTERED / NO WINNER CHASING"),e("h3","","Three hypotheses. One risk ledger."));
-      for(const[id,value]of Object.entries(data.portfolio_rule.strategies||{}).slice(0,3)){
+      for(const[id,value]of Object.entries((eodActive()?data.eod?.rule:data.portfolio_rule)?.strategies||{}).slice(0,3)){
         const card=e("div","options-strategy");card.append(e("strong","",strategyNames[id]||id));p(card,txt(value.signal));tracks.append(card);
       }
-      p(tracks,"Fixed priority rotates after an entry. Backtest performance never chooses the next strategy. Each entry costs at most $125 including premium and both fees. Profits cannot replenish the $500 monthly commitment allowance.");grid.append(tracks);
+      p(tracks,`Fixed priority rotates after an entry. Backtest performance never chooses the next strategy. Each entry costs at most $${eodActive()?"100":"125"} including premium and both fees. Profits cannot replenish the $500 monthly commitment allowance.`);grid.append(tracks);
+      if(!eodActive()){
       const study=e("section","options-card options-full");study.append(e("span","eyebrow","SAME SOURCE / SEPARATE COUNTERFACTUALS"),e("h3","","Expanded strategy comparison"));
       if(data.archive_catalog){coverage(study,data.archive_catalog.quality,"Registered for next run");p(study,`Registered manifest for the next study: ${txt(data.archive_catalog.manifest_sha256)}. Price hashes establish identity, not accuracy.`);}
       else p(study,"Register a complete immutable historical quote archive. Every chunk is verified before use; gaps, changed terms and missing exits are never repaired into profits.");
@@ -156,6 +195,7 @@
         research.append(cards);const diagnostics=e("details");diagnostics.append(e("summary","","Eligibility, affordability and skipped candidates"),e("pre","",JSON.stringify(data.research.eligibility||{},null,2)));research.append(diagnostics);artifactButtons(research,data.research.artifacts);
       }
       p(research,"Previously examined years are exploratory. New retrospective windows are not prospective proof. Comparing partial ledgers with different stop dates cannot establish superiority, and zero trades is not a winning return.","options-warning");research.append(button("Backtest regime hypotheses",()=>mutate("research-compare"),()=>runnable()&&Boolean(data.archive_catalog)));grid.append(research);
+      }
     }
     if(data.vix){
       const vix=e("section","options-card options-full");vix.append(e("span","eyebrow","VIX / VOLATILITY RESEARCH"),e("h3","","Study the shock. Verify the contract."));
@@ -213,14 +253,16 @@
       p(history,`Symbol ${txt(report.symbol)} · entries ${Number.isInteger(metrics.trade_count)?metrics.trade_count:"unknown"} · completed trades ${Number.isInteger(metrics.closed_trade_count)?metrics.closed_trade_count:"unknown"}.`);
       p(history,`Realized payout milestones: ${JSON.stringify(metrics.payout_milestones||{})}. A large possible payoff is not an estimated win probability.`);artifactButtons(history,report.artifacts);
     }else p(history,"Import historical option bid/ask quotes, then run the fixed rule. Underlying stock bars and theoretical option prices are not substituted for missing contract history.");
-    coverage(history,data.quality,"Historical");coverage(history,data.forward_quality,"Forward");grid.append(history);
+    coverage(history,data.quality,eodActive()?"Retained legacy historical":"Historical");if(!eodActive())coverage(history,data.forward_quality,"Forward");grid.append(history);
+    if(!eodActive()){
     const importer=e("section","options-card options-full");importer.append(e("h3","","Import historical quotes"));
     p(importer,"Use the bundled converter for Cboe CSV or the strict canonical JSON format. Imports stay local and do not advance the forward account. Data from undocumented sources remains explicitly unverified.");
     const form=e("form"),label=e("label","options-field","JSON file inside Ariadne Workspace"),input=e("input");input.name="options_import_path";input.value=importDraft;input.maxLength=1000;input.addEventListener("input",()=>{importDraft=input.value;});label.append(input);fields.push(input);form.append(label);
     const submit=e("button","button button-secondary","Import historical dataset");submit.type="submit";actions.push({node:submit,allowed:runnable,held:false});form.append(submit);
     form.addEventListener("submit",async event=>{event.preventDefault();if(!runnable())return;try{await mutate("import",{path:importDraft});}catch(error){notice=error.message;render();}});importer.append(form);p(importer,`Daily forward inbox: ${txt(data.inbox)}. Forward observations need recorded timestamps, quoted size and the latest completed session. Assumed-EOD research cannot place paper fills.`);grid.append(importer);
-    const rule=e("details","options-card options-full");rule.append(e("summary","","Frozen selection rule and monthly risk contract"));for(const[key,value]of Object.entries(data.portfolio_rule||data.rule||{}).slice(0,30))p(rule,`${key}: ${typeof value==="string"?value:JSON.stringify(value)}`);p(rule,`Portfolio rule SHA-256 ${txt(data.portfolio_rule_sha256)} / original recovery rule ${txt(data.rule_sha256)}`);grid.append(rule);
-    if(data.paper||data.quality||data.forward_quality){const archive=e("details","options-card options-full");archive.append(e("summary","","Archive an experiment or input basis"));p(archive,"Retains the ledger and last marks without inventing a sale. Archiving never resets a month's allowance. An unresolved archived position blocks a new experiment.");
+    }
+    const rule=e("details","options-card options-full");rule.append(e("summary","","Frozen selection rule and monthly risk contract"));for(const[key,value]of Object.entries((eodActive()?data.eod?.rule:data.portfolio_rule||data.rule)||{}).slice(0,30))p(rule,`${key}: ${typeof value==="string"?value:JSON.stringify(value)}`);p(rule,eodActive()?`Experimental EOD rule SHA-256 ${txt(data.eod?.rule_sha256)}`:`Portfolio rule SHA-256 ${txt(data.portfolio_rule_sha256)} / original recovery rule ${txt(data.rule_sha256)}`);grid.append(rule);
+    if(!eodActive()&&(data.paper||data.quality||data.forward_quality)){const archive=e("details","options-card options-full");archive.append(e("summary","","Archive an experiment or input basis"));p(archive,"Retains the ledger and last marks without inventing a sale. Archiving never resets a month's allowance. An unresolved archived position blocks a new experiment.");
       const reasonLabel=e("label","options-field","Reason"),reason=e("textarea");reason.name="options_archive_reason";reason.maxLength=1000;reason.value=reasonDraft;reason.addEventListener("input",()=>{reasonDraft=reason.value;});reasonLabel.append(reason);fields.push(reason);archive.append(reasonLabel);
       const checkLabel=e("label","options-field"),check=e("input");check.type="checkbox";check.checked=archiveData;check.name="options_archive_data";check.addEventListener("change",()=>{archiveData=check.checked;});checkLabel.append(check,e("span","","Also retain and clear both imported data caches"));fields.push(check);archive.append(checkLabel,button("Review archival",archiveExperiment));grid.append(archive);}
     if(Array.isArray(data.events)&&data.events.length){const events=e("details","options-card options-full");events.append(e("summary","","Recent paper events"));const pre=e("pre","",JSON.stringify(data.events.slice(0,20),null,2));events.append(pre);grid.append(events);}
@@ -231,13 +273,20 @@
     try{const result=await app.api("/options");if(!current(marker,token))return;
       if(!Number.isSafeInteger(result?.revision)||result.revision<0||typeof result.config?.enabled!=="boolean"||typeof result.config?.paused!=="boolean")throw new Error("Saved options status is incomplete. No action is permitted.");
       if(result.feed&&(typeof result.feed.config?.enabled!=="boolean"||typeof result.feed.config?.initialized!=="boolean"||typeof result.feed.collection_window_open!=="boolean"))throw new Error("Saved quote-source controls are incomplete. Inspect before another action.");
+      if(result.eod&&(typeof result.eod.config?.enabled!=="boolean"||typeof result.eod.config?.initialized!=="boolean"||typeof result.eod.collection_window_open!=="boolean"||typeof result.eod.migration_eligible!=="boolean"))throw new Error("Saved experimental EOD controls are incomplete. Inspect before another action.");
+      if((result.paper?.state?.schema===3||result.paper?.summary?.schema===3)&&result.eod?.config?.initialized!==true)throw new Error("The experimental EOD account lacks its matching source authority. No action is permitted.");
+      if(result.eod?.config?.initialized===true&&(result.paper?.state?.schema!==3||result.paper?.summary?.schema!==3||!result.eod.rule||typeof result.eod.rule_sha256!=="string"))throw new Error("The initialized EOD source lacks its matching account/rule. No action is permitted.");
       data=result;stale=false;if(uncertain)inspected=true;render();
     }catch(error){if(current(marker,token)){notice=error.message;stale=true;if(data)render();else $("options-content")?.replaceChildren(e("p","options-warning",notice));}}
     finally{if(current(marker,token)){loading=false;controls();}}
   }
   async function mutate(kind,extra={},identifier=null){
     if(!writable(kind==="config"||kind==="acknowledge"))return;
-    if(["refresh","backtest","import","paper","portfolio","upgrade-portfolio","register-archive","compare","feed","collect-feed","research-compare","vix-signals","vix-backtest"].includes(kind)&&!runnable())return;
+    if(["refresh","backtest","import","paper","portfolio","upgrade-portfolio","register-archive","compare","feed","collect-feed","research-compare","vix-signals","vix-backtest","eod-migrate","eod-config","eod-collect"].includes(kind)&&!runnable())return;
+    if(eodActive()&&["refresh","feed","collect-feed","archive","paper","portfolio","upgrade-portfolio"].includes(kind))return;
+    if(kind==="eod-migrate"&&(!data.eod||eodActive()||data.eod.migration_eligible!==true))return;
+    if(kind==="eod-config"&&(!eodActive()||data.eod?.config?.initialized!==true))return;
+    if(kind==="eod-collect"&&(!eodActive()||data.eod?.config?.enabled!==true||data.eod.collection_window_open!==true))return;
     if(kind==="refresh"&&data.feed?.config?.initialized)return;
     if(kind==="collect-feed"&&(data.feed?.config?.enabled!==true||data.feed.collection_window_open!==true))return;
     if(["paper","portfolio"].includes(kind)&&data.paper)return;
@@ -256,11 +305,13 @@
   }
   async function startPaper(){if(!runnable()||data.paper)return;await confirmed("Start the options paper experiment?","Start $500 simulated cash with at most $500 committed premium/fees per month across ALL strategies, one position total. No profits recycle the allowance. No cross-month positions or real orders. A restart cannot reset this month's budget.","Start simulated experiment",()=>mutate(data.portfolio_rule?"portfolio":"paper"));}
   async function upgradePortfolio(){if(!runnable()||data.paper?.state?.schema!==1)return;await confirmed("Upgrade this pristine account in place?","Enable all three fixed strategies on the SAME account. Existing $500 simulated cash, contributions, ledger month and monthly allowance remain unchanged. No historical positions, new funding or reset. The server refuses any prior observed or traded account.","Preserve budget and upgrade",()=>mutate("upgrade-portfolio"));}
-  async function configureFeed(){if(!runnable()||!data.feed)return;const enabled=!data.feed.config.enabled;await confirmed(enabled?"Enable the free AAPL daily source?":"Pause the free AAPL source?",!data.feed.config.initialized?"Retarget the pristine QQQ paper portfolio to AAPL on the SAME account. Preserve cash, contributions and the shared $500 monthly allowance. Quotes are delayed EOD; capture starts at 9:35 AM Eastern. No paid service, account, broker or added funding.":"Change only collection permission. Cash, losses, committed risk, source history and existing holds remain. No replay of missed sessions or automatic failure retry.",enabled?"Enable AAPL source":"Pause collection",()=>mutate("feed",{enabled}));}
+  async function configureFeed(){if(!runnable()||!data.feed||eodActive())return;const enabled=!data.feed.config.enabled;await confirmed(enabled?"Enable the free AAPL daily source?":"Pause the free AAPL source?",!data.feed.config.initialized?"Retarget the pristine QQQ paper portfolio to AAPL on the SAME account. Preserve cash, contributions and the shared $500 monthly allowance. Quotes are delayed EOD; capture starts at 9:35 AM Eastern. No paid service, account, broker or added funding.":"Change only collection permission. Cash, losses, committed risk, source history and existing holds remain. No replay of missed sessions or automatic failure retry.",enabled?"Enable AAPL source":"Pause collection",()=>mutate("feed",{enabled}));}
+  async function migrateEOD(){if(!runnable()||!data.eod||eodActive()||data.eod.migration_eligible!==true)return;const body=request("eod-migrate",data.revision,newId(),{baseline_path:baselineDraft});await confirmed("Migrate this same shared account to F EOD?","Use the experimental partial date-only F chain with UNKNOWN quote-event clocks. Preserve the SAME account ID, cash, contributions, existing month and shared $500 allowance. NO new funding, risk reset or historical trade adoption. Underlying shares must be below $100; each entry is at most $100 including both fees. Optional stock seeds only warm indicators. This is a lower-evidence EOD price proxy, not execution qualification.","Preserve account and migrate",()=>mutate("eod-migrate",{baseline_path:body.baseline_path},body.request_id));}
+  async function configureEOD(){if(!runnable()||!eodActive()||!data.eod)return;const enabled=!data.eod.config.enabled;await confirmed(enabled?"Resume experimental F EOD collection?":"Pause experimental F EOD collection?","Change only collection permission. Preserve the same cash, contributions, shared $500 commitments and all evidence. Partial date-only quotes remain unqualified price proxies. No new funding, missed-session replay or automatic failure retry.",enabled?"Resume F EOD collection":"Pause F EOD collection",()=>mutate("eod-config",{enabled}));}
   async function acknowledge(){if(!writable(true)||!data.hold)return;const identifier=data.hold.request_id;await confirmed("Acknowledge inspected options work?","The failed request stays closed. Partial inputs, fills and files are not adopted, deleted or replayed.","Acknowledge inspected request",()=>mutate("acknowledge",{},identifier));}
-  async function archiveExperiment(){if(!writable())return;const body=request("archive",data.revision,newId(),{reason:reasonDraft,archive_data:archiveData});await confirmed("Archive this options experiment?",`${body.reason}\n\nLast marks, history and losses remain retained. No synthetic sell. This cannot replenish a monthly allowance.${body.archive_data?" Both data caches are retained in evidence before clearing.":" Imported data stays cached."}`,"Retain evidence and archive",()=>mutate("archive",{reason:body.reason,archive_data:body.archive_data},body.request_id));}
+  async function archiveExperiment(){if(!writable()||eodActive())return;const body=request("archive",data.revision,newId(),{reason:reasonDraft,archive_data:archiveData});await confirmed("Archive this options experiment?",`${body.reason}\n\nLast marks, history and losses remain retained. No synthetic sell. This cannot replenish a monthly allowance.${body.archive_data?" Both data caches are retained in evidence before clearing.":" Imported data stays cached."}`,"Retain evidence and archive",()=>mutate("archive",{reason:body.reason,archive_data:body.archive_data},body.request_id));}
   function status(){if(data&&lastPause!==Boolean(app?.state.status?.paused))render();else controls();}
-  function locked(){generation++;data=null;busy=false;loading=false;stale=false;notice="";uncertain=null;inspected=false;actions=[];fields=[];lastPause=null;importDraft="market-data/options/current.json";manifestDraft="market-data/options/archives/qqq-2022/catalog.json";vixSignalDraft="market-data/vix/index-history.json";vixQuoteDraft="market-data/vix/option-history.json";reasonDraft="";archiveData=false;$("options-content")?.replaceChildren();controls();}
+  function locked(){generation++;data=null;busy=false;loading=false;stale=false;notice="";uncertain=null;inspected=false;actions=[];fields=[];lastPause=null;importDraft="market-data/options/current.json";manifestDraft="market-data/options/archives/qqq-2022/catalog.json";vixSignalDraft="market-data/vix/index-history.json";vixQuoteDraft="market-data/vix/option-history.json";baselineDraft="";reasonDraft="";archiveData=false;$("options-content")?.replaceChildren();controls();}
   function attach(value){app=value;const root=$("options-content");if(!root||attached===root)return;attached=root;$("refresh-options")?.addEventListener("click",load);controls();}
-  window.ariadneOptions={attach,load,status,locked,request,path,amount,mutate,startPaper,upgradePortfolio,configureFeed,acknowledge,archiveExperiment};
+  window.ariadneOptions={attach,load,status,locked,request,path,amount,mutate,startPaper,upgradePortfolio,configureFeed,migrateEOD,configureEOD,acknowledge,archiveExperiment};
 })();

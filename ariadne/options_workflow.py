@@ -48,6 +48,9 @@ def _now(value=None):
 
 def _paper_engine(state):
     """Old accounts retain their frozen engine until an explicit safe upgrade."""
+    if type(state) is dict and type(state.get("schema")) is int and state["schema"] == 3:
+        from . import options_eod
+        return options_eod
     if type(state) is dict and type(state.get("schema")) is int and state["schema"] == 2:
         from . import options_portfolio
         return options_portfolio
@@ -63,12 +66,15 @@ class OptionsWorkflow(HandoffDesk):
         self.stopped = threading.Event()
         from .options_live import OptionsFeedWorkflow
         self.feed = OptionsFeedWorkflow(self)
+        from .options_eod_workflow import OptionsEodWorkflow
+        self.eod = OptionsEodWorkflow(self)
         from .options_vix import VixResearchWorkflow
         self.vix = VixResearchWorkflow(self)
 
     def stop(self):
         self.stopped.set()
         self.feed.stop()
+        self.eod.stop()
 
     @staticmethod
     def _exists(db):
@@ -218,7 +224,10 @@ class OptionsWorkflow(HandoffDesk):
             if state["processed_count"] == 0 and state["trade_count"] == 0:
                 if any(state[key] != initial[key] for key in ("cash", "contributions", "month", "monthly_start_equity", "monthly_committed", "fees")):
                     raise ValueError("An untouched migrated portfolio cannot change its inherited cash or monthly allowance.")
-        self.feed.verify_account(db, row["id"], state)
+        if type(state.get("schema")) is int and state["schema"] == 3:
+            self.eod.verify_account(db, row["id"], state)
+        else:
+            self.feed.verify_account(db, row["id"], state)
         return {"id": row["id"], "state": state, "summary": summary, "started_at": row["started_at"], "policy": _load(row["policy"])}
 
     def _catalog(self, db):
@@ -281,6 +290,9 @@ class OptionsWorkflow(HandoffDesk):
                 self._finish(db, receipt)
 
     def _verify_artifacts(self, receipt):
+        if receipt["action"] in {"eod_migrate", "eod_collect", "eod_config"}:
+            self.eod.verify(receipt)
+            return
         if receipt["action"] in {"vix_signals", "vix_backtest"}:
             self.vix.verify(receipt)
             return
@@ -360,6 +372,7 @@ class OptionsWorkflow(HandoffDesk):
             forward = self._info(db, clock, forward=True)
             catalog = self._catalog(db)
             feed = self.feed.snapshot(db, clock)
+            eod = self.eod.snapshot(db, clock, account)
             vix = self.vix.snapshot(db, clock, account)
             runs = [dict(row) for row in db.execute("SELECT request_id,action,day,status FROM opt_runs ORDER BY rowid DESC LIMIT 10")] if self._exists(db) else []
             held = db.execute("SELECT request_id,action,status,receipt FROM opt_runs WHERE status IN ('running','failed') ORDER BY rowid LIMIT 1").fetchone() if self._exists(db) else None
@@ -381,13 +394,15 @@ class OptionsWorkflow(HandoffDesk):
         hold = {"request_id": held["request_id"], "action": held["action"], "status": held["status"], "reason": _load(held["receipt"]).get("reason", "Interrupted owner operation; inspect before acknowledgment.")} if held else None
         return {"schema": 1, "revision": revision, "config": cfg, "rule": RULE, "rule_sha256": RULE_SHA256,
                 "quality": quality, "data_sha256": data["sha256"] if data else None,
-                "forward_quality": forward["quality"] if forward else None,
+                "forward_quality": eod.get("quality") if account and account["state"].get("schema") == 3 else forward["quality"] if forward else None,
+                "legacy_forward_quality": forward["quality"] if forward and account and account["state"].get("schema") == 3 else None,
                 "forward_data_sha256": forward["sha256"] if forward else None, "paper": account,
                 "events": events, "hold": hold, "last_run": _load(last[0]) if last else None, "history": runs,
                 "backtest": historical, "inbox": INBOX, "model_calls": 0, "brokerage_connected": False,
                 "portfolio_rule": PORTFOLIO_RULE, "portfolio_rule_sha256": PORTFOLIO_SHA256,
                 "archive_catalog": catalog, "comparison": compared,
                 "feed": feed,
+                "eod": eod,
                 "research": researched,
                 "vix": vix,
                 "scope": "Simulated options only. $500 monthly non-recycling premium/fee allowance; no cross-month positions. Missing exits hold the ledger and invalidate cap assurance. No real orders, auto-exercise or verified future profitability."}
@@ -797,6 +812,9 @@ class OptionsWorkflow(HandoffDesk):
                     db.execute("BEGIN IMMEDIATE")
                     self._unpaused(db)
                     self._schema(db)
+                    current_account = self._account(db, clock)
+                    if current_account and current_account["state"].get("schema") == 3:
+                        raise HandoffConflict("Pause the Ford EOD source to stop it. Legacy archival cannot reset or remove its retained shared ledger and migration evidence.")
                     cfg, brief = self._meta(db)[1], self.controls()
                     # Archiving remains available during a local options pause,
                     # but an explicit brief/global hold still stops publication.
@@ -830,6 +848,8 @@ class OptionsWorkflow(HandoffDesk):
         from .briefing import _tz
         with self.database() as db:
             revision, cfg = self._meta(db)
+            if self.eod.config(db)["initialized"]:
+                return None
             # Next-open EOD quotes are unavailable at6AM. Never import the old
             # prefix then persist a stale/deadline hold before publication.
             # Explicit source activation remains in force even while disabled.
@@ -852,4 +872,10 @@ class OptionsWorkflow(HandoffDesk):
 
     def brief_snapshot(self, now=None):
         status = self.status(now)
-        return {key: status[key] for key in ("config", "quality", "forward_quality", "paper", "events", "hold", "last_run", "backtest", "rule_sha256", "portfolio_rule_sha256", "archive_catalog", "comparison", "feed", "research", "vix", "model_calls", "scope", "inbox")}
+        return {key: status[key] for key in ("config", "quality", "forward_quality", "paper", "events", "hold", "last_run", "backtest", "rule_sha256", "portfolio_rule_sha256", "archive_catalog", "comparison", "feed", "eod", "research", "vix", "model_calls", "scope", "inbox")}
+
+    def collect_due(self, now=None):
+        """One selected source on the same account; no parallel funded books."""
+        with self.database() as db:
+            selected = self.eod.config(db)["initialized"]
+        return self.eod.run_due(now) if selected else self.feed.run_due(now)

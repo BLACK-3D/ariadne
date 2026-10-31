@@ -94,7 +94,7 @@ class OptionsAPITests(unittest.TestCase):
         return relative,hashlib.sha256(raw).hexdigest()
 
     def test_auth_same_origin_and_host_for_all_read_write_routes(self):
-        for tail,method in (("","GET"),("/config","PUT"),*(("/"+name,"POST") for name in ("import","refresh","backtest","paper","acknowledge","archive","register-archive","compare","portfolio","upgrade-portfolio","feed","collect-feed","research-compare","vix-signals","vix-backtest"))):
+        for tail,method in (("","GET"),("/config","PUT"),*(("/"+name,"POST") for name in ("import","refresh","backtest","paper","acknowledge","archive","register-archive","compare","portfolio","upgrade-portfolio","feed","collect-feed","research-compare","vix-signals","vix-backtest","eod-migrate","eod-config","eod-collect"))):
             path="/api/options"+tail
             with self.subTest(path=path):
                 self.assertEqual(self.request(path,method,auth=False)["status"],401)
