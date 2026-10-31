@@ -69,6 +69,7 @@ class Application:
         from .briefing import BriefingService
         from .wake import WakeService
         self.briefing = BriefingService(settings, self.store, self.engine.tools)
+        self.revenue = self.briefing.revenue
         self.venture = self.briefing.venture
         self.handoff = HandoffDesk(self.engine.tools, self.store)
         self.client_handoff = ClientHandoffDesk(self.engine.tools, self.store)
@@ -297,6 +298,9 @@ class Application:
                           "/static/qqq.css": ("qqq.css", "text/css"),
                           "/static/options.js": ("options.js", "text/javascript"),
                           "/static/options.css": ("options.css", "text/css"),
+                          "/static/options_review.js": ("options_review.js", "text/javascript"),
+                          "/static/revenue.js": ("revenue.js", "text/javascript"),
+                          "/static/revenue.css": ("revenue.css", "text/css"),
                           "/static/operations_workflows.js": ("operations_workflows.js", "text/javascript")}
                 if path not in assets:
                     raise HTTPError(404, "Not found")
@@ -444,6 +448,9 @@ class Application:
             result = self.client_handoff.status(**arguments)
         elif parts == ["options"] and method == "GET":
             result = self.briefing.options.status()
+        elif parts == ["options", "review"] and method == "GET":
+            from .options_journal import review_options
+            result = review_options(self.briefing.options)
         elif parts == ["options", "config"] and method == "PUT":
             result = self.briefing.options.configure(self.client_handoff_body(env))
         elif len(parts) == 2 and parts[0] == "options" and parts[1] in {"eod-migrate", "eod-config", "eod-collect"} and method == "POST":
@@ -735,6 +742,14 @@ class Application:
             result = self.operations.catalog()
         elif parts == ["operations", "run"] and method == "POST":
             result = self.operations.run(self.body(env, limit=16_384))
+        elif parts == ["revenue"] and method == "GET":
+            result = self.revenue.status()
+        elif len(parts) == 3 and parts[:2] == ["revenue", "plans"] and method == "GET":
+            result = self.revenue.detail(parts[2])
+        elif len(parts) == 2 and parts[0] == "revenue" and parts[1] in {"plan", "evidence", "acknowledge"} and method == "POST":
+            action = {"plan": self.revenue.plan, "evidence": self.revenue.record_evidence,
+                      "acknowledge": self.revenue.acknowledge}[parts[1]]
+            result = action(self.client_handoff_body(env))
         elif parts == ["automation"] and method == "GET":
             result = self.engine.tools.automation.overview()
         elif parts == ["automation"] and method == "PUT":

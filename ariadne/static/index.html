@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="/static/client_handoff.css">
   <link rel="stylesheet" href="/static/qqq.css">
   <link rel="stylesheet" href="/static/options.css">
+  <link rel="stylesheet" href="/static/revenue.css">
   <script src="/static/command.js" defer></script>
   <script src="/static/routines.js" defer></script>
   <script src="/static/operations.js" defer></script>
@@ -23,6 +24,8 @@
   <script src="/static/client_handoff.js" defer></script>
   <script src="/static/qqq.js" defer></script>
   <script src="/static/options.js" defer></script>
+  <script src="/static/options_review.js" defer></script>
+  <script src="/static/revenue.js" defer></script>
   <script src="/static/app.js" defer></script>
 </head>
 <body class="command-console">
@@ -114,10 +117,15 @@
         <section class="view content-view" id="view-venture" hidden>
           <div class="page-heading"><div><span class="eyebrow">IDEAS / EVIDENCE / LOCAL PROGRESS</span><h1>Venture Lab</h1><p>Business experiments and disciplined ETF research. Your daily brief advances the next local draft.</p></div><div><button id="refresh-venture" class="button button-secondary">Refresh</button> <button id="run-venture" class="button button-primary">Create today's check-in</button></div></div>
           <div id="venture-content" aria-live="polite"></div>
+          <section id="revenue-workbench" class="revenue-workbench" aria-label="Business revenue comparison">
+            <div class="section-heading"><div><span class="eyebrow">POD / SERVICE / RECORDED CASH</span><h2>Build toward the first collected sale.</h2></div><button type="button" class="button button-secondary" id="refresh-revenue">Inspect business evidence</button></div>
+            <div id="revenue-content"></div>
+          </section>
           <div class="page-heading"><div><span class="eyebrow">FIXED RULE / FORWARD PAPER EVIDENCE</span><h2>QQQ recovery lab</h2></div><button id="refresh-qqq" class="button button-secondary">Inspect paper account</button></div>
           <div id="qqq-content" aria-live="polite"></div>
           <div class="page-heading"><div><span class="eyebrow">ASYMMETRIC UPSIDE / DEFINED SIMULATED LOSS</span><h2>Options lab</h2></div><button id="refresh-options" class="button button-secondary">Inspect options account</button></div>
           <div id="options-content" aria-live="polite"></div>
+          <section aria-label="Saved options paper evidence review"><div class="section-heading"><div><span class="eyebrow">SAVED DECISIONS / COSTS / SOURCE LIMITS</span><h2>Paper evidence journal</h2></div><button type="button" class="button button-secondary" id="refresh-options-review">Review saved paper evidence</button></div><div id="options-review-content"></div></section>
         </section>
         <section class="view content-view" id="view-handoff" hidden>
           <div class="page-heading handoff-heading"><div><span class="eyebrow">LOCAL BUSINESS / CLIENT WORKFLOW</span><h1>Service desk</h1></div><div><button id="refresh-client-handoff" class="button button-secondary">Refresh clients</button><button id="refresh-handoff" class="button button-secondary" hidden>Refresh demo</button></div></div>

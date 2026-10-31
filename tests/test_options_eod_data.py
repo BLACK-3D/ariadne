@@ -62,6 +62,23 @@ def replace_body(item, value):
     item.update(evidence(raw(value),item["url"]))
 
 
+def calendar_bundle(day, received, expiries, candidate, *, required=()):
+    """Generated source fixtures, never actual quotes or performance evidence."""
+    wanted = {candidate} if candidate else set()
+    for identifier in required:
+        wanted.add("20"+identifier[1:3]+"-"+identifier[3:5]+"-"+identifier[5:7])
+    chains = []
+    for expiry in sorted(wanted):
+        rows = chain(expiry)
+        for row in rows:
+            if "date" in row:
+                row["date"] = day.isoformat()
+        chains.append(evidence(raw(rows), data.chain_url(day, expiry), received))
+    return {"session":day.isoformat(),
+            "expirations":evidence(raw({"call":expiries,"put":expiries}),data.expiration_url(day),received),
+            "chains":chains,"stock":evidence(raw(stock(day)),data.stock_url(day),received)}
+
+
 class EODDataTests(unittest.TestCase):
     def normalize(self, value=None, **kwargs):
         return data.normalize_bundle(bundle() if value is None else value, expected_session=DAY, **kwargs)
@@ -80,6 +97,105 @@ class EODDataTests(unittest.TestCase):
         self.assertEqual(result["provenance"]["warnings"][0]["counts"],{"returned_strikes":1,"total_strikes":2})
         self.assertEqual(data.validate_snapshot(snapshot),snapshot)
 
+    def test_candidate_policy_is_explicit_pinned_and_keeps_engine_contract_unchanged(self):
+        from ariadne.options_eod import RULE_SHA256
+        normalized=self.normalize()
+        self.assertEqual(data.CANDIDATE_EXPIRY_POLICY["id"],"onclick_actual_receipt_month_candidate_v2")
+        self.assertEqual(data.CANDIDATE_EXPIRY_POLICY_SHA256,
+                         "c88e27fc712428fd852ccfc3f741832e1d8323465acfd0d44bb1366e1a416dd4")
+        self.assertEqual(data.CANDIDATE_EXPIRY_POLICY_SHA256,
+                         hashlib.sha256(data.canonical(data.CANDIDATE_EXPIRY_POLICY)).hexdigest())
+        self.assertEqual(normalized["provenance"]["candidate_expiry_policy_sha256"],data.CANDIDATE_EXPIRY_POLICY_SHA256)
+        self.assertEqual(normalized["provenance"]["candidate_expiry_policy"],data.CANDIDATE_EXPIRY_POLICY)
+        normalized["provenance"]["candidate_expiry_policy"]["id"]="changed returned view"
+        self.assertEqual(data.CANDIDATE_EXPIRY_POLICY["id"],"onclick_actual_receipt_month_candidate_v2")
+        self.assertEqual(data.SOURCE_ID,"onclick_f_eod_v1")
+        self.assertEqual(set(normalized["snapshot"]),data.SNAPSHOT_KEYS)
+        self.assertEqual(RULE_SHA256,"22ea96117b89f2b7c38e3853071363449aacac0074bf83a113f4fa36aec3b0f0")
+
+    def test_near_month_end_prefers_current_receipt_month_over_global_nearest(self):
+        day=date(2026,10,20);received=datetime(2026,10,21,14,35,tzinfo=timezone.utc)
+        expiries=["2026-10-30","2026-11-06","2026-11-13"]
+        # The prior global rule would prefer17DTE over10DTE. The frozen
+        # engine can consider only the actual October decision-month expiry.
+        source=calendar_bundle(day,received,expiries,"2026-10-30")
+        before=deepcopy(source)
+        result=data.normalize_bundle(source,expected_session=day)
+        self.assertEqual(result["provenance"]["candidate_expiry"],"2026-10-30")
+        self.assertEqual(result["provenance"]["candidate_selection_scope"],"actual_receipt_month")
+        self.assertEqual(result["provenance"]["candidate_selection_month"],"2026-10")
+        self.assertEqual(result["provenance"]["candidate_selection_receipt_at"],received.isoformat())
+        self.assertEqual({row["expiry"] for row in result["snapshot"]["quotes"]},{"2026-10-30"})
+        self.assertEqual(source,before)
+
+    def test_parent_rejects_wrong_global_expiry_instead_of_adopting_or_refetching(self):
+        day=date(2026,10,20);received=datetime(2026,10,21,14,35,tzinfo=timezone.utc)
+        source=calendar_bundle(day,received,["2026-10-30","2026-11-06"],"2026-11-06")
+        with patch.object(data,"_fetch",side_effect=AssertionError("Parent normalization never fetches")),self.assertRaises(data.OptionsEODDataError):
+            data.normalize_bundle(source,expected_session=day)
+
+    def test_month_boundary_uses_actual_receipt_month_not_historical_source_month(self):
+        day=date(2026,10,30);received=datetime(2026,11,2,14,35,tzinfo=timezone.utc)
+        source=calendar_bundle(day,received,["2026-11-06","2026-11-13","2026-11-20"],"2026-11-13")
+        result=data.normalize_bundle(source,expected_session=day)
+        self.assertEqual(result["provenance"]["candidate_selection_month"],"2026-11")
+        self.assertEqual(result["provenance"]["candidate_selection_scope"],"actual_receipt_month")
+        self.assertEqual(result["provenance"]["candidate_expiry"],"2026-11-13")
+
+    def test_new_york_month_differs_from_utc_and_empty_month_retains_warmup_subset(self):
+        day=date(2026,10,30)
+        # November in UTC is still October in New York. There is no eligible
+        # October expiry, so these November rows remain warmup-only fallback.
+        received=datetime(2026,11,1,0,30,tzinfo=timezone.utc)
+        source=calendar_bundle(day,received,["2026-11-06","2026-11-13","2026-11-20"],"2026-11-13")
+        result=data.normalize_bundle(source,expected_session=day)
+        self.assertEqual(result["provenance"]["candidate_selection_month"],"2026-10")
+        self.assertEqual(result["provenance"]["candidate_selection_scope"],"global_warmup_fallback")
+        self.assertEqual(result["provenance"]["candidate_expiry"],"2026-11-13")
+        self.assertIsNone(result["snapshot"]["quote_observed_at"])
+
+    def test_required_expiries_outside_candidate_month_are_retained_with_same_five_request_bound(self):
+        day=date(2026,10,20);received=datetime(2026,10,21,14,35,tzinfo=timezone.utc)
+        required=["F261106C00020000","F261113P00020000"]
+        source=calendar_bundle(day,received,["2026-10-30","2026-11-06","2026-11-13"],"2026-10-30",required=required)
+        mapping={item["url"]:item for item in [source["expirations"],*source["chains"],source["stock"]]}
+        calls=[]
+        def fetch(url,*,deadline,check,budget):
+            check();calls.append((url,deadline,id(budget)));return deepcopy(mapping[url])
+        with patch.dict(os.environ,{"ARIADNE_OPTIONS_EOD_COLLECTOR":"1","ARIADNE_OFFLINE":"0"}),patch.object(data,"_now",return_value=received),patch.object(data,"_fetch",side_effect=fetch):
+            result=data.fetch_bundle(day,required)
+        normalized=data.normalize_bundle(result,expected_session=day,required_contracts=required)
+        self.assertEqual(normalized["provenance"]["candidate_expiry"],"2026-10-30")
+        self.assertEqual({item["expiry"] for item in normalized["provenance"]["quote_sources"]},
+                         {"2026-10-30","2026-11-06","2026-11-13"})
+        self.assertTrue(set(required)<={item["contract_id"] for item in normalized["snapshot"]["quotes"]})
+        self.assertEqual(len(calls),5)
+        self.assertEqual(len({item[1] for item in calls}),1)
+        self.assertEqual(len({item[2] for item in calls}),1)
+        self.assertEqual(data.WORKER_SECONDS,15)
+        self.assertEqual(data.MAX_WIRE,8*1024*1024)
+        self.assertTrue(all(data._approved_url(item[0]).hostname==data.HOST for item in calls))
+        self.assertTrue(all("type=" not in item[0] and "strike=" not in item[0] for item in calls))
+
+    def test_expiry_subset_does_not_relax_delayed_fill_or_actual_decision_month_gates(self):
+        from ariadne.options_eod import _eligible
+        day=date(2026,10,22);received=datetime(2026,10,23,14,35,tzinfo=timezone.utc)
+        source=calendar_bundle(day,received,["2026-10-30","2026-11-06"],"2026-10-30")
+        snapshot=data.normalize_bundle(source,expected_session=day)["snapshot"]
+        quote=next(item for item in snapshot["quotes"] if item["type"]=="call")
+        quote.update(bid="0.45",bid_size=1)
+        self.assertTrue(_eligible(quote,snapshot,"call",received))
+        later=deepcopy(snapshot);later["source_date"]="2026-10-26"
+        self.assertFalse(_eligible(quote,later,"call",datetime(2026,10,27,14,35,tzinfo=timezone.utc)))
+        self.assertFalse(_eligible(quote,snapshot,"call",datetime(2026,11,2,14,35,tzinfo=timezone.utc)))
+
+    def test_candidate_clock_is_explicit_aware_and_ties_remain_deterministic(self):
+        metadata=raw({"call":["2026-11-13","2026-11-19"],"put":["2026-11-13","2026-11-19"]})
+        day=date(2026,11,2);received=datetime(2026,11,3,14,35,tzinfo=timezone.utc)
+        self.assertEqual(data._expirations(metadata,day,received_at=received)[1],"2026-11-13")
+        for clock in (None,received.replace(tzinfo=None),"2026-11-03",True):
+            with self.subTest(clock=clock),self.assertRaises(data.OptionsEODDataError):
+                data._expirations(metadata,day,received_at=clock)
     def test_input_is_not_mutated_and_hashes_bind_each_raw_byte(self):
         value=bundle();original=deepcopy(value)
         result=self.normalize(value)

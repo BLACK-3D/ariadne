@@ -224,6 +224,8 @@ function renderStatus(status) {
   window.ariadneVenture?.status(status);
   window.ariadneQQQ?.status(status);
   window.ariadneOptions?.status(status);
+  window.ariadneOptionsReview?.status(status);
+  window.ariadneRevenue?.status(status);
   window.ariadneHandoff?.status(status);
   window.ariadneClientHandoff?.status(status);
 }
@@ -324,6 +326,8 @@ function lockSession(message = "") {
   window.ariadneVenture?.locked();
   window.ariadneQQQ?.locked();
   window.ariadneOptions?.locked();
+  window.ariadneOptionsReview?.locked();
+  window.ariadneRevenue?.locked();
   window.ariadneHandoff?.locked();
   window.ariadneClientHandoff?.locked();
   $("#access-token").focus();
@@ -348,6 +352,7 @@ function setMenu(open) {
 async function showView(view) {
   if (!viewTitles[view]) return;
   const changedView = state.view !== view;
+  if (changedView && state.view === "venture") { window.ariadneRevenue?.detach(); window.ariadneOptionsReview?.detach(); }
   state.view = view;
   for (const item of $$(".view")) item.hidden = item.id !== `view-${view}`;
   for (const item of $$("[data-view]")) {
@@ -363,7 +368,13 @@ async function showView(view) {
 }
 async function loadView(view) {
   if (view === "operations") { await window.ariadneOperations?.load(); return; }
-  if (view === "venture") { await window.ariadneVenture?.load(); await window.ariadneQQQ?.load(); await window.ariadneOptions?.load(); return; }
+  if (view === "venture") {
+    await window.ariadneVenture?.load(); if (state.view !== view) return;
+    await window.ariadneRevenue?.load(); if (state.view !== view) return;
+    await window.ariadneQQQ?.load(); if (state.view !== view) return;
+    await window.ariadneOptions?.load(); if (state.view !== view) return;
+    await window.ariadneOptionsReview?.load(); return;
+  }
   if (view === "handoff") { await loadServiceDesk(); return; }
   if (view === "settings") { renderSettings(); return; }
   const loaders = {agents:loadAgents, briefing:loadBriefing, internet:loadInternet, knowledge:loadKnowledge, survival:loadSurvival, workflows:loadWorkflows, memory:loadMemory, schedules:loadSchedules, files:loadFiles, connectors:loadConnectors};
@@ -3003,6 +3014,8 @@ window.ariadneOperationWorkflows?.attach({state, api, node, button, showView, se
 window.ariadneVenture?.attach({state, api, node, button, openArtifact, showView, confirmAction, toast});
 window.ariadneQQQ?.attach({state, api, node, button, openArtifact, confirmAction, toast});
 window.ariadneOptions?.attach({state, api, node, button, openArtifact, confirmAction, toast});
+window.ariadneOptionsReview?.attach({state, api, node, button, openArtifact});
+window.ariadneRevenue?.attach({state, api, node, button, openArtifact, confirmAction, toast});
 window.ariadneHandoff?.attach({state, api, node, button, openArtifact, downloadArtifact, showView, confirmAction, toast});
 window.ariadneClientHandoff?.attach({state, api, node, button, openArtifact, downloadArtifact, confirmAction, toast});
 let serviceDeskMode = "real";

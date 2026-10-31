@@ -42,6 +42,15 @@ SESSION_GRID_POLICY = {
     "price":"Use the close of the last actually supplied positive-volume source bar. Preserve every supplied row and original byte hash, including zero-volume and optional boundary rows. Never create, remove or relabel source rows.",
     "limitations":"This is an explicit source-label acceptance policy for date-only educational paper research. It does not verify interval-start semantics, an official closing/auction price, UTC event clocks, complete trade coverage or executable prices.",
 }
+CANDIDATE_EXPIRY_POLICY = {
+    "id":"onclick_actual_receipt_month_candidate_v2",
+    "universe":"Use only expiries present in both actual snapshot call/put metadata lists and7-21calendar days after the requested historical source session.",
+    "selection_clock":"The actual metadata receipt's America/New_York calendar month, not the source-session month, UTC month, a backdated decision or a later wall clock.",
+    "selection":"Prefer candidates in that receipt month; nearest14DTE then earlier ISO expiry. If none exists, retain the global nearest14DTE candidate for indicator observations only; the paper engine still applies all entry gates.",
+    "required_contracts":"Always union the exact required held/pending contract expiries, even outside the candidate month/window. Missing required metadata or actual quotes remains a substantive stop.",
+    "limits":"At most one candidate plus two required expiries; unchanged five GETs,15second worker and8MiB shared wire bound. No extra strike/type requests, retries, accounts or paid fields.",
+    "qualification":"Frozen engine rules, source identity, snapshot fields, shared capital and gross monthly cap are unchanged. The actual durable decision month, delayed7-21DTE fill gate and disposal deadline can still reject every returned candidate. No trade, return, execution quality or complete universe is promised.",
+}
 CHAIN_FIELDS = "date,contractID,symbol,expiration,strike,type,bid,bid_size,ask,ask_size,volume,open_interest"
 SNAPSHOT_KEYS = {"source_date", "received_at", "underlying_close", "quote_observed_at",
                  "underlying_basis", "quotes", "partial_chain", "source_sha256", "stock_sha256"}
@@ -77,6 +86,7 @@ def canonical(value):
 
 
 SESSION_GRID_POLICY_SHA256 = hashlib.sha256(canonical(SESSION_GRID_POLICY)).hexdigest()
+CANDIDATE_EXPIRY_POLICY_SHA256 = hashlib.sha256(canonical(CANDIDATE_EXPIRY_POLICY)).hexdigest()
 
 
 def _clock(value):
@@ -223,7 +233,7 @@ def stock_url(session):
         "to":day.isoformat()+f"-{close//60:02d}-{close%60:02d}", "extended":"false", "bar_size":"1m"})
 
 
-def _expirations(raw, day):
+def _expirations(raw, day, *, received_at):
     value = _json(raw)
     if type(value) is not dict or set(value) != {"call", "put"}:
         raise OptionsEODDataError("Expiration metadata needs exact call/put lists.")
@@ -236,7 +246,10 @@ def _expirations(raw, day):
     choices = sorted((item for item in set(value["call"]) & set(value["put"])
                       if 7 <= (_day(item)-day).days <= 21),
                      key=lambda item:(abs((_day(item)-day).days-14), item))
-    return value, choices[0] if choices else None
+    month = exchange_day(_clock(received_at)).strftime("%Y-%m")
+    current_month = [item for item in choices if item[:7] == month]
+    candidates = current_month or choices
+    return value, candidates[0] if candidates else None
 
 
 def _wanted_expiries(metadata, candidate, required, day):
@@ -416,7 +429,7 @@ def normalize_bundle(bundle, *, expected_session, required_contracts=()):
     if type(bundle) is not dict or set(bundle) != {"session", "expirations", "chains", "stock"} or bundle["session"] != day.isoformat():
         raise OptionsEODDataError("Exact historical source bundle required.")
     exp_raw, exp_received, exp_source = _evidence(bundle["expirations"], expiration_url(day), day)
-    metadata, candidate = _expirations(exp_raw, day)
+    metadata, candidate = _expirations(exp_raw, day, received_at=exp_received)
     wanted = _wanted_expiries(metadata, candidate, required, day)
     chains = bundle["chains"]
     if type(chains) is not list or len(chains) != len(wanted):
@@ -453,6 +466,12 @@ def normalize_bundle(bundle, *, expected_session, required_contracts=()):
         "expiration_source":exp_source, "quote_sources":sources, "stock_source":stock_source,
         "candidate_expiry":candidate, "warnings":warnings, "quote_observed_at":None,
         "session_grid_policy":deepcopy(SESSION_GRID_POLICY), "session_grid_policy_sha256":SESSION_GRID_POLICY_SHA256,
+        "candidate_expiry_policy":deepcopy(CANDIDATE_EXPIRY_POLICY),
+        "candidate_expiry_policy_sha256":CANDIDATE_EXPIRY_POLICY_SHA256,
+        "candidate_selection_receipt_at":exp_received.isoformat(),
+        "candidate_selection_month":exchange_day(exp_received).strftime("%Y-%m"),
+        "candidate_selection_scope":("actual_receipt_month" if candidate[:7] == exchange_day(exp_received).strftime("%Y-%m")
+                                     else "global_warmup_fallback") if candidate else "no_eligible_common_expiry",
         "limitations":["Source dates do not establish exchange quote-event times or executable liquidity.",
             "100share standard contract is a model assumption; OCC deliverables not independently verified.",
             "Personal educational research only; original-provider entitlements remain unverified.",
@@ -648,8 +667,8 @@ def fetch_bundle(session, required_contracts=(), check=lambda:None):
     bundle = {"session":day.isoformat(), "expirations":None, "chains":[], "stock":None}
     try:
         bundle["expirations"] = _fetch(expiration_url(day), deadline=deadline, check=check, budget=budget)
-        raw, _, _ = _evidence(bundle["expirations"], expiration_url(day), day)
-        metadata, candidate = _expirations(raw, day)
+        raw, received, _ = _evidence(bundle["expirations"], expiration_url(day), day)
+        metadata, candidate = _expirations(raw, day, received_at=received)
         for expiry in _wanted_expiries(metadata, candidate, required, day):
             bundle["chains"].append(_fetch(chain_url(day, expiry), deadline=deadline, check=check, budget=budget))
         bundle["stock"] = _fetch(stock_url(day), deadline=deadline, check=check, budget=budget)

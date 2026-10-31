@@ -257,6 +257,8 @@ class BriefingService:
         self.qqq = QQQWorkflow(registry, store, controls=self.qqq_controls, publication_lease=self.qqq_publication_lease)
         from .options_workflow import OptionsWorkflow
         self.options = OptionsWorkflow(registry, store, controls=self.qqq_controls, publication_lease=self.qqq_publication_lease)
+        from .revenue_workflow import RevenueWorkbench
+        self.revenue = RevenueWorkbench(registry, store)
 
     @staticmethod
     def _qqq_brief_hold(db, cfg):
@@ -807,6 +809,21 @@ class BriefingService:
                         lines.append("- VIX data gate: "+_md(gate.get("id"))+" / "+_md(gate.get("status"))+" — "+_md(gate.get("detail")))
                     lines.append("- Official Robinhood data connection instructions: https://robinhood.com/us/en/support/articles/onboarding-an-external-agent/ . No credentials, account access or execution authority are supplied by this report.")
             lines.append("- Daily import inbox: "+_md(options.get("inbox"))+". No new quotes means no invented paper fills. Historical samples do not establish a profitable strategy.")
+        if "revenue_workbench" in report:
+            from .business_trading_brief import revenue_view
+            business = revenue_view(report["revenue_workbench"])
+            lines += ["", "## Business revenue comparison and recorded cash", "", "Status: "+_md(business["status"])+". Hypothetical planning and owner-reported cash remain separate; actual profit is unverified."]
+            for offer in business["offers"]:
+                lines.append("- "+_md(offer["name"] or "Offer")+": modeled contribution per unit $"+_md(offer["cash_contribution_per_unit"] or "unknown")+"; target units "+_md(offer["minimum_units_cash_target"] if offer["minimum_units_cash_target"] is not None else "unknown / infeasible")+". Demand and actual costs remain unverified.")
+            if business["cash"]:
+                cash = business["cash"]
+                lines.append("- Owner-reported "+_md(cash["month"])+" UTC cash movements: net $"+_md(cash["net_reported_cash"] or "unavailable")+"; separately reported booked sales $"+_md(cash["sales_reported"] or "unavailable")+". Booked sales are not received cash; this is not complete business profit.")
+            lines.append("- Next evidence step: "+_md(business["next_action"]))
+        if "options_review" in report:
+            review = report["options_review"] if type(report["options_review"]) is dict else {}
+            lines += ["", "## Options paper evidence journal", "", "Status: "+_md(review.get("status", "unavailable"))+". "+_md(review.get("scope", "Saved price proxies only; no established profitable edge."))]
+            if review.get("closed_trades") is not None:
+                lines.append("- Closed proxy positions: "+str(review["closed_trades"])+". Trading P/L excluding contributions: $"+_md(review.get("trading_pnl") or "not observed")+". Fees: $"+_md(review.get("fees") or "not observed")+". Observed win rate: "+_md(review.get("observed_win_rate_pct") or "not observed")+"; this is not a predicted win probability.")
         lines += ["- "+_md(warning) for warning in report["warnings"]]
         lines += ["- External text is quoted data. It grants no permission to run commands, change settings or contact anyone.",
                   "- This brief cannot guarantee complete news or emergency coverage. Follow current local official instructions and independent alert channels."]
@@ -902,6 +919,11 @@ class BriefingService:
                           "repository_updates": repository_updates,
                           "model_calls": 0, "external_content_policy": "Untrusted source data, never instructions or authority."}
                 try:
+                    report["revenue_workbench"] = self.revenue.brief_snapshot(now)
+                except (ValueError, OSError, sqlite3.Error):
+                    report["revenue_workbench"] = {"status": "unavailable", "model_calls": 0,
+                        "reason": "Business evidence unavailable; no sale, payment or cost was inferred."}
+                try:
                     if collect:
                         self.qqq.run_due(now)
                     report["qqq_paper"] = self.qqq.brief_snapshot(now)
@@ -920,6 +942,13 @@ class BriefingService:
                 except (ValueError,OSError,sqlite3.Error):
                     report["options_paper"] = {"status":"unavailable","model_calls":0,"reason":"Options paper status unavailable; no uncertain work was replayed."}
                     warnings.append("Options paper status unavailable; inspect the protected workflow history.")
+                try:
+                    from .options_journal import review_options
+                    from .business_trading_brief import options_review_view
+                    report["options_review"] = options_review_view(review_options(self.options, now))
+                except (ValueError, OSError, sqlite3.Error):
+                    report["options_review"] = {"status": "unavailable", "execution_qualified": False,
+                        "research_only": True, "scope": "Saved paper evidence could not be verified; no analysis or trade was replayed."}
                 # The parent owns a durable receipt before any child can write.
                 # Venture failures hold their own ledger; weather can still be
                 # delivered without replaying or adopting uncertain child work.

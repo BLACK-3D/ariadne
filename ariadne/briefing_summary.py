@@ -332,6 +332,16 @@ def compact_summary(report, now=None):
         for identifier, items in groups["news"]:
             if offset < len(items) and len(result["news"]) < 3:
                 add("news", identifier, items[offset])
+    if "revenue_workbench" in report:
+        from .business_trading_brief import revenue_view
+        business = revenue_view(report["revenue_workbench"])
+        result["business_revenue"] = {"status": business["status"], "profit_verified": False,
+            "net_reported_cash": (business.get("cash") or {}).get("net_reported_cash"),
+            "scope": "Owner-reported cash movements; booked sales and scenarios are not complete profit."}
+    if "options_review" in report:
+        journal = report["options_review"] if type(report["options_review"]) is dict else {}
+        result["options_journal"] = {"status": _short(journal.get("status"),40)[0],
+            "closed_trades": _count(journal.get("closed_trades")), "execution_qualified": False}
     warnings = report.get("warnings") if type(report.get("warnings")) is list else []
     if warnings:
         result["warnings"] = []
