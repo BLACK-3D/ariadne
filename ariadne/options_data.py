@@ -79,14 +79,33 @@ def decimal_string(value):
     return rendered.rstrip("0").rstrip(".") if "." in rendered else rendered
 
 
-def contract_id(symbol, expiry, option_type, strike):
-    if type(symbol) is not str or symbol not in SYMBOLS or type(option_type) is not str or option_type not in {"call", "put"}:
-        raise OptionsDataError("Only standard QQQ, SPY, AAPL and research KO calls/puts are supported.")
+def research_symbol_set(values=None):
+    """An explicit bounded local research allowlist never grants paper authority.
+
+    The default remains the existing parser universe. No wildcard, path, alias,
+    adjusted OCC root or mutable process-global universe is accepted.
+    """
+    if values is None:
+        return frozenset(SYMBOLS)
+    if (type(values) is not tuple or not 1 <= len(values) <= 64
+            or any(type(value) is not str or not re.fullmatch(r"[A-Z]{1,6}", value) for value in values)
+            or len(set(values)) != len(values)):
+        raise OptionsDataError("Research symbols require an explicit tuple of 1-64 unique standard ASCII equity roots.")
+    return frozenset(values)
+
+
+def _contract_id(symbol, expiry, option_type, strike, allowed):
+    if type(symbol) is not str or symbol not in allowed or type(option_type) is not str or option_type not in {"call", "put"}:
+        raise OptionsDataError("Use a standard call/put in the explicit supported symbol universe.")
     day = _date(expiry)
     amount = number(strike, positive=True, limit="99999.999") * 1000
     if amount != amount.to_integral_value():
         raise OptionsDataError("Standard OCC strikes require exact thousandths.")
     return symbol + day.strftime("%y%m%d") + ("C" if option_type == "call" else "P") + f"{int(amount):08d}"
+
+
+def contract_id(symbol, expiry, option_type, strike, *, research_symbols=None):
+    return _contract_id(symbol, expiry, option_type, strike, research_symbol_set(research_symbols))
 
 
 def _date(value):
@@ -135,10 +154,11 @@ def _source(source, now, as_of):
     return retrieved
 
 
-def validate_dataset(dataset, now=None):
+def validate_dataset(dataset, now=None, *, research_symbols=None):
     """Validate without mutating or filling fields; return compact coverage facts."""
     from .qqq_data import exchange_day, is_session, session_close_utc
     current = clock(now)
+    allowed = research_symbol_set(research_symbols)
     if type(dataset) is not dict or set(dataset) != TOP_KEYS or type(dataset["schema"]) is not int or dataset["schema"] != 1:
         raise OptionsDataError("Use the exact schema-1 options dataset contract.")
     if type(dataset["evidence_kind"]) is not str or dataset["evidence_kind"] not in {"historical_quotes", "synthetic_fixture"} or dataset["currency"] != "USD":
@@ -155,8 +175,8 @@ def validate_dataset(dataset, now=None):
         if type(snapshot) is not dict or set(snapshot) != SNAPSHOT_KEYS:
             raise OptionsDataError("A snapshot does not match the exact timestamped contract.")
         symbol = snapshot["underlying_symbol"]
-        if type(symbol) is not str or symbol not in SYMBOLS:
-            raise OptionsDataError("Only QQQ, SPY, AAPL and research KO quote snapshots are supported.")
+        if type(symbol) is not str or symbol not in allowed:
+            raise OptionsDataError("Quote snapshot is outside the explicit supported symbol universe.")
         observed, available = clock(snapshot["observed_at"]), clock(snapshot["available_at"])
         if available < observed + timedelta(minutes=DELAY_MINUTES) or available > retrieved or observed > current:
             raise OptionsDataError("Quotes need an explicit publication lag of at least 15 minutes, available before retrieval.")
@@ -190,7 +210,7 @@ def validate_dataset(dataset, now=None):
                 raise OptionsDataError("A quote does not match the exact standard-contract contract.")
             if type(quote["multiplier"]) is not int or quote["multiplier"] != 100:
                 raise OptionsDataError("Only unadjusted standard 100-share contracts are supported.")
-            expected = contract_id(symbol, quote["expiry"], quote["type"], quote["strike"])
+            expected = _contract_id(symbol, quote["expiry"], quote["type"], quote["strike"], allowed)
             if quote["contract_id"] != expected or previous_contract is not None and expected <= previous_contract:
                 raise OptionsDataError("Contract IDs must match economic terms and be unique/sorted; adjusted aliases are rejected.")
             previous_contract = expected
@@ -224,7 +244,7 @@ def validate_dataset(dataset, now=None):
                            "Assumed EOD timestamps are retrospective research only; synthetic fixtures are not historical evidence."]}
 
 
-def load_dataset(raw, now=None):
+def load_dataset(raw, now=None, *, research_symbols=None):
     if type(raw) is not bytes or not 1 <= len(raw) <= MAX_DATA:
         raise OptionsDataError("Options imports require 1 byte-32 MiB of ordinary JSON.")
     def pairs(items):
@@ -239,7 +259,7 @@ def load_dataset(raw, now=None):
                              parse_constant=lambda _: (_ for _ in ()).throw(OptionsDataError("Nonfinite JSON is rejected.")))
     except (ValueError, UnicodeError, RecursionError, OverflowError):
         raise OptionsDataError("Options import must be bounded ordinary JSON with unique keys.") from None
-    validate_dataset(dataset, now)
+    validate_dataset(dataset, now, research_symbols=research_symbols)
     return dataset
 
 

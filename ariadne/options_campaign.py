@@ -294,7 +294,9 @@ def _sell(state, quote, row, reason, events):
     state["position"], state["pending"] = None, None
 
 
-def _step(state, row, history, cached, signals, events, curve):
+def _step(state, row, history, cached, signals, events, curve, *, entry_allowed=True):
+    if type(entry_allowed) is not bool:
+        raise OptionsRecoveryError("The research entry gate must be an explicit boolean.")
     observed, clock = _clock(row["observed_at"]), _clock(row["available_at"])
     day, decision_day = _day_at(observed), _day_at(clock)
     month = decision_day.strftime("%Y-%m")
@@ -332,7 +334,9 @@ def _step(state, row, history, cached, signals, events, curve):
         pending = state["pending"]
         quote = cached["by_id"].get(pending["contract_id"])
         following = _sessions(date.fromisoformat(pending["source_date"])+timedelta(days=1), day)
-        if len(following) != 1 or observed <= _clock(pending["decided_at"])+timedelta(seconds=60):
+        if not entry_allowed:
+            _cancel(state, "entry_gate_blocked", events)
+        elif len(following) != 1 or observed <= _clock(pending["decided_at"])+timedelta(seconds=60):
             _cancel(state, "late_or_unavailable_entry", events)
         elif quote is None or _reject(quote, row, pending["type"], clock, state["liquidity_profile"]):
             _cancel(state, "entry_quote_no_longer_eligible", events)
@@ -365,7 +369,7 @@ def _step(state, row, history, cached, signals, events, curve):
     if len(history) < required_closes: diagnostics["warmup_rows"] += 1
     elif state["position"] is None and state["pending"] is None:
         diagnostics["flat_rows"] += 1
-        order = rotation[state["next_priority"]:]+rotation[:state["next_priority"]]
+        order = rotation[state["next_priority"]:]+rotation[:state["next_priority"]] if entry_allowed else ()
         for identifier in order:
             if identifier not in enabled or not signals[identifier]: continue
             diagnostics["signals"][identifier] += 1

@@ -13,7 +13,7 @@ import re
 
 from .options_data import (MAX_DATA, MAX_QUOTES, MAX_SNAPSHOTS, OptionsDataError,
                            SYMBOLS, clock, load_dataset, number,
-                           _date, _source, _text)
+                           _date, _source, _text, research_symbol_set)
 
 MAX_MANIFEST = 256 * 1024
 MAX_CHUNKS = 96
@@ -44,7 +44,7 @@ def _relative_path(value):
     return value
 
 
-def parse_manifest(raw):
+def parse_manifest(raw, *, research_symbols=None):
     """Parse a bounded exact contract; never fill, repair or reorder metadata."""
     if type(raw) is not bytes or not 1 <= len(raw) <= MAX_MANIFEST:
         raise OptionsDataError("Archive manifests require 1 byte-256 KiB of JSON.")
@@ -62,7 +62,8 @@ def parse_manifest(raw):
         raise OptionsDataError("Archive manifest must be bounded JSON with unique keys.") from None
     if type(value) is not dict or set(value) != TOP_KEYS or type(value["schema"]) is not int or value["schema"] != 1:
         raise OptionsDataError("Use the exact schema-1 options archive contract.")
-    if type(value["symbol"]) is not str or value["symbol"] not in SYMBOLS:
+    allowed = research_symbol_set(research_symbols)
+    if type(value["symbol"]) is not str or value["symbol"] not in allowed:
         raise OptionsDataError("Archive symbol is not supported.")
     if type(value["evidence_kind"]) is not str or value["evidence_kind"] not in {"historical_quotes", "synthetic_fixture"}:
         raise OptionsDataError("Archive evidence kind must be explicit.")
@@ -128,16 +129,16 @@ def _read_file(registry, relative, maximum, *, expected_bytes=None, expected_sha
     return raw
 
 
-def load_manifest(registry, path, *, expected_manifest_sha256=None):
+def load_manifest(registry, path, *, expected_manifest_sha256=None, research_symbols=None):
     """Return exact supplied bytes and parsed metadata under workspace guards."""
     _relative_path(path)
     if expected_manifest_sha256 is not None:
         _digest(expected_manifest_sha256)
     raw = _read_file(registry, path, MAX_MANIFEST, expected_sha256=expected_manifest_sha256)
-    return raw, parse_manifest(raw)
+    return raw, parse_manifest(raw, research_symbols=research_symbols)
 
 
-def _datasets(registry, manifest, checkpoint=None):
+def _datasets(registry, manifest, checkpoint=None, *, research_symbols=None):
     from .qqq_data import exchange_day, session_dates
     expected = session_dates(_date(manifest["selection"]["start"]), _date(manifest["selection"]["end"]))
     if not expected:
@@ -150,7 +151,7 @@ def _datasets(registry, manifest, checkpoint=None):
                          expected_bytes=chunk["bytes"], expected_sha256=chunk["sha256"])
         if checkpoint is not None:
             checkpoint()
-        dataset = load_dataset(raw)
+        dataset = load_dataset(raw, research_symbols=research_symbols)
         if (dataset["source"] != manifest["source"] or dataset["as_of"] != manifest["as_of"]
                 or dataset["evidence_kind"] != manifest["evidence_kind"]):
             raise OptionsDataError("Archive chunks must retain exactly the declared source and evidence basis.")
@@ -179,23 +180,23 @@ def _datasets(registry, manifest, checkpoint=None):
         raise OptionsDataError("Archive is missing selected exchange sessions; no gap is silently repaired.")
 
 
-def iter_archive(registry, path, *, expected_manifest_sha256=None, checkpoint=None):
+def iter_archive(registry, path, *, expected_manifest_sha256=None, checkpoint=None, research_symbols=None):
     """Yield one fully checked canonical dataset at a time; no resident merge.
 
     Consumers must exhaust the iterator successfully before publishing results.
     A later missing/corrupt chunk must invalidate the entire attempted study.
     """
-    _, manifest = load_manifest(registry, path, expected_manifest_sha256=expected_manifest_sha256)
-    yield from _datasets(registry, manifest, checkpoint)
+    _, manifest = load_manifest(registry, path, expected_manifest_sha256=expected_manifest_sha256, research_symbols=research_symbols)
+    yield from _datasets(registry, manifest, checkpoint, research_symbols=research_symbols)
 
 
-def inspect_archive(registry, path, *, expected_manifest_sha256=None, checkpoint=None):
+def inspect_archive(registry, path, *, expected_manifest_sha256=None, checkpoint=None, research_symbols=None):
     """Fully verify supplied bytes once and return compact reproducibility facts."""
-    raw, manifest = load_manifest(registry, path, expected_manifest_sha256=expected_manifest_sha256)
+    raw, manifest = load_manifest(registry, path, expected_manifest_sha256=expected_manifest_sha256, research_symbols=research_symbols)
     zeros = {"zero_bid_quotes":0, "zero_ask_quotes":0, "missing_bid_size_quotes":0,
              "missing_ask_size_quotes":0, "zero_bid_size_quotes":0, "zero_ask_size_quotes":0}
     snapshots = quotes = 0
-    for dataset in _datasets(registry, manifest, checkpoint):
+    for dataset in _datasets(registry, manifest, checkpoint, research_symbols=research_symbols):
         for snapshot in dataset["snapshots"]:
             snapshots += 1
             for quote in snapshot["quotes"]:
