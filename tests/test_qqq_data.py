@@ -77,6 +77,47 @@ class QQQCalendarTests(unittest.TestCase):
 
 
 class QQQSourceTests(unittest.TestCase):
+    def test_complete_saved_bundle_is_rebuilt_from_full_raw_histories_offline(self):
+        from ariadne.qqq_data import verify_saved_bundle
+        # A genuinely full generated chart exercises the production coverage
+        # check, including its1999 start and20 supplied dividend events.
+        clock=datetime(2020,12,31,22,tzinfo=UTC)
+        supplied={}
+        for symbol in ("QQQ","SPY"):
+            value=fixture(symbol,start=date(1999,3,10),end=date(2020,12,31))
+            item=value["chart"]["result"][0]
+            item["events"]={"dividends":{str(stamp):{"date":stamp,"amount":0.1} for stamp in item["timestamp"][:20]}}
+            supplied[symbol]=payload(value)
+        bundle=collect_bundle(clock,fetch=lambda url:supplied["QQQ" if "/QQQ?" in url else "SPY"])
+        with patch("socket.create_connection",side_effect=AssertionError("network")):
+            rebuilt=verify_saved_bundle(bundle)
+        self.assertEqual(rebuilt,bundle["dataset"])
+        self.assertGreaterEqual(len(rebuilt["symbols"]["QQQ"]["bars"]),5000)
+        for seconds,allowed in ((70,True),(70.001,False),(86400,False)):
+            changed=copy.deepcopy(bundle)
+            started=clock-timedelta(seconds=seconds)
+            changed["quality"]["collection_started_at"]=started.isoformat()
+            for symbol in ("QQQ","SPY"):
+                changed["dataset"]["symbols"][symbol]["source"]["url"]=source_url(symbol,started)
+            with self.subTest(collection_seconds=seconds):
+                if allowed:self.assertEqual(verify_saved_bundle(changed),changed["dataset"])
+                else:
+                    with self.assertRaisesRegex(MarketDataError,"collector clocks"):verify_saved_bundle(changed)
+        future=copy.deepcopy(bundle)
+        started=clock-timedelta(seconds=2)
+        future["quality"]["collection_started_at"]=started.isoformat()
+        for symbol in ("QQQ","SPY"):
+            future["dataset"]["symbols"][symbol]["source"]["url"]=source_url(symbol,started)
+        chart=json.loads(base64.b64decode(future["raw_payloads"]["QQQ"]))
+        chart["chart"]["result"][0]["timestamp"][-1]=int(started.timestamp())+1
+        raw=payload(chart)
+        future["raw_payloads"]["QQQ"]=base64.b64encode(raw).decode()
+        future["dataset"]["symbols"]["QQQ"]["source"]["sha256"]=hashlib.sha256(raw).hexdigest()
+        with self.assertRaisesRegex(MarketDataError,"fixed request cutoff"):verify_saved_bundle(future)
+        forged=copy.deepcopy(bundle)
+        forged["dataset"]["symbols"]["QQQ"]["bars"][-1]["close"]+=0.001
+        with self.assertRaisesRegex(MarketDataError,"retained chart bytes"):verify_saved_bundle(forged)
+
     def test_completed_ohlcv_is_preserved_and_today_is_explicitly_excluded(self):
         value=fixture()
         value["chart"]["result"][0]["indicators"]["quote"][0]["close"][-1]=None

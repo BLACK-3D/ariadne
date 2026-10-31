@@ -59,7 +59,7 @@ class QQQAPITests(unittest.TestCase):
         self.action("paper",{"replace":False,"acknowledge_simulated":True})
 
     def test_all_routes_require_owner_same_origin_and_host(self):
-        routes=[("","GET"),("/config","PUT"),*(('/'+name,'POST') for name in ('refresh','backtest','paper','acknowledge','archive'))]
+        routes=[("","GET"),("/config","PUT"),*(('/'+name,'POST') for name in ('refresh','backtest','paper','acknowledge','archive','resolve-history'))]
         for tail,method in routes:
             path="/api/qqq"+tail
             self.assertEqual(self.request(path,method,auth=False)["status"],401)
@@ -75,6 +75,22 @@ class QQQAPITests(unittest.TestCase):
             response=self.request("/api/qqq/"+name,method,{"enabled":True,"paused":False,"expected_revision":0} if name=="config" else {"request_id":"held","expected_revision":0,**({"replace":False,"acknowledge_simulated":True} if name=="paper" else {"reason":"held","archive_data":False} if name=="archive" else {})})
             self.assertIn(response["status"],(400,409),response)
         self.assertTrue(self.request()["body"]["config"]["enabled"] is False)
+
+    def test_history_resolution_route_uses_owner_parser_and_forwards_exact_body(self):
+        supplied = {"request_id": "history-resolution-fixture", "expected_revision": 0,
+                    "candidate_path": "review/candidate.json", "candidate_sha256": "a" * 64}
+        with patch.object(self.app.briefing.qqq, "resolve_history", return_value={
+                "request_id": supplied["request_id"], "status": "completed", "paper_events": 0}) as resolve:
+            response = self.request("/api/qqq/resolve-history", "POST", supplied)
+        self.assertEqual(response["status"], 200)
+        resolve.assert_called_once_with(supplied)
+        self.assertEqual(response["body"]["paper_events"], 0)
+
+    def test_history_resolution_route_rejects_duplicate_json_before_service(self):
+        with patch.object(self.app.briefing.qqq, "resolve_history") as resolve:
+            response = self.request("/api/qqq/resolve-history", "POST", raw=b'{"request_id":"a","request_id":"b"}')
+        self.assertEqual(response["status"], 400)
+        resolve.assert_not_called()
 
     def test_complete_owner_api_path_does_not_touch_demo_ledger_or_inference(self):
         demo=self.app.handoff.status();clients=self.app.client_handoff.status()

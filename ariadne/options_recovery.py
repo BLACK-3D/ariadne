@@ -109,16 +109,20 @@ def _sessions(start, end):
     return session_dates(start, end)
 
 
-def _rows(dataset, symbol):
+def _rows(dataset, symbol, *, allow_research_ko=False):
     from .options_data import validate_dataset as check
     from .qqq_data import is_session, session_close_utc
+    if type(allow_research_ko) is not bool:
+        raise OptionsRecoveryError("Research-only KO permission must be an explicit boolean.")
     quality = check(dataset)
-    if symbol not in RULE["universe"]:
+    if symbol not in RULE["universe"] and not (allow_research_ko and symbol == "KO"):
         raise OptionsRecoveryError("Choose a fixed supported research symbol.")
     rows = [deepcopy(item) for item in dataset["snapshots"] if item["underlying_symbol"] == symbol]
     previous = None
     previous_available = None
     for row in rows:
+        if symbol == "KO" and _number(row["underlying_price"]) >= 100:
+            raise OptionsRecoveryError("Research KO requires an underlying price strictly below100.")
         observed = _clock(row["observed_at"])
         available = _clock(row["available_at"])
         day = _day_at(observed)

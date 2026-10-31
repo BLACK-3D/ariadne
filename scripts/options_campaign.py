@@ -49,7 +49,10 @@ def parser():
     result.add_argument("--manifest-sha256", action="append", required=True, help="Matching exact lowercase manifest SHA-256, in the same order.")
     result.add_argument("--workspace", default="data/workspace")
     result.add_argument("--output", required=True, help="New box-relative private staging/... folder; never overwritten.")
-    result.add_argument("--candidate", action="append", help="Fixed engine candidate ID; repeat up to the ledger limit.")
+    selection = result.add_mutually_exclusive_group()
+    selection.add_argument("--candidate", action="append", help="Fixed engine candidate ID; repeat up to the ledger limit.")
+    selection.add_argument("--preset", choices=("baseline", "volatility_followup"),
+                           help="A fixed eight-candidate set; baseline is the unchanged default.")
     result.add_argument("--profile", action="append", choices=PROFILES, help="Default both, fanned out from one verified source stream.")
     result.add_argument("--owner-data", default="data", help="Existing box-relative owner data folder, pause reads only.")
     result.add_argument("--detached-research", action="store_true", help="Explicitly skip all owner-data reads; no owner-readiness claim.")
@@ -272,7 +275,10 @@ def run(args, *, root=ROOT, now=None):
         engine = importlib.import_module("ariadne.options_campaign")
         if Path(engine.__file__).resolve() != (ROOT / "ariadne/options_campaign.py").resolve():
             raise ValueError("The fixed campaign engine import changed.")
-        candidates = list(engine.CANDIDATE_IDS) if args.candidate is None else args.candidate
+        if args.preset not in (None, "baseline", "volatility_followup") or args.preset is not None and args.candidate is not None:
+            raise ValueError("Choose one fixed preset or explicit candidate IDs, never both.")
+        candidates = (list(engine.FOLLOWUP_CANDIDATE_IDS) if args.preset == "volatility_followup"
+                      else list(engine.DEFAULT_CANDIDATE_IDS) if args.candidate is None else args.candidate)
         if (type(candidates) is not list or not candidates or len(candidates) != len(set(candidates))
                 or any(type(value) is not str or value not in engine.CANDIDATE_IDS for value in candidates)):
             raise ValueError("Choose unique current fixed campaign candidate IDs; no arbitrary rules/code.")
@@ -288,8 +294,8 @@ def run(args, *, root=ROOT, now=None):
         for name, digest in zip(paths, hashes):
             authority.check()
             raw, value = load_manifest(guard, name, expected_manifest_sha256=digest)
-            if value["symbol"] != "QQQ":
-                raise ValueError("This registered campaign supports the QQQ historical research exception only.")
+            if value["symbol"] not in engine.RULE["universe"]:
+                raise ValueError("Choose the fixed QQQ or below-$100 KO historical research universe.")
             total += sum(chunk["bytes"] for chunk in value["chunks"])
             manifests.append((name, digest, raw, value))
         if total > MAX_ARCHIVE:
@@ -326,6 +332,7 @@ def run(args, *, root=ROOT, now=None):
                 (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns))
         registration = {"schema": 1, "kind": "pre_iteration_options_campaign_registration", "stage": args.stage,
             "registered_at": stamp.astimezone(timezone.utc).isoformat(), "candidate_ids": candidates,
+            "candidate_preset": args.preset or ("baseline" if args.candidate is None else "explicit"),
             "liquidity_profiles": profiles, "registry_sha256": registry_sha,
             "profile_rule_sha256": profile_hashes, "module_sha256": module_hashes,
             "source_snapshots": {SNAPSHOTS[name]: {"sha256": module_hashes[name], "bytes": len(originals[name])} for name in SNAPSHOTS},
@@ -380,14 +387,14 @@ def run(args, *, root=ROOT, now=None):
 
         pending = []
         phase = "source_iteration"
-        for index, (name, digest, _, _) in enumerate(manifests, 1):
+        for index, (name, digest, _, manifest) in enumerate(manifests, 1):
             stream = ExhaustedStream(iter_archive(guard, name, expected_manifest_sha256=digest,
                                                    checkpoint=authority.check), authority.check)
             if profiles == list(PROFILES):
-                result = engine.campaign_profiles(stream, symbol="QQQ", candidates=candidates, checkpoint=authority.check)
+                result = engine.campaign_profiles(stream, symbol=manifest["symbol"], candidates=candidates, checkpoint=authority.check)
                 reports = result["profiles"]
             else:
-                reports = {profiles[0]: engine.campaign(stream, symbol="QQQ", candidates=candidates,
+                reports = {profiles[0]: engine.campaign(stream, symbol=manifest["symbol"], candidates=candidates,
                     liquidity_profile=profiles[0], checkpoint=authority.check)}
             if not stream.exhausted or set(reports) != set(profiles):
                 raise ValueError("Every selected source iterator/profile must finish before publication.")

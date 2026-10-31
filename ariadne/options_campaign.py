@@ -1,8 +1,8 @@
 """Finite, stream-once historical option research; no owner-account authority.
 
-QQQ is an explicit research-universe exception, never deployment qualification
-for the owner's below-$100 F account. Saved quote and availability clocks are
-counterfactual simulation inputs, not records of decisions made in the past.
+QQQ is an explicit research-universe exception; KO uses an under-$100 research
+profile. Neither qualifies the owner's F account. Saved quote and availability
+clocks are counterfactual inputs, not records of decisions made in the past.
 """
 from __future__ import annotations
 
@@ -10,8 +10,10 @@ from copy import deepcopy
 from datetime import date, timedelta
 from decimal import Context, Decimal, ROUND_HALF_EVEN, localcontext
 from functools import wraps
+from fractions import Fraction
 import hashlib
 
+from .options_data import RESEARCH_SYMBOLS
 from .options_recovery import (OptionsRecoveryError, _canonical, _clock, _number,
     _text, _debit, _credit, _day_at, _sessions, _deadline, _recovery, _rows)
 
@@ -21,9 +23,13 @@ MAX_CHUNKS = 96
 MAX_OUTPUT_BYTES = 128 * 1024 * 1024
 CONVENTIONAL_SIGNALS = ("recovery_call", "breakout_call", "breakdown_put")
 ORIGINAL_SIGNALS = ("rsi_rebound_call", "rsi_exhaustion_put")
-SIGNALS = CONVENTIONAL_SIGNALS + ORIGINAL_SIGNALS
+LEGACY_SIGNALS = CONVENTIONAL_SIGNALS + ORIGINAL_SIGNALS
+FOLLOWUP_SIGNALS = ("compression_breakout_call", "trend_pullback_call", "downside_shock_put")
+SIGNALS = LEGACY_SIGNALS + FOLLOWUP_SIGNALS
+FOLLOWUP_WARMUP = {"compression_breakout_call": 41, "trend_pullback_call": 65, "downside_shock_put": 23}
 SIGNAL_KINDS = {"recovery_call": "call", "breakout_call": "call", "breakdown_put": "put",
-    "rsi_rebound_call": "call", "rsi_exhaustion_put": "put"}
+    "rsi_rebound_call": "call", "rsi_exhaustion_put": "put",
+    "compression_breakout_call": "call", "trend_pullback_call": "call", "downside_shock_put": "put"}
 CANDIDATES = {
     "cash": {"kind": "control", "signals": []},
     "recovery_call": {"kind": "conventional", "signals": ["recovery_call"]},
@@ -32,22 +38,33 @@ CANDIDATES = {
     "rotating_ensemble": {"kind": "predeclared_combination", "signals": list(CONVENTIONAL_SIGNALS)},
     "rsi_rebound_call": {"kind": "ariadne_original", "signals": ["rsi_rebound_call"]},
     "rsi_exhaustion_put": {"kind": "ariadne_original", "signals": ["rsi_exhaustion_put"]},
-    "diversified_ensemble": {"kind": "predeclared_combination", "signals": list(SIGNALS)},
+    "diversified_ensemble": {"kind": "predeclared_combination", "signals": list(LEGACY_SIGNALS)},
 }
+DEFAULT_CANDIDATE_IDS = tuple(CANDIDATES)
+CANDIDATES.update({
+    identifier: {"kind": "ariadne_followup", "signals": [identifier]} for identifier in FOLLOWUP_SIGNALS})
+CANDIDATES["followup_ensemble"] = {"kind": "predeclared_combination", "signals": list(FOLLOWUP_SIGNALS)}
 CANDIDATE_IDS = tuple(CANDIDATES)
+FOLLOWUP_CANDIDATE_IDS = ("cash", *CONVENTIONAL_SIGNALS, *FOLLOWUP_SIGNALS, "followup_ensemble")
 LIQUIDITY_PROFILES = ("strict_sizes", "unknown_size_price_proxy")
 RULE = {
-    "id": "historical-options-campaign-v2", "schema": 1,
-    "universe": ["QQQ"], "research_only": True, "deployable": False,
+    "id": "historical-options-campaign-v3", "schema": 1,
+    "universe": list(RESEARCH_SYMBOLS), "research_only": True, "deployable": False,
     "signals": {
         "recovery_call": "14 closes required; current exceeds prior two; current/prior four contain a 3% decline from its preceding ten-close high",
         "breakout_call": "14 closes required; current exceeds preceding ten-close maximum and arithmetic mean",
         "breakdown_put": "14 closes required; current is below preceding ten-close minimum and arithmetic mean",
         "rsi_rebound_call": "15 closes required; simple arithmetic RSI14<=30 and current close strictly exceeds both preceding closes; call",
         "rsi_exhaustion_put": "15 closes required; simple arithmetic RSI14>=70 and current close strictly below both preceding closes; put",
+        "compression_breakout_call": "41 closes;20-close population bands at2 deviations; normalized variance at t-2 is a20-bandwidth minimum; t-2 not above its upper band; t-1 and t strictly above their own upper bands; normalized variance rises from t-1 to t; call",
+        "trend_pullback_call": "65 closes; close>SMA60; SMA60 exceeds its five-session lag; previous close<=0.98 times the close six sessions before current; current strictly above both preceding closes; call",
+        "downside_shock_put": "23 closes; prior20 returns exclude shock and confirmation; positive population variance; prior return negative and at least2 deviations below its prior mean; current return negative and close<SMA20; put",
     },
     "signal_kinds": SIGNAL_KINDS,
     "original_rsi_definition": "Last15 closes yield14 changes; arithmetic mean positive changes and arithmetic mean absolute negative changes, without Wilder smoothing; RSI=100-100/(1+meanGain/meanLoss), equivalently100*sumGain/(sumGain+sumLoss) with the common14 denominator cancelled before division; flat=50, gains/no losses=100, losses/no gains=0. Fixed Ariadne hypotheses, not creator replications or published profitable-option findings.",
+    "followup_intent_sha256": "1dce791c090233c4f938a0bd00b7666b56bc7e26a3e193e5b73a707eacaaabdf",
+    "followup_definition": "Exact rational indicators from validated raw decimal closes; population means/variances, no square roots or normality probabilities.20-close Bollinger-style compression window deliberately differs from the original125-period/ADX method.60-close trend/pullback and downside-shock rules are fixed Ariadne hypotheses, not profitable published-option findings. At most65 closes retained, legacy signals receive their prior15-close inputs. No new indicator is computed when no followup candidate is selected.",
+    "KO_contract_terms": "KO is research-only and requires each saved underlying price below100. A normalized100-share multiplier and EOD availability are unverified simulation assumptions unless independently established by source terms/clocks; actual side sizes alone do not qualify execution.",
     "candidates": CANDIDATES,
     "contract": "One fully paid standard100-share long call OR put total per counterfactual; no stock, short leg, spread, exercise or real order",
     "entry_maximum_debit": "100.00", "monthly_maximum_debit": "500.00",
@@ -60,11 +77,16 @@ RULE = {
         "unknown_size_price_proxy": "Same price/spread gates; supplied side size must>=1, but None remains explicitly unknown and permitted only for nondeployable price-proxy research; zero size rejects/holds"},
     "ensemble": "One shared500 ledger; fixed recovery-call/breakout-call/breakdown-put priority rotates after entry; standalone counterfactual capital/returns never added",
     "diversified_ensemble": "One shared500 ledger; fixed recovery_call/breakout_call/breakdown_put/rsi_rebound_call/rsi_exhaustion_put priority rotates after entry; original three-signal rotating_ensemble membership and rotation remain unchanged; standalone capital/returns never added",
-    "scope": "Historical QQQ research exception only; not compatible with F source/clock/universe and never adopted into the owner account",
+    "followup_ensemble": "One separate500 ledger shared by compression_breakout_call/trend_pullback_call/downside_shock_put; listed priority rotates after entry; never add standalone or other ensemble capital/returns",
+    "default_candidates": list(DEFAULT_CANDIDATE_IDS), "followup_candidates": list(FOLLOWUP_CANDIDATE_IDS),
+    "scope": "Fixed QQQ/KO historical research only; QQQ is an explicit below100-universe exception. Neither source/clock/terms profile is the owner's F account; no adoption or funding is permitted",
     "sources": ["https://www.optionseducation.org/strategies/all-strategies/long-call",
         "https://www.optionseducation.org/strategies/all-strategies/long-put",
         "https://www.optionseducation.org/referencelibrary/faq/option-price-behavior",
-        "https://www.davidhbailey.com/dhbpapers/backtest-prob.pdf"],
+        "https://www.davidhbailey.com/dhbpapers/backtest-prob.pdf",
+        "https://www.bollingerbands.com/_files/ugd/58be43_d09c50b6e8ea4afd9af0523ef94de876.pdf",
+        "https://www.aqr.com/Insights/Datasets/Time-Series-Momentum-Original-Paper-Data",
+        "https://www.optionseducation.org/referencelibrary/faq/technical-information"],
 }
 RULE_SHA256 = hashlib.sha256(_canonical(RULE)).hexdigest()
 REJECTIONS = ("wrong_side", "dte_outside_7_21", "expiry_outside_decision_month",
@@ -95,7 +117,7 @@ def profile_rule_sha256(liquidity_profile):
 
 
 def _candidates(values):
-    values = list(CANDIDATE_IDS) if values is None else values
+    values = list(DEFAULT_CANDIDATE_IDS) if values is None else values
     if (type(values) is not list or not 1 <= len(values) <= MAX_CANDIDATES
             or any(type(value) is not str or value not in CANDIDATES for value in values)
             or len(values) != len(set(values))):
@@ -112,12 +134,49 @@ def _rsi14(prices):
     return Decimal(50) if gains == losses == 0 else 100*gains/(gains+losses)
 
 
+def _moments(values):
+    mean = sum(values, Fraction()) / len(values)
+    return mean, sum(((value-mean)**2 for value in values), Fraction()) / len(values)
+
+
+def _above_band(value, mean, variance):
+    difference = value-mean
+    return difference > 0 and difference*difference > 4*variance
+
+
+def _followup_signal(identifier, history):
+    count = FOLLOWUP_WARMUP[identifier]
+    if len(history) < count:
+        return False
+    prices = [Fraction(_number(value["underlying_price"])) for value in history[-count:]]
+    if identifier == "compression_breakout_call":
+        bands = [_moments(prices[index-19:index+1]) for index in range(19, 41)]
+        mean, variance = bands[-3]
+        compressed = all(variance*other_mean**2 <= other_variance*mean**2
+                         for other_mean, other_variance in bands[:-2])
+        return (compressed and not _above_band(prices[-3], *bands[-3])
+            and _above_band(prices[-2], *bands[-2]) and _above_band(prices[-1], *bands[-1])
+            and bands[-1][1]*bands[-2][0]**2 > bands[-2][1]*bands[-1][0]**2)
+    if identifier == "trend_pullback_call":
+        current = sum(prices[-60:], Fraction())/60
+        previous = sum(prices[:60], Fraction())/60
+        return (prices[-1] > current > previous and prices[-2] <= Fraction(98, 100)*prices[-7]
+                and prices[-1] > max(prices[-3:-1]))
+    returns = [right/left-1 for left, right in zip(prices, prices[1:])]
+    mean, variance = _moments(returns[:-2])
+    shock, confirmation = returns[-2:]
+    return (variance > 0 and shock < 0 and shock < mean and (shock-mean)**2 >= 4*variance
+            and confirmation < 0 and prices[-1] < sum(prices[-20:], Fraction())/20)
+
+
 @_precision
 def signal(identifier, history):
     if identifier not in SIGNALS:
         raise OptionsRecoveryError("Unknown frozen campaign signal.")
     if len(history) < 14:
         return False
+    if identifier in FOLLOWUP_SIGNALS:
+        return _followup_signal(identifier, history)
     if identifier in ORIGINAL_SIGNALS:
         if len(history) < 15:
             return False
@@ -171,7 +230,9 @@ def _reject(quote, row, kind, clock, profile, disposal=None, row_context=None):
 
 
 def _rotation(identifier):
-    return SIGNALS if identifier in (*ORIGINAL_SIGNALS, "diversified_ensemble") else CONVENTIONAL_SIGNALS
+    if identifier in (*FOLLOWUP_SIGNALS, "followup_ensemble"):
+        return FOLLOWUP_SIGNALS
+    return LEGACY_SIGNALS if identifier in (*ORIGINAL_SIGNALS, "diversified_ensemble") else CONVENTIONAL_SIGNALS
 
 
 def _initial(identifier, row, profile):
@@ -298,7 +359,9 @@ def _step(state, row, history, cached, signals, events, curve):
                 state["pending"] = None
     enabled = CANDIDATES[state["candidate_id"]]["signals"]
     diagnostics = state["diagnostics"]
-    required_closes = 15 if state["candidate_id"] in ORIGINAL_SIGNALS else 14
+    identifier = state["candidate_id"]
+    required_closes = FOLLOWUP_WARMUP.get(identifier, 23 if identifier == "followup_ensemble"
+                                         else 15 if identifier in ORIGINAL_SIGNALS else 14)
     if len(history) < required_closes: diagnostics["warmup_rows"] += 1
     elif state["position"] is None and state["pending"] is None:
         diagnostics["flat_rows"] += 1
@@ -369,8 +432,11 @@ def _campaign_run(dataset_or_iterable, *, symbol, candidates, profiles, checkpoi
     before every row and before return so the host can revoke publication.
     The entire iterator is consumed even after a candidate enters a hold.
     """
-    if symbol != "QQQ": raise OptionsRecoveryError("This registered historical research profile supports QQQ only; it cannot run the F paper account.")
+    if symbol not in RESEARCH_SYMBOLS:
+        raise OptionsRecoveryError("Choose a fixed QQQ/KO research symbol; this cannot run the F paper account.")
     selected = _candidates(candidates)
+    followup_enabled = any(key in (*FOLLOWUP_SIGNALS, "followup_ensemble") for key in selected)
+    history_limit = 65 if followup_enabled else 15
     for profile in profiles: profile_rule(profile)
     if len(selected)*len(profiles) > MAX_CANDIDATES: raise OptionsRecoveryError("Campaign exceeds16 total counterfactual ledgers across profiles.")
     if checkpoint is not None and not callable(checkpoint): raise OptionsRecoveryError("checkpoint must be a trusted host callback.")
@@ -383,7 +449,7 @@ def _campaign_run(dataset_or_iterable, *, symbol, candidates, profiles, checkpoi
     prefix = hashlib.sha256(b"[")
     for chunk_count, dataset in enumerate(datasets, 1):
         if chunk_count > MAX_CHUNKS: raise OptionsRecoveryError("Campaign exceeds the inherited96-chunk archive limit.")
-        rows, quality = _rows(dataset, symbol)
+        rows, quality = _rows(dataset, symbol, allow_research_ko=True)
         current_basis = (dataset["evidence_kind"], dataset["source"]["quote_time_basis"], dataset["source"]["provider"])
         if basis is not None and current_basis != basis: raise OptionsRecoveryError("Campaign evidence/provider/clock basis changed across chunks.")
         basis = current_basis
@@ -397,8 +463,10 @@ def _campaign_run(dataset_or_iterable, *, symbol, candidates, profiles, checkpoi
             first, last = first or day.isoformat(), day.isoformat()
             if not states: states = {profile: {key: _initial(key, row, profile) for key in selected} for profile in profiles}
             gap = previous is not None and len(_sessions(previous+timedelta(days=1), day)) != 1
-            history = (history+[{"underlying_price": row["underlying_price"], "observed_at": row["observed_at"]}])[-15:]
-            signals = {key: signal(key, history) for key in SIGNALS}
+            history = (history+[{"underlying_price": row["underlying_price"], "observed_at": row["observed_at"]}])[-history_limit:]
+            signals = {key: signal(key, history[-15:]) for key in LEGACY_SIGNALS}
+            if followup_enabled:
+                signals.update({key: signal(key, history) for key in FOLLOWUP_SIGNALS})
             cached = {"by_id": {quote["contract_id"]: quote for quote in row["quotes"]}}
             disposal = {}  # Same source day/expiry across all strikes/sides/profiles.
             row_context = (day, _day_at(available), _number(row["underlying_price"]))
@@ -453,7 +521,7 @@ def _profile_report(profile, selected, reports, coverage, qualities):
             "holdout_qualified": False, "automatic_adoption": False},
         "limits": {"candidates": MAX_CANDIDATES, "rows": MAX_ROWS, "chunks": MAX_CHUNKS, "output_bytes": MAX_OUTPUT_BYTES},
         "research_only": True, "execution_qualified": False, "deployable": False, "model_calls": 0, "network_calls": 0,
-        "limitations": ["The QQQ historical universe differs from the owner's F/below-$100 underlying profile. No candidate can be deployed or funded by this report.",
+        "limitations": ["QQQ/KO research sources, clocks and contract terms differ from the owner's F account. KO stays below100 but its normalized100-share terms/EOD clock may remain assumptions. No deployment or funding follows.",
             "Every candidate is a separate counterfactual500 budget. Each ensemble shares one500 allowance across only its own fixed signals; standalone or ensemble returns/capital are never summed.",
             "Unknown quote event clocks remain assumed-EOD price proxies; supplied sizes/provenance are not independently authenticated.",
             "Contributions are excluded from trading P/L. P/L peak declines are not the500 monthly gross commitment cap.",

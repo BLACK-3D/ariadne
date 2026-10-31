@@ -28,6 +28,7 @@ MAX_ROWS = 8000
 MAX_PAYLOAD = 2_000_000
 MAX_OUTPUT = 12*1024*1024
 FINALIZATION_MINUTES = 15
+MAX_COLLECTION_SECONDS = 70  # Existing parent worker budget, including permission checks.
 CALENDAR_START = 1999
 CALENDAR_END = 2035
 HOST = "query1.finance.yahoo.com"
@@ -291,6 +292,15 @@ def parse_chart(raw, symbol, now=None, *, full_history=False):
         raise MarketDataError("The source response does not match the strict daily chart contract.") from None
 
 
+def _bundle_quality(notes, started, analysis_at):
+    return {"symbols":notes,"fresh":True,"model_calls":0,"requests":2,
+        "collection_started_at":started.isoformat(),"collection_completed_at":analysis_at.isoformat(),
+        "source":"Yahoo Finance public chart endpoint, unofficial and revocable",
+        "usage":"Private personal research only; no exchange-grade or commercial redistribution rights asserted.",
+        "calendar_scope":"Reviewed US-equity calendar 1999–2035; unforeseen exchange closures require a reviewed update.",
+        "data_limit":"Structural validation and retained hashes do not independently establish price/action correctness or executable fills."}
+
+
 def collect_bundle(now=None, *, fetch=None, check=None):
     """Two fixed GETs in an authorized online child; parent retains offline policy."""
     fixed_clock = now is not None
@@ -326,16 +336,61 @@ def collect_bundle(now=None, *, fetch=None, check=None):
         raise MarketDataError("The two fixed ETF histories do not share the same complete session calendar.")
     result = {"dataset":{"schema":1,"as_of":analysis_at.isoformat(),"currency":"USD","price_basis":"split_adjusted_ohlc",
                          "dividend_policy":"split_adjusted_cash_on_ex_date","symbols":symbols},
-              "raw_payloads":payloads,"quality":{"symbols":quality,"fresh":True,"model_calls":0,"requests":2,
-                  "collection_started_at":started.isoformat(),"collection_completed_at":analysis_at.isoformat(),
-                  "source":"Yahoo Finance public chart endpoint, unofficial and revocable",
-                  "usage":"Private personal research only; no exchange-grade or commercial redistribution rights asserted.",
-                  "calendar_scope":"Reviewed US-equity calendar 1999–2035; unforeseen exchange closures require a reviewed update.",
-                  "data_limit":"Structural validation and retained hashes do not independently establish price/action correctness or executable fills."}}
+              "raw_payloads":payloads,"quality":_bundle_quality(quality,started,analysis_at)}
     check()
     if len(canonical(result)) > MAX_OUTPUT:
         raise MarketDataError("The complete market collector result exceeds 12 MiB.")
     return result
+
+
+def verify_saved_bundle(bundle):
+    """Reconstruct a fixed collector bundle offline from its exact chart bytes.
+
+    Source/receipt dates are bounded claims, not independent authentication.
+    A digest of unrelated bytes never qualifies appended normalized prices.
+    """
+    if type(bundle) is not dict or set(bundle)!={"dataset","raw_payloads","quality"} or len(canonical(bundle))>MAX_OUTPUT:
+        raise MarketDataError("Use one bounded complete fixed-collector bundle.")
+    try:
+        dataset,quality,payloads=bundle["dataset"],bundle["quality"],bundle["raw_payloads"]
+        analysis=_clock(dataset["as_of"])
+        started=_clock(quality["collection_started_at"])
+        if (not started<=analysis<=started+timedelta(seconds=MAX_COLLECTION_SECONDS) or
+                quality["collection_completed_at"]!=analysis.isoformat() or dataset["as_of"]!=analysis.isoformat()):
+            raise MarketDataError("Saved collector clocks disagree or move backwards.")
+        if type(payloads) is not dict or set(payloads)!=set(SYMBOLS):
+            raise MarketDataError("Both fixed raw source payloads are required.")
+        symbols,notes={},[]
+        previous=started
+        for symbol in SYMBOLS:
+            encoded=payloads[symbol]
+            if type(encoded) is not str or len(encoded)>((MAX_PAYLOAD+2)//3)*4:
+                raise MarketDataError("A saved raw payload exceeds its bound.")
+            try:raw=base64.b64decode(encoded,validate=True)
+            except (ValueError,TypeError):raise MarketDataError("A saved raw payload is not canonical base64.") from None
+            if base64.b64encode(raw).decode("ascii")!=encoded:
+                raise MarketDataError("A saved raw payload encoding changed.")
+            source=dataset["symbols"][symbol]["source"]
+            captured=_clock(source["retrieved_at"])
+            if not previous<=captured<=analysis or source["retrieved_at"]!=captured.isoformat() or source["url"]!=source_url(symbol,started):
+                raise MarketDataError("Saved fixed source URL/capture clocks disagree.")
+            series,note=parse_chart(raw,symbol,analysis,full_history=True)
+            # The normalizer keeps an ordered completed prefix and can omit
+            # only an unfinished tail. Its accepted source timestamps cannot
+            # follow period2 of the already fixed request, even on the same day.
+            stamps=_strict_json(raw)["chart"]["result"][0]["timestamp"]
+            if any(stamp>int(started.timestamp()) for stamp in stamps[:len(series["bars"])]):
+                raise MarketDataError("A completed source bar follows the fixed request cutoff.")
+            series["source"]["url"]=source_url(symbol,started)
+            series["source"]["retrieved_at"]=captured.isoformat()
+            symbols[symbol]=series;notes.append(note);previous=captured
+        rebuilt={"schema":1,"as_of":analysis.isoformat(),"currency":"USD","price_basis":"split_adjusted_ohlc",
+            "dividend_policy":"split_adjusted_cash_on_ex_date","symbols":symbols}
+        if canonical(rebuilt)!=canonical(dataset) or canonical(_bundle_quality(notes,started,analysis))!=canonical(quality):
+            raise MarketDataError("Saved normalized prices/source claims/quality do not match the exact retained chart bytes.")
+        return rebuilt
+    except (KeyError,TypeError,AttributeError,IndexError,OverflowError):
+        raise MarketDataError("Saved bundle does not match the fixed collector contract.") from None
 
 
 def main():

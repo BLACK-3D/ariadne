@@ -96,7 +96,7 @@ class QQQWorkflowTests(unittest.TestCase):
 
     def test_history_revision_fails_and_acknowledgement_does_not_adopt(self):
         self.enable();self.refresh();before=self.service.status(self.clock)["data_sha256"]
-        changed=deepcopy(self.dataset);changed["symbols"]["QQQ"]["bars"][1]["volume"]+=1
+        changed=deepcopy(self.dataset);changed["symbols"]["QQQ"]["bars"][1]["high"]=str(float(changed["symbols"]["QQQ"]["bars"][1]["high"])+1)
         body=self.body()
         with self.assertRaisesRegex(ValueError,"history changed"):self.service.refresh(body,self.clock,collector=lambda *args:self.bundle(changed))
         self.assertEqual(self.service.status(self.clock)["data_sha256"],before)

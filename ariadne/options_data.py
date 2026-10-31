@@ -16,7 +16,10 @@ import re
 from urllib.parse import urlsplit
 
 UTC = timezone.utc
-SYMBOLS = ("QQQ", "SPY", "AAPL")
+SYMBOLS = ("QQQ", "SPY", "AAPL", "KO")
+# KO is an explicit offline campaign addition. Existing forward engines keep
+# their own frozen universes; parsing a symbol never grants account authority.
+RESEARCH_SYMBOLS = ("QQQ", "KO")
 MAX_DATA = 32 * 1024 * 1024
 MAX_SNAPSHOTS = 4000
 MAX_QUOTES = 200000
@@ -78,7 +81,7 @@ def decimal_string(value):
 
 def contract_id(symbol, expiry, option_type, strike):
     if type(symbol) is not str or symbol not in SYMBOLS or type(option_type) is not str or option_type not in {"call", "put"}:
-        raise OptionsDataError("Only standard QQQ, SPY and AAPL calls/puts are supported.")
+        raise OptionsDataError("Only standard QQQ, SPY, AAPL and research KO calls/puts are supported.")
     day = _date(expiry)
     amount = number(strike, positive=True, limit="99999.999") * 1000
     if amount != amount.to_integral_value():
@@ -153,7 +156,7 @@ def validate_dataset(dataset, now=None):
             raise OptionsDataError("A snapshot does not match the exact timestamped contract.")
         symbol = snapshot["underlying_symbol"]
         if type(symbol) is not str or symbol not in SYMBOLS:
-            raise OptionsDataError("Only QQQ, SPY and AAPL quote snapshots are supported.")
+            raise OptionsDataError("Only QQQ, SPY, AAPL and research KO quote snapshots are supported.")
         observed, available = clock(snapshot["observed_at"]), clock(snapshot["available_at"])
         if available < observed + timedelta(minutes=DELAY_MINUTES) or available > retrieved or observed > current:
             raise OptionsDataError("Quotes need an explicit publication lag of at least 15 minutes, available before retrieval.")

@@ -31,6 +31,10 @@ MAX_EVENTS = 30000
 MAX_RECEIPTS = 32*1024*1024
 MAX_REPORTS = 64*1024*1024
 DEFAULT = {"enabled":False,"paused":False,"revision":0,"activation_at":None,"timezone":"America/Chicago","hour":6}
+DIAGNOSTIC_RULE_SHA256 = "4c9f2f46ceda832437603bd813c21e554186133822edc7431dd6753a32ea21f2"
+DIAGNOSTIC_ENGINE_SHA256 = "c5e45e68c1b5d6619d7ec27530e5856392ce0bdd779fd3a483c77af8d9ef935b"
+HISTORY_INPUT_BYTES = 12*1024*1024  # Existing collector transport bound.
+HISTORY_INLINE_BYTES = 4000
 
 
 def _json(value):
@@ -48,12 +52,59 @@ def _now(value=None):
     return result.astimezone(UTC)
 
 
+def _diagnostic_fingerprint():
+    from . import qqq_recovery
+    if (qqq_recovery.RULE_SHA256 != DIAGNOSTIC_RULE_SHA256 or
+            hashlib.sha256(_allowed_path(Path(qqq_recovery.__file__)).read_bytes()).hexdigest() != DIAGNOSTIC_ENGINE_SHA256):
+        raise ValueError("Diagnostic history policy requires its reviewed QQQ rule and engine fingerprint.")
+
+
+def compare_history(old, dataset):
+    """Exact fixed-rule input comparison; no tolerance or owner operation.
+
+    Volume and adjusted close are retained diagnostics, not inputs to this
+    particular frozen signal/fill/accounting implementation. A rule or source
+    change must explicitly requalify that dependency claim.
+    """
+    from . import qqq_recovery
+    _diagnostic_fingerprint()
+    qqq_recovery.validate_dataset(dataset)
+    if old is not None: qqq_recovery.validate_dataset(old)
+    volume, adjusted, protected = [], [], []
+    counts = {}
+    if old is not None:
+        for key in ("schema","currency","price_basis","dividend_policy","calendar"):
+            if old.get(key) != dataset.get(key):
+                protected.append({"symbol":None,"date":None,"field":key,"before":old.get(key),"after":dataset.get(key)})
+    for symbol in ("QQQ","SPY"):
+        before = old["symbols"][symbol]["bars"] if old else []
+        after = dataset["symbols"][symbol]["bars"]
+        if len(after) < len(before):
+            protected.append({"symbol":symbol,"date":None,"field":"history_length","before":len(before),"after":len(after)})
+        for previous, current in zip(before, after):
+            for key in previous:
+                if previous[key] == current[key]: continue
+                change = {"symbol":symbol,"date":previous["date"],"field":key,"before":previous[key],"after":current[key]}
+                (volume if key == "volume" else adjusted if key == "adj_close" else protected).append(change)
+        counts[symbol] = {"overlap_rows":min(len(before),len(after)),"old_rows":len(before),"new_rows":len(after),
+            "appended_rows":max(0,len(after)-len(before)),"last_date":after[-1]["date"]}
+    return {"schema":1,"kind":"fixed_qqq_history_comparison","rule_sha256":DIAGNOSTIC_RULE_SHA256,
+        "engine_sha256":DIAGNOSTIC_ENGINE_SHA256,"accepted_data_sha256":_hash(old) if old else None,
+        "candidate_data_sha256":_hash(dataset),"eligible":not protected,"counts":counts,
+        "volume_changes":volume,"volume_change_count":len(volume),"volume_changes_sha256":_hash(volume),
+        "adj_close_change_count":len(adjusted),"adj_close_changes_sha256":_hash(adjusted),
+        "protected_change_count":len(protected),"protected_changes_sha256":_hash(protected),
+        "protected_change_sample":protected[:20],"protected_sample_truncated":len(protected)>20,
+        "tolerance_used":False,"policy":"Only volume/adj_close diagnostics may change. Dates, OHLC, dividends, split ratios and basis remain exact; no paper state, signal, fill or funding is adopted by this comparison."}
+
+
 class QQQWorkflow(HandoffDesk):
     """No broker, orders, model, arbitrary URL or executable source text."""
-    def __init__(self, registry, store, controls=None, publication_lease=None):
+    def __init__(self, registry, store, controls=None, publication_lease=None, history_checkpoint=None):
         super().__init__(registry, store)
         self.controls = controls or (lambda: {"enabled":False,"paused":True,"revision":0})
         self.publication_lease = publication_lease
+        self.history_checkpoint = history_checkpoint
         self.stopped=threading.Event()
         self.process_lock=threading.RLock()
         self.processes=set()
@@ -73,7 +124,7 @@ class QQQWorkflow(HandoffDesk):
             yield
 
     @contextmanager
-    def _committing(self, brief):
+    def _committing(self, brief, *, commit_check=None):
         # Match the existing public-source publisher's MAIN -> BRIEF lock order.
         # Commit (or roll back) while the brief permission lease is still held.
         with self.database() as db:
@@ -85,6 +136,7 @@ class QQQWorkflow(HandoffDesk):
                     db.rollback()
                     raise
                 else:
+                    if commit_check is not None:commit_check()
                     db.commit()
 
     def busy(self):
@@ -115,6 +167,7 @@ class QQQWorkflow(HandoffDesk):
         db.execute("CREATE UNIQUE INDEX IF NOT EXISTS qqq_daily ON qqq_runs(day) WHERE day IS NOT NULL")
         db.execute("CREATE TABLE IF NOT EXISTS qqq_reports(request_id TEXT PRIMARY KEY,bytes INTEGER NOT NULL,receipt TEXT NOT NULL)")
         db.execute("CREATE TABLE IF NOT EXISTS qqq_archives(request_id TEXT PRIMARY KEY,bytes INTEGER NOT NULL,receipt TEXT NOT NULL)")
+        db.execute("CREATE TABLE IF NOT EXISTS qqq_history_resolutions(failed_request_id TEXT PRIMARY KEY,request_id TEXT UNIQUE NOT NULL,failed_receipt_sha256 TEXT NOT NULL,resolution_receipt_sha256 TEXT NOT NULL)")
         db.execute("CREATE TABLE IF NOT EXISTS qqq_rate(day TEXT PRIMARY KEY,count INTEGER NOT NULL)")
         db.execute("INSERT OR IGNORE INTO qqq_meta VALUES(1,0,?)", (_json(DEFAULT),))
 
@@ -163,26 +216,264 @@ class QQQWorkflow(HandoffDesk):
 
     @staticmethod
     def _economic(row):
-        return {key:value for key,value in row.items() if key != "adj_close"}
+        return {key:value for key,value in row.items() if key not in ("adj_close","volume")}
 
-    def _merge(self, old, dataset):
-        from .qqq_recovery import validate_dataset
-        validate_dataset(dataset)
-        if old is not None:
-            for symbol in ("QQQ","SPY"):
-                before = old["symbols"][symbol]["bars"]
-                after = dataset["symbols"][symbol]["bars"]
-                if len(after) < len(before):
-                    raise ValueError("Market history moved backwards; previous data is retained.")
-                for index, previous in enumerate(before):
-                    if self._economic(previous) != self._economic(after[index]):
-                        raise ValueError("Accepted economic history changed (including possible split/revision); explicit review is required.")
-        return dataset
+    def _merge(self, old, dataset, *, include_review=False):
+        review=compare_history(old,dataset)
+        if not review["eligible"]:
+            raise ValueError("Accepted economic history changed (including possible split/revision); explicit review is required.")
+        return (dataset,review) if include_review else dataset
 
-    def _fresh(self, dataset, clock):
+    def _history_authority(self, db, cfg, brief):
+        row=db.execute("SELECT rowid,value FROM settings WHERE key='paused'").fetchone()
+        return {"global_pause_rowid":row[0] if row else None,"global_pause_value_sha256":hashlib.sha256(row[1].encode()).hexdigest() if row else None,
+            "qqq_config_sha256":_hash(cfg),"brief_controls_sha256":_hash(brief),"internet_setting_sha256":_hash(self.store.setting(SETTINGS_KEY,None))}
+
+    def _history_read(self, relative, maximum):
+        path=self.registry._path(relative)
+        if self.registry._parts(relative)!=tuple(relative.split("/")) or "\\" in relative:
+            raise ValueError("History evidence requires canonical workspace paths.")
+        with self.registry._directory(path.parent) as directory:
+            with os.fdopen(self.registry._open_read(path,directory),"rb") as source:raw=source.read(maximum+1)
+        if len(raw)>maximum:raise ValueError("History evidence exceeds its fixed byte bound.")
+        return raw
+
+    def _verified_resolution(self, db, failed):
+        if not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='qqq_history_resolutions'").fetchone():return None
+        link=db.execute("SELECT * FROM qqq_history_resolutions WHERE failed_request_id=?",(failed["request_id"],)).fetchone()
+        if not link:return None
+        if failed["status"]!="failed" or hashlib.sha256(failed["receipt"].encode()).hexdigest()!=link["failed_receipt_sha256"]:
+            raise ValueError("History resolution no longer matches the unchanged failed receipt.")
+        row=db.execute("SELECT action,status,receipt FROM qqq_runs WHERE request_id=?",(link["request_id"],)).fetchone()
+        archived=db.execute("SELECT receipt,bytes FROM qqq_archives WHERE request_id=?",(link["request_id"],)).fetchone()
+        if not row or row["action"]!="resolve_history" or row["status"]!="completed" or not archived or row["receipt"]!=archived["receipt"] or hashlib.sha256(row["receipt"].encode()).hexdigest()!=link["resolution_receipt_sha256"]:
+            raise ValueError("History resolution completed-run/archive binding is invalid.")
+        receipt=_load(row["receipt"].encode())
+        prefix="reports/qqq-recovery/history-"+_identifier(link["request_id"])+"/"
+        names={"accepted-before.json","candidate-bundle.json","comparison.json","failed-before.json","binding.json"}
+        artifacts=receipt.get("artifacts")
+        if (receipt.get("status")!="completed" or receipt.get("outcome")!="diagnostic_history_resolved" or
+                receipt.get("failed_request_id")!=failed["request_id"] or receipt.get("failed_receipt_sha256")!=link["failed_receipt_sha256"] or
+                type(artifacts) is not list or len(artifacts)!=len(names) or {item.get("path") for item in artifacts}!={prefix+name for name in names}):
+            raise ValueError("History resolution artifact contract is invalid.")
+        total=0;retained={}
+        for item in artifacts:
+            raw=self._history_read(item["path"],HISTORY_INPUT_BYTES)
+            retained[item["path"].removeprefix(prefix)]=raw
+            total+=len(raw)
+            if len(raw)!=item.get("bytes") or hashlib.sha256(raw).hexdigest()!=item.get("sha256"):
+                raise ValueError("History resolution evidence is missing or changed.")
+            if item["path"].endswith("/failed-before.json") and raw!=failed["receipt"].encode():
+                raise ValueError("History resolution did not retain the exact failed receipt.")
+            if item["path"].endswith("/comparison.json"):
+                review=_load(raw)
+                if _hash(review)!=receipt.get("review_sha256") or review.get("eligible") is not True or review.get("protected_change_count")!=0 or review.get("rule_sha256")!=DIAGNOSTIC_RULE_SHA256 or review.get("engine_sha256")!=DIAGNOSTIC_ENGINE_SHA256:
+                    raise ValueError("History resolution comparison binding is invalid.")
+        if total!=archived["bytes"]:raise ValueError("History resolution evidence accounting changed.")
+        comparison=_load(retained["comparison.json"])
+        binding=_load(retained["binding.json"])
+        original=db.execute("SELECT request_id,action,day,digest,status,receipt,bytes FROM qqq_runs WHERE request_id=?",(failed["request_id"],)).fetchone()
+        saved=binding.get("binding",{})
+        candidate=_load(retained["candidate-bundle.json"])
+        if (binding.get("failed_record")!=dict(original) or saved.get("failed_record_sha256")!=_hash(dict(original)) or
+                saved.get("failed_receipt_sha256")!=link["failed_receipt_sha256"] or
+                hashlib.sha256(retained["accepted-before.json"]).hexdigest()!=comparison.get("accepted_data_sha256") or
+                comparison.get("accepted_data_sha256")!=saved.get("accepted_data_sha256") or
+                hashlib.sha256(retained["candidate-bundle.json"]).hexdigest()!=receipt.get("candidate_sha256") or
+                _hash(candidate.get("dataset"))!=comparison.get("candidate_data_sha256") or
+                comparison.get("candidate_data_sha256")!=receipt.get("data_sha256") or
+                _hash(saved.get("authority"))!=saved.get("authority_sha256")):
+            raise ValueError("History resolution source/failure/binding artifacts disagree.")
+        return receipt
+
+    def _unresolved(self, db):
+        if not self._exists(db):return []
+        unresolved=[]
+        for row in db.execute("SELECT request_id,action,status,receipt FROM qqq_runs WHERE status IN ('running','failed') ORDER BY rowid"):
+            try:
+                if self._verified_resolution(db,row):continue
+            except (ValueError,OSError,KeyError,TypeError) as error:
+                unresolved.append({"request_id":row["request_id"],"action":row["action"],"status":row["status"],"resolution_error":str(error)[:500]})
+            else:unresolved.append({key:row[key] for key in ("request_id","action","status")})
+        return unresolved
+
+    def _history_candidate(self, body):
+        digest=body.get("candidate_sha256")
+        if type(digest) is not str or len(digest)!=64 or set(digest)-set("0123456789abcdef"):
+            raise ValueError("Use the exact lowercase candidate bundle SHA-256.")
+        raw=self._history_read(body["candidate_path"],HISTORY_INPUT_BYTES)
+        if hashlib.sha256(raw).hexdigest()!=digest:raise ValueError("Reviewed candidate bundle changed.")
+        bundle=_load(raw)
+        if type(bundle) is not dict or set(bundle)!={"dataset","quality","raw_payloads"} or type(bundle["quality"]) is not dict or bundle["quality"].get("fresh") is not True:
+            raise ValueError("Use one complete fresh fixed-collector review bundle.")
+        from .qqq_data import verify_saved_bundle
+        verify_saved_bundle(bundle)
+        return raw,bundle
+
+    def _history_snapshot(self, db, failed_request_id):
+        revision,cfg=self._meta(db)
+        data=self._data(db)
+        if not data:raise ValueError("An existing accepted QQQ history is required.")
+        row=db.execute("SELECT request_id,action,day,digest,status,receipt,bytes FROM qqq_runs WHERE request_id=?",(failed_request_id,)).fetchone()
+        if not row or row["action"]!="refresh" or row["status"]!="failed":raise ValueError("Choose the exact failed QQQ refresh for separate history review.")
+        failed=dict(row)
+        if not 0<len(failed["receipt"].encode())==failed["bytes"]<=16000:
+            raise ValueError("Failed QQQ receipt has inconsistent bounds.")
+        parsed=_load(failed["receipt"].encode())
+        if parsed.get("reason")!="Accepted economic history changed (including possible split/revision); explicit review is required.":
+            raise ValueError("This resolver cannot excuse another failure reason.")
+        account=self._account(db)
+        events=[dict(row) for row in db.execute("SELECT id,run_id,value FROM qqq_events WHERE account_id=? ORDER BY id",(account["id"],))] if account else []
+        if len(events)>MAX_EVENTS:raise ValueError("Existing event evidence exceeds its bound.")
+        brief=self.controls()
+        authority=self._history_authority(db,cfg,brief)
+        binding={"revision":revision,"failed_request_id":failed_request_id,"failed_receipt_sha256":hashlib.sha256(failed["receipt"].encode()).hexdigest(),
+            "failed_record_sha256":_hash(failed),"accepted_data_sha256":data["sha256"],"accepted_quality_sha256":_hash(data["quality"]),
+            "account_id":account["id"] if account else None,"account_state_sha256":_hash(account["state"]) if account else None,
+            "account_policy_sha256":_hash(account["policy"]) if account else None,"account_events_sha256":_hash(events),
+            "authority":authority,"authority_sha256":_hash(authority)}
+        return {"binding":binding,"cfg":cfg,"brief":brief,"data":data,"failed":failed,"account":account}
+
+    def review_history(self, body, now=None):
+        """Read-only plan; inspect a new candidate without reserving or clearing work."""
+        if type(body) is not dict or set(body)!={"candidate_path","candidate_sha256","failed_request_id"}:
+            raise ValueError("Use candidate_path, candidate_sha256 and failed_request_id.")
+        _identifier(body["failed_request_id"])
+        _,bundle=self._history_candidate(body)
+        with self.database() as db:
+            db.execute("PRAGMA query_only=ON")
+            if not self._exists(db):raise ValueError("QQQ workflow is not initialized.")
+            snapshot=self._history_snapshot(db,body["failed_request_id"])
+            holds=self._unresolved(db)
+        review=compare_history(snapshot["data"]["dataset"],bundle["dataset"])
+        validated=self._fresh(bundle["dataset"],_now(now))
+        binding=snapshot["binding"]
+        account=snapshot["account"]
+        if account:
+            cursor=next((row for row in bundle["dataset"]["symbols"]["QQQ"]["bars"] if row["date"]==account["state"]["last_processed"]),None)
+            if not cursor or Decimal(str(cursor["close"]))!=Decimal(account["state"]["last_mark_price"]):
+                raise ValueError("The accepted paper cursor/mark cannot be rebased by metadata review.")
+        eligible=review["eligible"] and len(holds)==1 and holds[0]["request_id"]==body["failed_request_id"] and not holds[0].get("resolution_error")
+        resolve={**body,"expected_revision":binding["revision"],"failed_receipt_sha256":binding["failed_receipt_sha256"],
+            "expected_data_sha256":binding["accepted_data_sha256"],"expected_account_id":binding["account_id"],
+            "expected_account_state_sha256":binding["account_state_sha256"],"expected_account_policy_sha256":binding["account_policy_sha256"],
+            "expected_events_sha256":binding["account_events_sha256"],"expected_review_sha256":_hash(review),"expected_authority_sha256":binding["authority_sha256"]}
+        return {"schema":1,"kind":"qqq_history_resolution_review","eligible":eligible,"comparison":review,"review_sha256":_hash(review),"validated_summary":validated,
+            "binding":binding,"unresolved":holds,"resolve_body_without_request_id":resolve,"owner_changes":0,"model_calls":0,"network_calls":0,
+            "scope":"Offline inspection only. A new exact resolution request is required; failed work and the paper account remain unchanged."}
+
+    def _history_guard(self, db, expected, *, reserved=False, resolution_request_id=None):
+        _diagnostic_fingerprint()
+        if self.history_checkpoint is not None:self.history_checkpoint()
+        current=self._history_snapshot(db,expected["failed_request_id"])
+        before=copy.deepcopy(expected)
+        if reserved:before["revision"]+=1
+        if current["binding"]!=before:raise HandoffConflict("Reviewed QQQ source, failure, account or authority changed.")
+        self._policy(db,current["cfg"])
+        if self.store.setting("paused",None) is not False:raise HandoffConflict("Global autonomy pause is missing or active.")
+        if current["account"] and current["account"]["policy"]!=self._epoch(db,current["cfg"],current["brief"]):
+            raise HandoffConflict("Paper permission epoch changed; this resolver cannot reauthorize it.")
+        unresolved=self._unresolved(db)
+        permitted={expected["failed_request_id"]}
+        if reserved:permitted.add(resolution_request_id)
+        if any(row["request_id"] not in permitted or row.get("resolution_error") for row in unresolved):
+            raise HandoffConflict("Another uncertain QQQ operation prevents history resolution.")
+        return current
+
+    def _history_artifacts(self, request_id, payloads, receipt, check):
+        total=sum(len(raw) for raw in payloads.values())
+        if any(len(raw)>HISTORY_INPUT_BYTES for raw in payloads.values()):raise ValueError("History artifact exceeds the existing collector bound.")
+        with self.database() as db:
+            db.execute("BEGIN IMMEDIATE");check(db)
+            used=db.execute("SELECT (SELECT coalesce(sum(bytes),0) FROM qqq_reports)+(SELECT coalesce(sum(bytes),0) FROM qqq_archives)").fetchone()[0]
+            if used+total>MAX_REPORTS:raise ValueError("QQQ report/evidence quota is full.")
+            db.execute("INSERT INTO qqq_archives VALUES(?,?,?)",(request_id,total,_json(receipt)))
+        relative="reports/qqq-recovery/history-"+request_id
+        folder=self.registry._path(relative)
+        with self.registry._directory(folder.parent,create=True):folder.mkdir()
+        def checkpoint():
+            with self.database() as db:check(db)
+        for name,raw in payloads.items():
+            checkpoint()
+            with self.registry._directory(folder):publish_bytes(folder/name,raw,checkpoint=checkpoint)
+            if self._history_read(relative+"/"+name,HISTORY_INPUT_BYTES)!=raw:raise ValueError("History artifact readback changed.")
+            receipt["artifacts"].append({"path":relative+"/"+name,"bytes":len(raw),"sha256":hashlib.sha256(raw).hexdigest()})
+
+    def _history_verify_files(self, receipt):
+        for item in receipt["artifacts"]:
+            raw=self._history_read(item["path"],HISTORY_INPUT_BYTES)
+            if len(raw)!=item["bytes"] or hashlib.sha256(raw).hexdigest()!=item["sha256"]:
+                raise ValueError("Published history evidence changed before adoption.")
+
+    def resolve_history(self, body, now=None):
+        extra={"candidate_path","candidate_sha256","failed_request_id","failed_receipt_sha256","expected_data_sha256",
+            "expected_account_id","expected_account_state_sha256","expected_account_policy_sha256","expected_events_sha256","expected_review_sha256","expected_authority_sha256"}
+        self._arguments(body,extra)
+        _identifier(body["failed_request_id"])
+        if body["request_id"]==body["failed_request_id"]:raise ValueError("History resolution needs a new request ID; never replay the failed daily ID.")
+        now=_now(now);receipt=None
+        with self._ownership():
+            raw,bundle=self._history_candidate(body)
+            plan=self.review_history({key:body[key] for key in ("candidate_path","candidate_sha256","failed_request_id")},now)
+            if not plan["eligible"]:raise HandoffConflict("This candidate has protected changes or another unresolved hold.")
+            expected={**plan["resolve_body_without_request_id"],"request_id":body["request_id"]}
+            if body!=expected:raise HandoffConflict("Resolution does not match the exact reviewed hashes/revision.")
+            binding=plan["binding"]
+            try:
+                with self.database() as db:
+                    db.execute("BEGIN IMMEDIATE")
+                    current=self._history_guard(db,binding)
+                    if db.execute("SELECT 1 FROM qqq_runs WHERE request_id=?",(body["request_id"],)).fetchone():
+                        raise HandoffConflict("A resolution ID is already reserved; no uncertain work is replayed.")
+                    self._reserve(db,"resolve_history",body,None,now,inspected_failure=body["failed_request_id"])
+                    receipt={"request_id":body["request_id"],"action":"resolve_history","status":"running","created_at":now.isoformat(),
+                        "artifacts":[],"model_calls":0,"replayed":False,"failed_request_id":body["failed_request_id"],
+                        "failed_receipt_sha256":body["failed_receipt_sha256"],"review_sha256":plan["review_sha256"],"paper_state_changed":False,"funding_added":"0"}
+                def check(db):
+                    # This operation's own running receipt is the only additional hold.
+                    own=db.execute("SELECT status FROM qqq_runs WHERE request_id=?",(body["request_id"],)).fetchone()
+                    if not own or own[0]!="running":raise HandoffConflict("Resolution ownership changed.")
+                    self._history_guard(db,binding,reserved=True,resolution_request_id=body["request_id"])
+                    if any(row["request_id"] not in (body["failed_request_id"],body["request_id"]) for row in self._unresolved(db)):
+                        raise HandoffConflict("Another QQQ hold appeared.")
+                    if self._history_read(body["candidate_path"],HISTORY_INPUT_BYTES)!=raw:raise HandoffConflict("Candidate file changed during resolution.")
+                payloads={"accepted-before.json":_json(current["data"]["dataset"]).encode(),"candidate-bundle.json":raw,
+                    "comparison.json":_json(plan["comparison"]).encode(),"failed-before.json":current["failed"]["receipt"].encode(),
+                    "binding.json":_json({"binding":binding,"account":current["account"],"failed_record":current["failed"]}).encode()}
+                self._history_artifacts(body["request_id"],payloads,receipt,check)
+                def final_evidence():
+                    _diagnostic_fingerprint()
+                    if self.history_checkpoint is not None:self.history_checkpoint()
+                    self._history_verify_files(receipt)
+                    if self._history_read(body["candidate_path"],HISTORY_INPUT_BYTES)!=raw:
+                        raise HandoffConflict("Candidate file changed before resolution commit.")
+                with self._committing(current["brief"],commit_check=final_evidence) as db:
+                    check(db)
+                    self._history_verify_files(receipt)
+                    self._fresh(bundle["dataset"],now,validated_summary=plan["validated_summary"])
+                    payload=_json(bundle["dataset"]).encode()
+                    if len(payload)>MAX_DATA:raise ValueError("Accepted QQQ data exceeds8MiB.")
+                    digest=hashlib.sha256(payload).hexdigest()
+                    if digest!=plan["comparison"]["candidate_data_sha256"]:raise ValueError("Validated candidate content changed before commit.")
+                    db.execute("UPDATE qqq_data SET digest=?,value=?,bytes=?,quality=? WHERE id=1",(digest,payload,len(payload),_json(bundle["quality"])))
+                    receipt.update(status="completed",outcome="diagnostic_history_resolved",data_sha256=digest,candidate_sha256=body["candidate_sha256"],
+                        volume_change_count=plan["comparison"]["volume_change_count"],adj_close_change_count=plan["comparison"]["adj_close_change_count"],
+                        scope="Exact metadata-only data adoption; original failed receipt/status and paper account/policy/events unchanged. No signal, fill, replay, reset or funding.")
+                    self._finish(db,receipt)
+                    db.execute("UPDATE qqq_archives SET receipt=? WHERE request_id=?",(_json(receipt),body["request_id"]))
+                    db.execute("INSERT INTO qqq_history_resolutions VALUES(?,?,?,?)",(body["failed_request_id"],body["request_id"],body["failed_receipt_sha256"],hashlib.sha256(_json(receipt).encode()).hexdigest()))
+                return receipt
+            except Exception as error:
+                if receipt:
+                    with self.database() as db:
+                        receipt.update(status="failed",reason=str(error)[:1500]);self._finish(db,receipt)
+                        db.execute("UPDATE qqq_archives SET receipt=? WHERE request_id=?",(_json(receipt),body["request_id"]))
+                raise
+
+    def _fresh(self, dataset, clock, *, validated_summary=None):
         from .qqq_data import last_closed_session
         from .qqq_recovery import validate_dataset
-        summary=validate_dataset(dataset)
+        summary=validate_dataset(dataset) if validated_summary is None else validated_summary
         if summary["last_date"]!=last_closed_session(clock).isoformat() or any(summary["excluded_incomplete_or_future_bars"].values()):
             raise ValueError("Accepted data must contain exactly the latest finalized session and no unfinished bars.")
         if datetime.fromisoformat(dataset["as_of"])>clock:
@@ -190,6 +481,7 @@ class QQQWorkflow(HandoffDesk):
         for entry in dataset["symbols"].values():
             if datetime.fromisoformat(entry["source"]["retrieved_at"])>clock:
                 raise ValueError("A market source retrieval cannot be in the future.")
+        return summary
 
     def _epoch(self, db, cfg, brief):
         row=db.execute("SELECT rowid,value FROM settings WHERE key='paused'").fetchone()
@@ -238,9 +530,17 @@ class QQQWorkflow(HandoffDesk):
             account = self._account(db)
             runs = [dict(row) for row in db.execute("SELECT request_id,action,day,status FROM qqq_runs ORDER BY rowid DESC LIMIT 10")] if self._exists(db) else []
             last = db.execute("SELECT receipt FROM qqq_runs ORDER BY rowid DESC LIMIT 1").fetchone() if self._exists(db) else None
-            hold = db.execute("SELECT request_id,action,status FROM qqq_runs WHERE status IN ('running','failed') ORDER BY rowid LIMIT 1").fetchone() if self._exists(db) else None
+            uncertain=self._unresolved(db)
+            hold=uncertain[0] if uncertain else None
             report = db.execute("SELECT qqq_reports.receipt FROM qqq_reports JOIN qqq_runs USING(request_id) WHERE qqq_runs.status='completed' ORDER BY qqq_reports.rowid DESC LIMIT 1").fetchone() if self._exists(db) else None
             events = [json.loads(row[0]) for row in db.execute("SELECT value FROM qqq_events WHERE account_id=? ORDER BY id DESC LIMIT 20",(account["id"],))] if account else []
+            authority=self._history_authority(db,cfg,self.controls()) if self._exists(db) else None
+            latest_resolution=None
+            if self._exists(db) and db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='qqq_history_resolutions'").fetchone():
+                resolved=db.execute("SELECT old.request_id,old.action,old.status,old.receipt FROM qqq_history_resolutions links JOIN qqq_runs old ON old.request_id=links.failed_request_id JOIN qqq_runs done ON done.request_id=links.request_id ORDER BY done.rowid DESC LIMIT 1").fetchone()
+                if resolved:
+                    try:latest_resolution=self._verified_resolution(db,resolved)
+                    except (ValueError,OSError,KeyError,TypeError):pass
         historical=json.loads(report[0]) if report else None
         if historical:self._verified_report(historical)
         quality = copy.deepcopy(data["quality"]) if data else None
@@ -253,6 +553,7 @@ class QQQWorkflow(HandoffDesk):
         return {"schema":1,"revision":revision,"config":cfg,"rule":RULE,"rule_sha256":RULE_SHA256,
             "quality":quality,"data_sha256":data["sha256"] if data else None,"paper":account,"events":events,
             "last_run":json.loads(last[0]) if last else None,"history":runs,"hold":dict(hold) if hold else None,
+            "latest_history_resolution":latest_resolution,"history_authority":authority,"history_authority_sha256":_hash(authority) if authority else None,
             "backtest":historical,"model_calls":0,"brokerage_connected":False,"internet_enabled":internet_enabled(self.store,default=False),
             "scope":"Simulated $10,000 account, not owner capital. Next-open fills observed from completed daily bars, not broker executions. Cash dividends credited on ex-date, not actual pay-date. No real orders or future-profit qualification."}
 
@@ -288,7 +589,7 @@ class QQQWorkflow(HandoffDesk):
         if type(body["expected_revision"]) is not int or body["expected_revision"] < 0:
             raise ValueError("Use a nonnegative expected_revision.")
 
-    def _reserve(self, db, action, body, day, now):
+    def _reserve(self, db, action, body, day, now, *, inspected_failure=None):
         self._schema(db)
         old = db.execute("SELECT digest,status,receipt FROM qqq_runs WHERE request_id=?",(body["request_id"],)).fetchone()
         digest = _hash({"action":action,"body":body})
@@ -298,7 +599,8 @@ class QQQWorkflow(HandoffDesk):
             saved=json.loads(old["receipt"])
             if action=="backtest":self._verified_report(saved)
             return {**saved,"replayed":True}
-        if db.execute("SELECT 1 FROM qqq_runs WHERE status IN ('running','failed') LIMIT 1").fetchone():
+        uncertain=self._unresolved(db)
+        if any(row["request_id"]!=inspected_failure or row["status"]!="failed" or row.get("resolution_error") for row in uncertain):
             raise HandoffConflict("An uncertain QQQ operation requires explicit inspection and acknowledgement.")
         if day and db.execute("SELECT 1 FROM qqq_runs WHERE day=?",(day,)).fetchone():
             raise HandoffConflict("This daily market update already owns the day.")
@@ -392,6 +694,33 @@ class QQQWorkflow(HandoffDesk):
                     db.execute("INSERT INTO qqq_rate VALUES(?,1) ON CONFLICT(day) DO UPDATE SET count=count+1",(rate_day,))
                     receipt={"request_id":body["request_id"],"action":"refresh","day":day,"status":"running","created_at":now.isoformat(),"artifacts":[],"model_calls":0,"replayed":False}
                 bundle=(collector or self._collect)(cfg,internet,brief,body["request_id"])
+                prepared=None
+                if not bundle.get("unavailable") and bundle.get("quality",{}).get("fresh") is True:
+                    with self.database() as db:
+                        self._policy(db,cfg,internet,online=True)
+                        previous=self._data(db);prior_account=self._account(db)
+                        previous_digest=previous["sha256"] if previous else None
+                        prior_account_sha=_hash(prior_account)
+                        authority_sha=_hash(self._history_authority(db,cfg,brief))
+                    dataset,comparison=self._merge(previous["dataset"] if previous else None,bundle["dataset"],include_review=True)
+                    validated=self._fresh(dataset,clock())
+                    def history_check(db):
+                        _diagnostic_fingerprint()
+                        _,current_brief=self._policy(db,cfg,internet,online=True)
+                        current=self._data(db)
+                        if (current_brief!=brief or self._meta(db)[0]!=body["expected_revision"]+1 or
+                                (current["sha256"] if current else None)!=previous_digest or _hash(self._account(db))!=prior_account_sha or
+                                _hash(self._history_authority(db,cfg,brief))!=authority_sha):
+                            raise HandoffConflict("QQQ source/account/authority changed during diagnostic history publication.")
+                    revision={key:value for key,value in comparison.items() if key!="volume_changes"}
+                    volume_raw=_json(comparison["volume_changes"]).encode()
+                    receipt["history_revision"]=revision
+                    if len(volume_raw)<=HISTORY_INLINE_BYTES:
+                        revision["volume_changes"]=comparison["volume_changes"]
+                    else:
+                        self._history_artifacts(body["request_id"],{"volume-revisions.json":volume_raw},receipt,history_check)
+                        revision["volume_changes_artifact"]=receipt["artifacts"][-1]["path"]
+                    prepared=(dataset,history_check,validated,comparison["candidate_data_sha256"])
                 with self._committing(brief) as db:
                     _,current_brief=self._policy(db,cfg,internet,online=True)
                     if current_brief!=brief:raise HandoffConflict("Brief controls changed before market publication.")
@@ -402,11 +731,13 @@ class QQQWorkflow(HandoffDesk):
                     if quality.get("fresh") is not True:
                         receipt.update(status="completed",outcome="stale",reason="No fresh completed session; previous accepted data and paper state retained.")
                         self._finish(db,receipt);return receipt
-                    previous=self._data(db)
-                    dataset=self._merge(previous["dataset"] if previous else None,bundle["dataset"])
-                    self._fresh(dataset,clock())
+                    dataset,history_check,validated,validated_digest=prepared
+                    history_check(db)
+                    self._history_verify_files(receipt)
+                    self._fresh(dataset,clock(),validated_summary=validated)
                     raw=_json(dataset).encode()
                     if len(raw)>MAX_DATA:raise ValueError("QQQ accepted data exceeds 8 MiB.")
+                    if hashlib.sha256(raw).hexdigest()!=validated_digest:raise ValueError("Validated market history changed before commit.")
                     account=self._account(db);advancement=None
                     if account:
                         if account["policy"]!=self._epoch(db,cfg,brief):
@@ -431,11 +762,13 @@ class QQQWorkflow(HandoffDesk):
                     if advancement and advancement["state"]["pending"] and any(event["type"]=="paper_decision" for event in advancement["events"]):
                         if next_session_open(advancement["state"]["pending"]["signal_session"])<=clock()+timedelta(seconds=60):raise ValueError("The simulated decision missed its safe pre-open publication window.")
                     self._finish(db,receipt)
+                    db.execute("UPDATE qqq_archives SET receipt=? WHERE request_id=?",(_json(receipt),body["request_id"]))
                 return receipt
             except Exception as error:
                 if receipt:
                     with self.database() as db:
                         receipt.update(status="failed",reason=str(error)[:1500]);self._finish(db,receipt)
+                        db.execute("UPDATE qqq_archives SET receipt=? WHERE request_id=?",(_json(receipt),body["request_id"]))
                 raise
 
     def backtest(self, body, now=None):
@@ -589,7 +922,7 @@ class QQQWorkflow(HandoffDesk):
             if now<slot or cfg["activation_at"] and slot<_now(datetime.fromisoformat(cfg["activation_at"])):return None
             if brief.get("activation_at") and slot<datetime.fromisoformat(brief["activation_at"]):return None
             day=local.date().isoformat()
-            if self._exists(db) and db.execute("SELECT 1 FROM qqq_runs WHERE day=? OR status IN ('running','failed') LIMIT 1",(day,)).fetchone():return None
+            if self._exists(db) and (db.execute("SELECT 1 FROM qqq_runs WHERE day=? LIMIT 1",(day,)).fetchone() or self._unresolved(db)):return None
         # The due clock chooses the slot; publication uses its actual clock after
         # the network worker finishes, not the earlier scheduler timestamp.
         try:return self.refresh({"request_id":"qqq-daily-"+day,"expected_revision":revision},day=day)
@@ -598,4 +931,4 @@ class QQQWorkflow(HandoffDesk):
     def brief_snapshot(self, now=None):
         status=self.status(now)
         paper=status["paper"]
-        return {key:status[key] for key in ("config","quality","hold","last_run","backtest","model_calls","scope")} | {"paper":paper,"events":status["events"][:10],"rule_sha256":status["rule_sha256"]}
+        return {key:status[key] for key in ("config","quality","hold","last_run","backtest","model_calls","scope","latest_history_resolution")} | {"paper":paper,"events":status["events"][:10],"rule_sha256":status["rule_sha256"]}

@@ -471,9 +471,10 @@ class Application:
             result = self.briefing.qqq.status()
         elif parts == ["qqq", "config"] and method == "PUT":
             result = self.briefing.qqq.configure(self.client_handoff_body(env))
-        elif parts in (["qqq", "refresh"], ["qqq", "backtest"], ["qqq", "paper"], ["qqq", "acknowledge"], ["qqq", "archive"]) and method == "POST":
+        elif parts in (["qqq", "refresh"], ["qqq", "backtest"], ["qqq", "paper"], ["qqq", "acknowledge"], ["qqq", "archive"], ["qqq", "resolve-history"]) and method == "POST":
             handlers = {"refresh":self.briefing.qqq.refresh,"backtest":self.briefing.qqq.backtest,
-                        "paper":self.briefing.qqq.start_paper,"acknowledge":self.briefing.qqq.acknowledge,"archive":self.briefing.qqq.archive}
+                        "paper":self.briefing.qqq.start_paper,"acknowledge":self.briefing.qqq.acknowledge,"archive":self.briefing.qqq.archive,
+                        "resolve-history":self.briefing.qqq.resolve_history}
             result = handlers[parts[1]](self.client_handoff_body(env))
         elif len(parts) == 3 and parts[0] == "service-desk" and parts[1] in {"clients", "intakes", "documents"} and method == "GET":
             readers = {"clients": self.client_handoff.get_client, "intakes": self.client_handoff.get_intake,

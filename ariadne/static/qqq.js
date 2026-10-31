@@ -149,7 +149,16 @@
     const quality=data.quality||{},source=e("section","qqq-source");
     p(source,`Data status: ${quality.fresh_now===true?"latest completed session available":"unavailable or stale — no new simulated fills"}. Last retrieved: ${stamp(quality.retrieved_at)}. Expected completed session now: ${text(quality.expected_last_session_now)||"not recorded"}.`,"qqq-small");
     p(source,"Automatic refresh runs with the permitted 6 AM America/Chicago brief and owner-enabled Internet. Global pause, local pause, briefing holds and source failures stop advancement. There is no page timer, hidden trading request or automatic retry here.","qqq-small qqq-muted");root.append(source);
-    if(data.hold){const box=e("section","qqq-hold");box.append(e("h3","","QQQ work is held for review"));p(box,text(data.hold.reason||data.hold.error)||"Inspect the saved failure or interrupted request before continuing.");p(box,`Request ${text(data.hold.request_id)} · ${pretty(data.hold.status)}. Partial work remains untrusted and is never adopted automatically.`,"qqq-small");box.append(button("Review and acknowledge QQQ hold",acknowledge,()=>idPattern.test(text(data.hold?.request_id)),{allowHold:true}));root.append(box);}
+    if(data.hold){const box=e("section","qqq-hold");box.append(e("h3","","QQQ work is held for review"));p(box,text(data.hold.reason||data.hold.error)||"Inspect the saved failure or interrupted request before continuing.");if(data.hold.resolution_error)p(box,text(data.hold.resolution_error),"qqq-caution");p(box,`Request ${text(data.hold.request_id)} · ${pretty(data.hold.status)}. Partial work remains untrusted and is never adopted automatically.`,"qqq-small");box.append(button("Review and acknowledge QQQ hold",acknowledge,()=>idPattern.test(text(data.hold?.request_id)),{allowHold:true}));root.append(box);}
+    const resolution=data.latest_history_resolution;
+    if(resolution&&resolution.status==="completed"){
+      const box=e("section","qqq-card");box.append(e("span","eyebrow","SOURCE HISTORY / REVIEWED"),e("h3","","History review retained"));
+      p(box,"A separate reviewed resolution accepted source metadata. The original failed request stays retained; this operation created no simulated fills or funding.","qqq-muted");
+      p(box,`Resolution ${text(resolution.request_id)||"not supplied"} · prior request ${text(resolution.failed_request_id)||"not supplied"}.`,"qqq-small");
+      for(const [label,key] of [["Review SHA-256","review_sha256"],["Candidate SHA-256","candidate_sha256"],["Accepted data SHA-256","data_sha256"]])p(box,`${label}: ${text(resolution[key])||"Not recorded"}`,"qqq-hash");
+      p(box,"Volume and adjusted-close revisions are diagnostic-only for this frozen recovery rule. Changed prices, distributions, splits or dates still stop automatic acceptance.","qqq-small qqq-muted");
+      artifacts(box,resolution.artifacts);root.append(box);
+    }
     rulePanel(root);const grid=e("div","qqq-grid");paperPanel(grid);historyPanel(grid);root.append(grid);eventPanel(root);
     if(data.last_run)p(root,`Last workflow request: ${pretty(data.last_run.status)} · ${text(data.last_run.request_id)||"not supplied"}.`,"qqq-small qqq-muted");controls();
   }

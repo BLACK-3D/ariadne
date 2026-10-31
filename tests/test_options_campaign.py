@@ -4,11 +4,13 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal, Inexact, ROUND_DOWN, ROUND_UP, localcontext
 from fractions import Fraction
 import hashlib
+import random
 import unittest
 from unittest.mock import patch
 
 from ariadne.options_campaign import (campaign, campaign_profiles, signal, profile_rule,
-    profile_rule_sha256, RULE, RULE_SHA256, CANDIDATE_IDS, OptionsRecoveryError)
+    profile_rule_sha256, RULE, RULE_SHA256, CANDIDATE_IDS, DEFAULT_CANDIDATE_IDS,
+    FOLLOWUP_CANDIDATE_IDS, OptionsRecoveryError)
 from ariadne.options_data import contract_id
 from ariadne.qqq_data import session_dates, session_close_utc
 
@@ -60,8 +62,10 @@ def chunked(data, *breaks):
 
 class CampaignTests(unittest.TestCase):
     def test_fixed_scope_and_distinct_profile_identity(self):
-        self.assertEqual(CANDIDATE_IDS, ("cash", "recovery_call", "breakout_call", "breakdown_put", "rotating_ensemble",
+        self.assertEqual(DEFAULT_CANDIDATE_IDS, ("cash", "recovery_call", "breakout_call", "breakdown_put", "rotating_ensemble",
             "rsi_rebound_call", "rsi_exhaustion_put", "diversified_ensemble"))
+        self.assertEqual(CANDIDATE_IDS[:8], DEFAULT_CANDIDATE_IDS)
+        self.assertEqual(len(CANDIDATE_IDS), 12)
         self.assertEqual(RULE["entry_maximum_debit"], "100.00")
         self.assertEqual(RULE["monthly_maximum_debit"], "500.00")
         self.assertNotEqual(profile_rule_sha256("strict_sizes"), profile_rule_sha256("unknown_size_price_proxy"))
@@ -230,7 +234,7 @@ class CampaignTests(unittest.TestCase):
         self.assertNotIn("cash", report["comparison"]["ranked_ids"])
         self.assertNotIn("breakdown_put", report["comparison"]["ranked_ids"])
         self.assertFalse(report["deployable"])
-        self.assertEqual(report["rule"]["universe"], ["QQQ"])
+        self.assertEqual(report["rule"]["universe"], ["QQQ", "KO"])
 
     def test_per_month_single_ensemble_and_no_funding_return(self):
         data = fixture(start=date(2023, 9, 1), end=date(2023, 12, 29))
@@ -308,7 +312,7 @@ class CampaignTests(unittest.TestCase):
         with patch.object(module, "signal", return_value=True):
             value = result(data, "diversified_ensemble")
         buys = fills(value, "BUY")
-        self.assertEqual([event["strategy_id"] for event in buys[:5]], list(module.SIGNALS))
+        self.assertEqual([event["strategy_id"] for event in buys[:5]], list(module.LEGACY_SIGNALS))
         self.assertEqual(len({event["source_date"] for event in buys}), len(buys))
         committed = {}
         for event in buys:
@@ -414,6 +418,171 @@ class CampaignTests(unittest.TestCase):
         with patch.object(module, "MAX_CANDIDATES", 9), self.assertRaises(OptionsRecoveryError): campaign_profiles(data)
         with patch.dict(module.RULE, {"entry_maximum_debit": "101"}), self.assertRaises(OptionsRecoveryError): campaign(data)
         with self.assertRaises(OptionsRecoveryError): campaign(iter([]))
+
+    def test_followup_fraction_indicators_match_independent_population_oracle(self):
+        def moments(values):
+            count = len(values)
+            total = sum(values, Fraction())
+            return total/count, (count*sum((value*value for value in values), Fraction())-total*total)/(count*count)
+        def above(price, mean, variance):
+            return price > mean and (price-mean)**2 > 4*variance
+        def expected(identifier, raw):
+            if identifier == "compression_breakout_call":
+                prices = list(map(Fraction, raw[-41:]))
+                bands = [moments(prices[index-19:index+1]) for index in range(19, 41)]
+                widths = [variance/(mean*mean) for mean, variance in bands]
+                return (widths[-3] == min(widths[:-2]) and not above(prices[-3], *bands[-3])
+                    and above(prices[-2], *bands[-2]) and above(prices[-1], *bands[-1])
+                    and widths[-1] > widths[-2])
+            if identifier == "trend_pullback_call":
+                prices = list(map(Fraction, raw[-65:]))
+                return (prices[-1] > sum(prices[-60:])/60 > sum(prices[:60])/60
+                    and prices[-2]/prices[-7] <= Fraction(98, 100)
+                    and prices[-1] > max(prices[-3:-1]))
+            prices = list(map(Fraction, raw[-23:]))
+            returns = [prices[index]/prices[index-1]-1 for index in range(1, 23)]
+            mean, variance = moments(returns[:20])
+            return (variance > 0 and returns[-2] < min(0, mean)
+                and (returns[-2]-mean)**2 >= 4*variance and returns[-1] < 0
+                and prices[-1] < sum(prices[-20:])/20)
+        rng = random.Random(31102026)
+        for _ in range(80):
+            cents, raw = 10000, []
+            for index in range(65):
+                cents += rng.randint(-60, 60)
+                raw.append(f"{cents//100}.{cents%100:02d}")
+            history = [{"underlying_price": value} for value in raw]
+            for identifier in RULE["followup_candidates"][4:7]:
+                self.assertEqual(signal(identifier, history), expected(identifier, raw))
+
+    def test_followup_exact_boundaries_warmup_and_known_patterns(self):
+        import ariadne.options_campaign as module
+        examples = {
+            "compression_breakout_call": [Decimal(100)]*39+[Decimal(101), Decimal(102)],
+            "trend_pullback_call": [Decimal(100)+Decimal(index)/10 for index in range(59)]
+                +list(map(Decimal, ("105", "104.5", "104", "103.5", "103.684", "104.2"))),
+            "downside_shock_put": list(map(Decimal, [100, 101]*10+[100, 97, 96])),
+        }
+        for identifier, prices in examples.items():
+            history = [{"underlying_price": str(value)} for value in prices]
+            with self.subTest(identifier=identifier):
+                self.assertTrue(signal(identifier, history))
+                self.assertFalse(signal(identifier, history[1:]))
+                self.assertEqual(signal(identifier, [{"underlying_price": "999"}]*7+history), True)
+                self.assertFalse(signal(identifier, [{"underlying_price": "100"}]*65))
+        over = deepcopy(examples["trend_pullback_call"])
+        over[-2] = Decimal("103.68400001")
+        self.assertFalse(signal("trend_pullback_call", [{"underlying_price": str(value)} for value in over]))
+        self.assertFalse(signal("compression_breakout_call", [{"underlying_price": str(value)}
+            for value in [100]*40+[102]]))  # A single band break is not confirmation.
+        self.assertFalse(signal("downside_shock_put", [{"underlying_price": str(value)}
+            for value in [100]*21+[97, 96]]))  # Zero historical variance is not a shock threshold.
+        self.assertEqual(module.FOLLOWUP_WARMUP, {"compression_breakout_call": 41,
+            "trend_pullback_call": 65, "downside_shock_put": 23})
+
+    def test_followup_signals_produce_correct_later_contract_fills(self):
+        patterns = {
+            "compression_breakout_call": ([Decimal(100)]*39+[Decimal(101), Decimal(102)], "103", "98", "call"),
+            "trend_pullback_call": ([Decimal(100)+Decimal(index)/10 for index in range(59)]
+                +list(map(Decimal, ("105", "104.5", "104", "103.5", "103.6", "104.2"))), "105", "98", "call"),
+            "downside_shock_put": (list(map(Decimal, [100, 101]*10+[100, 97, 96])), "103", "95", "put"),
+        }
+        for identifier, (prefix, call, put, kind) in patterns.items():
+            data = fixture(start=date(2023, 8, 14), end=date(2023, 11, 30))
+            for index, row in enumerate(data["snapshots"]):
+                row["underlying_price"] = str(prefix[index] if index < len(prefix) else prefix[-1])
+                for quote in row["quotes"]:
+                    strike = call if quote["type"] == "call" else put
+                    quote["strike"] = strike
+                    quote["contract_id"] = contract_id("QQQ", quote["expiry"], quote["type"], strike)
+                row["quotes"].sort(key=lambda quote: quote["contract_id"])
+            value = result(data, identifier)
+            with self.subTest(identifier=identifier):
+                buy = fills(value, "BUY")[0]
+                self.assertEqual(buy["strategy_id"], identifier)
+                self.assertEqual(buy["option_type"], kind)
+                self.assertGreater(datetime.fromisoformat(buy["observed_at"]),
+                    datetime.fromisoformat(buy["decided_at"])+timedelta(seconds=60))
+                self.assertLessEqual(Fraction(buy["budget_committed"]), 100)
+                self.assertEqual(value["diagnostics"]["warmup_rows"], len(prefix)-1)
+
+    def test_followup_history_is_bounded_and_defaults_skip_new_indicators(self):
+        import ariadne.options_campaign as module
+        data = fixture(start=date(2023, 8, 14), end=date(2023, 11, 30))
+        with patch.object(module, "_followup_signal", side_effect=AssertionError("No new work for legacy defaults")):
+            baseline = campaign_profiles(data)
+        original, lengths = module.signal, {}
+        def observed(identifier, history):
+            lengths.setdefault(identifier, []).append(len(history))
+            return original(identifier, history)
+        with patch.object(module, "signal", side_effect=observed):
+            extended = campaign_profiles(data, candidates=list(FOLLOWUP_CANDIDATE_IDS))
+        self.assertEqual(baseline["profiles"]["strict_sizes"]["candidate_ids"], list(DEFAULT_CANDIDATE_IDS))
+        for identifier in module.LEGACY_SIGNALS:
+            self.assertLessEqual(max(lengths[identifier]), 15)
+        for identifier in module.FOLLOWUP_SIGNALS:
+            self.assertEqual(max(lengths[identifier]), 65)
+        for profile in module.LIQUIDITY_PROFILES:
+            for identifier in ("cash", *module.CONVENTIONAL_SIGNALS):
+                self.assertEqual(baseline["profiles"][profile]["candidate_results"][identifier],
+                    extended["profiles"][profile]["candidate_results"][identifier])
+        with self.assertRaises(OptionsRecoveryError):
+            campaign_profiles(data, candidates=list(CANDIDATE_IDS))
+
+    def test_followup_chunk_and_future_prefix_invariance(self):
+        data = fixture(start=date(2023, 8, 14), end=date(2023, 11, 30))
+        chosen = list(FOLLOWUP_CANDIDATE_IDS)
+        baseline = campaign_profiles(data, candidates=chosen)
+        split = campaign_profiles(chunked(data, 40, 41, 64, 65), candidates=chosen)
+        changed = deepcopy(data)
+        for row in changed["snapshots"][67:]:
+            row["underlying_price"] = "130"
+        future = campaign_profiles(changed, candidates=chosen)
+        for profile in baseline["profiles"]:
+            self.assertEqual(baseline["coverage"]["source_prefix_sha256"], split["coverage"]["source_prefix_sha256"])
+            for identifier, value in baseline["profiles"][profile]["candidate_results"].items():
+                actual = split["profiles"][profile]["candidate_results"][identifier]
+                for key in ("metrics", "events", "curve", "state"):
+                    self.assertEqual(value[key], actual[key])
+                self.assertEqual(value["curve"][:67], future["profiles"][profile]["candidate_results"][identifier]["curve"][:67])
+
+    def test_followup_ensemble_shares_one_cap_and_rotates_correct_sides(self):
+        import ariadne.options_campaign as module
+        data = fixture(start=date(2023, 9, 1), end=date(2023, 12, 29),
+            prices=[Decimal(100)]*len(session_dates(date(2023, 9, 1), date(2023, 12, 29))),
+            quote_values=lambda index, day: ("4.9", "5") if index % 4 in (0, 1) else ("0.95", "0.98"))
+        with patch.object(module, "signal", return_value=True):
+            value = result(data, "followup_ensemble")
+        buys = fills(value, "BUY")
+        self.assertEqual([event["strategy_id"] for event in buys[:3]], list(module.FOLLOWUP_SIGNALS))
+        monthly = {}
+        position = False
+        for event in value["events"]:
+            if event["type"] != "fill": continue
+            if event["action"] == "BUY":
+                self.assertFalse(position); position = True
+                self.assertEqual(event["option_type"], module.SIGNAL_KINDS[event["strategy_id"]])
+                month = event["source_date"][:7]
+                monthly[month] = monthly.get(month, Fraction())+Fraction(event["budget_committed"])
+            else:
+                self.assertTrue(position); position = False
+        self.assertTrue(all(total <= 500 for total in monthly.values()))
+        self.assertTrue(all(Fraction(row["monthly_committed"]) <= 500 for row in value["curve"]))
+
+    def test_ko_is_only_explicit_unqualified_under100_research(self):
+        data = fixture()
+        for row in data["snapshots"]:
+            row["underlying_symbol"], row["underlying_price"] = "KO", "50"
+            for quote in row["quotes"]:
+                quote["strike"] = "51" if quote["type"] == "call" else "49"
+                quote["contract_id"] = contract_id("KO", quote["expiry"], quote["type"], quote["strike"])
+            row["quotes"].sort(key=lambda quote: quote["contract_id"])
+        report = campaign(data, symbol="KO", candidates=["cash"])
+        self.assertEqual(report["symbol"], "KO")
+        self.assertFalse(report["execution_qualified"])
+        self.assertFalse(report["deployable"])
+        data["snapshots"][-1]["underlying_price"] = "100"
+        with self.assertRaises(OptionsRecoveryError): campaign(data, symbol="KO", candidates=["cash"])
 
 
 if __name__ == "__main__": unittest.main()

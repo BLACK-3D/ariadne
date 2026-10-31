@@ -113,7 +113,8 @@ class OptionsCampaignCLITests(unittest.TestCase):
         self.assertEqual(seen, [6, 6, 6, 3])
         self.assertEqual(len(self.load("index.json")["reports"]), 2)
         registered = self.load("registration.json")
-        self.assertEqual(registered["candidate_ids"], list(options_campaign.CANDIDATE_IDS))
+        self.assertEqual(registered["candidate_ids"], list(options_campaign.DEFAULT_CANDIDATE_IDS))
+        self.assertEqual(registered["candidate_preset"], "baseline")
         self.assertEqual(registered["manifests"][0]["sha256"], self.digest)
         self.assertFalse(result["owner_authority"]["owner_database_opened"])
         self.assertFalse(result["owner_authority"]["owner_readiness_established"])
@@ -134,6 +135,44 @@ class OptionsCampaignCLITests(unittest.TestCase):
         self.assertEqual(index["liquidity_profiles"], ["strict_sizes"])
         self.assertEqual(len(index["reports"]), 1)
         self.assertEqual(result["paper_operations"], 0)
+
+    def test_followup_preset_infers_real_ko_symbol_within_sixteen_ledgers(self):
+        from ariadne.options_data import contract_id
+        from ariadne.options_campaign import FOLLOWUP_CANDIDATE_IDS
+        self.manifest["symbol"] = "KO"
+        for item in self.manifest["chunks"]:
+            dataset = json.loads((self.workspace / item["path"]).read_bytes())
+            for row in dataset["snapshots"]:
+                row["underlying_symbol"], row["underlying_price"] = "KO", "50"
+                for quote in row["quotes"]:
+                    quote["strike"] = "50"
+                    quote["contract_id"] = contract_id("KO", quote["expiry"], quote["type"], "50")
+            raw = canonical(dataset)
+            self.write(item["path"], raw)
+            item.update(bytes=len(raw), sha256=hashlib.sha256(raw).hexdigest())
+        raw = canonical(self.manifest)
+        self.write("quotes/catalog.json", raw)
+        self.digest = hashlib.sha256(raw).hexdigest()
+        result = cli.run(self.args("--preset", "volatility_followup"), root=self.root)
+        self.assertEqual(result["status"], "completed")
+        registration = self.load("registration.json")
+        self.assertEqual(registration["candidate_preset"], "volatility_followup")
+        self.assertEqual(registration["candidate_ids"], list(FOLLOWUP_CANDIDATE_IDS))
+        self.assertEqual(len(registration["candidate_ids"]) * len(registration["liquidity_profiles"]), 16)
+        for item in self.load("index.json")["reports"]:
+            report = self.load(item["path"])["report"]
+            self.assertEqual(report["symbol"], "KO")
+            self.assertFalse(report["deployable"])
+        self.assertEqual(result["paper_operations"], 0)
+
+    def test_preset_cannot_be_combined_with_explicit_candidates(self):
+        with patch("sys.stderr"), self.assertRaises(SystemExit):
+            self.args("--preset", "volatility_followup", "--candidate", "cash")
+        args = self.args()
+        args.preset, args.candidate = "volatility_followup", ["cash"]
+        with self.assertRaisesRegex(ValueError, "never both"):
+            cli.run(args, root=self.root)
+        self.assert_held()
 
     def test_registration_pins_the_actual_exchange_clock_function_and_resource(self):
         from ariadne import briefing
