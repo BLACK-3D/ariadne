@@ -1,5 +1,7 @@
 # Ariadne — local AI in a box
 
+The [project direction and daily innovation context](docs/PROJECT_DIRECTION.md) connects the broader offline-assistant goal with current business, trading, interaction and reliability priorities, plus future perception and delivery-simulation research.
+
 Version **0.32.0** adds a free, no-account KO end-of-day options source and an explicit same-account upgrade from the Ford stress-put experiment. It preserves the shared **$500 monthly gross commitment / $100 all-in entry** limits, original balances and immutable Ford records. KO decisions use fresh root-bound QQQ/SPY stress gates, delayed source-session fills, actual supplied side sizes and the existing disposal controls. Saved results, the evidence journal and daily briefs work offline; new quotes require Internet. See [KO source, evidence and paper operation](docs/OPTIONS_KO_0_32.md).
 
 Version **0.31.0** adds fixed stress-put paired evidence review and a bounded offline source-readiness inventory in the Options panel and daily brief. The same F paper account and shared $500/$100 limits remain active; historical research roots do not create additional paper feeds or allowances. New free-source leads are reported with their coverage gaps and failures. See [stress evidence and source readiness](docs/OPTIONS_EXPANSION_0_31.md).
