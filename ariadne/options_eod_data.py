@@ -555,10 +555,15 @@ class _WireSocket:
         return getattr(self.channel, name)
 
 
-def _fetch(url, *, deadline, check, budget):
-    """Fixed public host, pinned TLS socket, no proxies/redirects/credentials."""
+def _fetch_common(url, *, deadline, check, budget, approved_url):
+    """Private transport; callers supply a fixed code-owned URL validator.
+
+    A JSON request never selects this callback. Fixed-root adapters retain
+    separate validators; the host, TLS, wire/request and deadline bounds remain
+    the existing transport contract.
+    """
     from .internet import _global_address, _tls_context
-    parsed = _approved_url(url)
+    parsed = approved_url(url)
     check()
     remaining = deadline-time.monotonic()
     if remaining <= 0 or budget["requests"] >= 5 or budget["remaining"] <= 0:
@@ -652,6 +657,12 @@ def _fetch(url, *, deadline, check, budget):
         if wrapped is not None:
             wrapped.close()
         raw.close()
+
+
+def _fetch(url, *, deadline, check, budget):
+    """Unchanged F-only entry point over the shared private transport."""
+    return _fetch_common(url, deadline=deadline, check=check, budget=budget,
+                         approved_url=_approved_url)
 
 
 def fetch_bundle(session, required_contracts=(), check=lambda:None):

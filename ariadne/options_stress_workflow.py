@@ -306,9 +306,13 @@ class OptionsStressWorkflow:
         with owner.database() as db:
             try:cfg,brief=owner._policy(db)
             except HandoffConflict:return None
-            if not self._exists(db) or not self.eod.config(db)["enabled"]:return None
+            if not self._exists(db):return None
             row=db.execute("SELECT id,state FROM opt_accounts WHERE closed_at IS NULL ORDER BY rowid DESC LIMIT 1").fetchone()
-            if not row or _load(row["state"]).get("schema")!=4:return None
+            if not row:return None
+            active_schema=_load(row["state"]).get("schema")
+            if active_schema not in (4,5):return None
+            selected=self.owner.root_eod if active_schema==5 else self.eod
+            if not selected.config(db)["enabled"]:return None
             account_id=row["id"]
             if db.execute("SELECT 1 FROM opt_stress_context_failures WHERE account_id=? LIMIT 1",(account_id,)).fetchone() or db.execute("SELECT 1 FROM opt_stress_contexts WHERE account_id=? AND status!='completed' LIMIT 1",(account_id,)).fetchone():return None
             if not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='qqq_data'").fetchone():return None
@@ -322,9 +326,9 @@ class OptionsStressWorkflow:
         try:
             with owner._ownership(),self._runtime_lease() as runtime_check:
                 with owner.database() as db:
-                    db.execute("BEGIN IMMEDIATE");cfg,brief=owner._policy(db,cfg);feed=self.eod.config(db)
+                    db.execute("BEGIN IMMEDIATE");cfg,brief=owner._policy(db,cfg);feed=selected.config(db)
                     account=owner._account(db,clock)
-                    if not account or account["id"]!=account_id or account["state"].get("schema")!=4 or account["state"]["hold"] or account["policy"]!=owner._epoch(db,cfg,brief):return None
+                    if not account or account["id"]!=account_id or account["state"].get("schema")!=active_schema or account["state"]["hold"] or account["policy"]!=owner._epoch(db,cfg,brief):return None
                     basis=self._basis(account);self._verified_context_rows(db,account_id)
                     if db.execute("SELECT 1 FROM opt_stress_contexts WHERE account_id=? AND (data_sha256=? OR status!='completed')",(account_id,data[0])).fetchone():return None
                     used=db.execute("SELECT count(*),coalesce(sum(bytes),0) FROM opt_stress_contexts").fetchone()
@@ -343,7 +347,7 @@ class OptionsStressWorkflow:
                     current,current_brief=owner._policy(db,cfg)
                     state=db.execute("SELECT state,policy FROM opt_accounts WHERE id=? AND closed_at IS NULL",(account_id,)).fetchone()
                     benchmark=self._source(db)
-                    if (current_brief!=brief or self.eod.config(db)!=feed or owner._epoch(db,current,current_brief)!=account["policy"] or not state or
+                    if (current_brief!=brief or selected.config(db)!=feed or owner._epoch(db,current,current_brief)!=account["policy"] or not state or
                         _digest(state["state"].encode())!=basis["state_sha256"] or _load(state["policy"])!=basis["policy"] or
                         self._benchmark_hold(db) or not benchmark or benchmark["raw"]!=source["raw"] or benchmark["receipt_raw"]!=source["receipt_raw"]):
                         raise HandoffConflict("Context account/source/permission changed during publication.")
@@ -386,7 +390,8 @@ class OptionsStressWorkflow:
 
     def snapshot(self,db,now,account):
         benchmark_hold=self._benchmark_hold(db)
-        if not account or account["state"].get("schema")!=4:
+        schema=(account or {}).get("state",{}).get("schema")
+        if not account or schema not in (4,5):
             eligible=False
             if account and account["state"].get("schema")==3:
                 try:
@@ -397,7 +402,11 @@ class OptionsStressWorkflow:
             return {"active":False,"migration_eligible":eligible,"mode":"inactive","policy_id":engine.STRATEGY_ID,
                 "rule":engine.RULE,"rule_sha256":engine.RULE_SHA256,"entry_allowed":False,"last_context":None,
                 "context_hold":benchmark_hold,"context_count":0,"reason":"No schema4 stress policy is active."}
-        feed=self.eod.config(db)
+        selected=self.owner.root_eod if schema==5 else self.eod
+        policy_engine=engine
+        if schema==5:
+            from . import options_root_eod as policy_engine
+        feed=selected.config(db)
         failure=db.execute("SELECT reason FROM opt_stress_context_failures WHERE account_id=? ORDER BY rowid DESC LIMIT 1",(account["id"],)).fetchone()
         uncertain=db.execute("SELECT 1 FROM opt_stress_contexts WHERE account_id=? AND status!='completed' LIMIT 1",(account["id"],)).fetchone()
         row=db.execute("SELECT receipt FROM opt_stress_contexts WHERE account_id=? AND status='completed' ORDER BY rowid DESC LIMIT 1",(account["id"],)).fetchone()
@@ -405,8 +414,8 @@ class OptionsStressWorkflow:
         expected=context.last_closed_session(now).isoformat()
         ready=bool(last and last["source_session"]==expected and _now(datetime.fromisoformat(last["published_at"]))<=now)
         count=db.execute("SELECT count(*) FROM opt_stress_contexts WHERE account_id=? AND status='completed'",(account["id"],)).fetchone()[0]
-        return {"active":True,"migration_eligible":False,"mode":"forward_stress_put_only","enabled":feed["enabled"],"policy_id":engine.STRATEGY_ID,
-            "rule":engine.RULE,"rule_sha256":engine.RULE_SHA256,"last_context":{k:last[k] for k in ("source_session","published_at","label","witness_sha256")} if last else None,
+        return {"active":True,"migration_eligible":False,"mode":"forward_stress_put_only","enabled":feed["enabled"],"policy_id":policy_engine.STRATEGY_ID,
+            "rule":policy_engine.RULE,"rule_sha256":policy_engine.RULE_SHA256,"last_context":{k:last[k] for k in ("source_session","published_at","label","witness_sha256")} if last else None,
             "context_hold":benchmark_hold or ({"status":"failed" if failure else "uncertain","reason":failure[0] if failure else "Uncertain context capture requires inspection."} if failure or uncertain else None),
             "context_count":count,"expected_source_session":expected,
             "context_status":"held" if benchmark_hold or failure or uncertain else "missing" if not last else "stale" if not ready else "stress_ready" if last["label"]=="stress_unwind" else "not_stress",

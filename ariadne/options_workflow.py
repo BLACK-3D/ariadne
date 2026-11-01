@@ -49,6 +49,9 @@ def _now(value=None):
 
 def _paper_engine(state):
     """Old accounts retain their frozen engine until an explicit safe upgrade."""
+    if type(state) is dict and type(state.get("schema")) is int and state["schema"] == 5:
+        from . import options_root_eod
+        return options_root_eod
     if type(state) is dict and type(state.get("schema")) is int and state["schema"] == 4:
         from . import options_stress_eod
         return options_stress_eod
@@ -73,6 +76,8 @@ class OptionsWorkflow(HandoffDesk):
         self.feed = OptionsFeedWorkflow(self)
         from .options_eod_workflow import OptionsEodWorkflow
         self.eod = OptionsEodWorkflow(self)
+        from .options_root_workflow import OptionsRootWorkflow
+        self.root_eod = OptionsRootWorkflow(self)
         from .options_vix import VixResearchWorkflow
         self.vix = VixResearchWorkflow(self)
 
@@ -80,6 +85,7 @@ class OptionsWorkflow(HandoffDesk):
         self.stopped.set()
         self.feed.stop()
         self.eod.stop()
+        self.root_eod.stop()
 
     @staticmethod
     def _exists(db):
@@ -229,7 +235,9 @@ class OptionsWorkflow(HandoffDesk):
             if state["processed_count"] == 0 and state["trade_count"] == 0:
                 if any(state[key] != initial[key] for key in ("cash", "contributions", "month", "monthly_start_equity", "monthly_committed", "fees")):
                     raise ValueError("An untouched migrated portfolio cannot change its inherited cash or monthly allowance.")
-        if type(state.get("schema")) is int and state["schema"] == 4:
+        if type(state.get("schema")) is int and state["schema"] == 5:
+            self.root_eod.verify_account(db, row["id"], state)
+        elif type(state.get("schema")) is int and state["schema"] == 4:
             self.eod.stress.verify_account(db, row["id"], state)
         elif type(state.get("schema")) is int and state["schema"] == 3:
             self.eod.verify_account(db, row["id"], state)
@@ -269,6 +277,10 @@ class OptionsWorkflow(HandoffDesk):
             if receipt.get("artifacts"):
                 self._verify_artifacts(receipt)
             return {**receipt, "replayed": True}
+        active = db.execute("SELECT state FROM opt_accounts WHERE closed_at IS NULL ORDER BY rowid DESC LIMIT 1").fetchone()
+        if active and _load(active[0]).get("schema") == 5 and action not in {
+                "root_migrate", "root_collect", "root_config", "import", "register_archive", "compare", "research_compare", "backtest", "vix_signals", "vix_backtest"}:
+            raise HandoffConflict("The KO epoch owns the existing shared account; legacy actions cannot replace its source or reset its risk.")
         if db.execute("SELECT 1 FROM opt_runs WHERE status IN ('running','failed') LIMIT 1").fetchone():
             raise HandoffConflict("An uncertain options request requires explicit inspection and acknowledgement.")
         if day and db.execute("SELECT 1 FROM opt_runs WHERE day=?", (day,)).fetchone():
@@ -297,6 +309,9 @@ class OptionsWorkflow(HandoffDesk):
                 self._finish(db, receipt)
 
     def _verify_artifacts(self, receipt):
+        if receipt["action"] in {"root_migrate", "root_collect", "root_config"}:
+            self.root_eod.verify(receipt)
+            return
         if receipt["action"] == "stress_activate":
             self.eod.stress.verify(receipt)
             return
@@ -375,6 +390,14 @@ class OptionsWorkflow(HandoffDesk):
     def _paper_readiness(self, account, eod, clock, hold=None):
         """Optional local metadata cannot grant entries or hold financial exits."""
         from .options_paper_readiness import build_readiness, load_index
+        root_mode = bool(account and account["state"].get("schema")==5)
+        if root_mode:
+            from .options_root_readiness import build_readiness as root_readiness
+            def render(index=None):
+                return root_readiness(index,account=account,source=eod["config"],checked_at=clock,workflow_hold=hold)
+        else:
+            def render(index=None):
+                return build_readiness(index,paper=projection,checked_at=clock)
         projection = None
         if account and account["state"].get("schema") == 4:
             state = account["state"]
@@ -394,14 +417,14 @@ class OptionsWorkflow(HandoffDesk):
         except FileNotFoundError:
             raw = None
         except (ValueError,OSError) as error:
-            result = build_readiness(None,paper=projection,checked_at=clock)
+            result = render()
             result.update(diagnostic_status="unavailable",input_error=str(error)[:240])
             return result
         try:
             index = load_index(raw,checked_at=clock) if raw is not None else None
-            return build_readiness(index,paper=projection,checked_at=clock)
+            return render(index)
         except (ValueError,TypeError) as error:
-            result = build_readiness(None,paper=projection,checked_at=clock)
+            result = render()
             result.update(diagnostic_status="unavailable",input_error=str(error)[:240])
             return result
 
@@ -415,7 +438,7 @@ class OptionsWorkflow(HandoffDesk):
             forward = self._info(db, clock, forward=True)
             catalog = self._catalog(db)
             feed = self.feed.snapshot(db, clock)
-            eod = self.eod.snapshot(db, clock, account)
+            eod = self.root_eod.snapshot(db, clock, account) if account and account["state"].get("schema") == 5 else self.eod.snapshot(db, clock, account)
             vix = self.vix.snapshot(db, clock, account)
             runs = [dict(row) for row in db.execute("SELECT request_id,action,day,status FROM opt_runs ORDER BY rowid DESC LIMIT 10")] if self._exists(db) else []
             held = db.execute("SELECT request_id,action,status,receipt FROM opt_runs WHERE status IN ('running','failed') ORDER BY rowid LIMIT 1").fetchone() if self._exists(db) else None
@@ -438,8 +461,8 @@ class OptionsWorkflow(HandoffDesk):
         readiness = self._paper_readiness(account,eod,clock,hold)
         return {"schema": 1, "revision": revision, "config": cfg, "rule": RULE, "rule_sha256": RULE_SHA256,
                 "quality": quality, "data_sha256": data["sha256"] if data else None,
-                "forward_quality": eod.get("quality") if account and account["state"].get("schema") in (3,4) else forward["quality"] if forward else None,
-                "legacy_forward_quality": forward["quality"] if forward and account and account["state"].get("schema") in (3,4) else None,
+                "forward_quality": eod.get("quality") if account and account["state"].get("schema") in (3,4,5) else forward["quality"] if forward else None,
+                "legacy_forward_quality": forward["quality"] if forward and account and account["state"].get("schema") in (3,4,5) else None,
                 "forward_data_sha256": forward["sha256"] if forward else None, "paper": account,
                 "events": events, "hold": hold, "last_run": _load(last[0]) if last else None, "history": runs,
                 "backtest": historical, "inbox": INBOX, "model_calls": 0, "brokerage_connected": False,
@@ -923,6 +946,7 @@ class OptionsWorkflow(HandoffDesk):
         """One selected source on the same account; no parallel funded books."""
         with self.database() as db:
             selected = self.eod.config(db)["initialized"]
+            root_selected = self.root_eod.config(db)["initialized"]
         if selected:
             try:
                 self.eod.stress.capture_due(now)
@@ -930,4 +954,4 @@ class OptionsWorkflow(HandoffDesk):
                 # Context owns its entry-only hold. Its unavailable source must
                 # not suppress the quote collector that manages existing exits.
                 pass
-        return self.eod.run_due(now) if selected else self.feed.run_due(now)
+        return self.root_eod.run_due(now) if root_selected else self.eod.run_due(now) if selected else self.feed.run_due(now)

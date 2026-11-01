@@ -182,15 +182,12 @@ def _equity(state):
     return _number(state["cash"])+(max(Decimal(0),_credit(_number(position["marked_bid"])*100))-Decimal("0.65") if position else 0)
 
 
-@_precision
-def validate_state(state):
-    """Validate lineage, bounded history, exact economics and clock separation."""
-    if type(state) is not dict or set(state)!=_STATE or type(state["schema"]) is not int or state["schema"]!=3 or state["rule_sha256"]!=RULE_SHA256 or state["symbol"]!="F" or state["source_id"]!=RULE["source_id"] or state["execution_qualified"] is not False or state["research_only"] is not True:
-        raise OptionsRecoveryError("The EOD ledger does not match its registered research-only contract.")
-    active=_clock(state["portfolio_activation_at"]);decided=_clock(state["last_decided_at"])
-    if not _clock(state["started_at"])<=active<=decided:raise OptionsRecoveryError("EOD account clocks moved backwards.")
+def _validate_migration(state, *, source_id=None):
+    """Validate the retained original migration, independently of current root."""
+    active=_clock(state["portfolio_activation_at"])
+    expected_source_id=state["source_id"] if source_id is None else source_id
     migration=state["migration"]
-    if type(migration) is not dict or set(migration)!=_MIGRATION or migration["from_schema"]!=2 or type(migration["from_schema"]) is not int or migration["new_funding"]!="0" or migration["source_id"]!=state["source_id"] or migration["activated_at"]!=state["portfolio_activation_at"]:
+    if type(migration) is not dict or set(migration)!=_MIGRATION or migration["from_schema"]!=2 or type(migration["from_schema"]) is not int or migration["new_funding"]!="0" or migration["source_id"]!=expected_source_id or migration["activated_at"]!=state["portfolio_activation_at"]:
         raise OptionsRecoveryError("The immutable in-place migration witness is malformed.")
     if not all(_hash(migration[key]) for key in ("from_rule_sha256","old_state_sha256","old_data_sha256","old_canonical_state_sha256","baseline_sha256")) or _digest(migration["baseline"])!=migration["baseline_sha256"]:
         raise OptionsRecoveryError("Original evidence/baseline hashes are invalid.")
@@ -200,6 +197,10 @@ def validate_state(state):
         raise OptionsRecoveryError("Migration cannot erase old risk or change the original financial lineage.")
     _month(initial["month"])
     if _number(initial["cash"])!=_number(initial["contributions"]) or _number(initial["monthly_start_equity"])!=_number(initial["cash"]):raise OptionsRecoveryError("The initial zero-risk capital does not reconcile.")
+    return initial
+
+
+def _validate_financial_header(state, initial, decided):
     for key in ("processed_count","trade_count","closed_trade_count","funding_count"):
         if type(state[key]) is not int or not 0<=state[key]<=100000:raise OptionsRecoveryError("Use bounded nonnegative EOD ledger counts.")
     if state["trade_count"]-state["closed_trade_count"] not in (0,1):raise OptionsRecoveryError("Only one fully funded long option is supported.")
@@ -211,6 +212,68 @@ def validate_state(state):
         raise OptionsRecoveryError("Capital must reconcile to retained funding plus explicit USD500 contributions.")
     month=_month(state["month"])
     if not initial["month"]<=month<=_day_at(decided).strftime("%Y-%m") or (state["funding_count"]==0 and month!=initial["month"]):raise OptionsRecoveryError("The funded month does not reconcile with activation/decisions.")
+
+
+def _validate_financial_tail(state, *, active, decided, identity=None):
+    """Shared exact money/risk invariants; identity is trusted fixed code."""
+    identity=_identity if identity is None else identity
+    month=_month(state["month"])
+    if type(state["cap_qualified"]) is not bool:raise OptionsRecoveryError("Cap accounting qualification must be explicit.")
+    hold=state["hold"]
+    if hold is not None:
+        if type(hold) is not dict or set(hold)!={"code","message","recorded_at"} or any(type(hold[key]) is not str or not 1<=len(hold[key])<=1000 for key in ("code","message")) or _clock(hold["recorded_at"])>decided or state["cap_qualified"]:
+            raise OptionsRecoveryError("A held shared account cannot certify its cap accounting.")
+    elif not state["cap_qualified"]:raise OptionsRecoveryError("Unqualified cap accounting requires a durable hold.")
+    _milestones(state["milestone_counts"],state["closed_trade_count"])
+    stats=state["strategy_stats"]
+    if type(stats) is not dict or set(stats)!=set(STRATEGY_IDS):raise OptionsRecoveryError("Strategy attribution must cover all registered hypotheses.")
+    for value in stats.values():
+        if type(value) is not dict or set(value)!=_STATS or any(type(value[key]) is not int or not 0<=value[key]<=100000 for key in ("entry_count","closed_count")) or value["entry_count"]-value["closed_count"] not in (0,1):raise OptionsRecoveryError("Strategy counts are invalid.")
+        if _number(value["fees"])!=Decimal("0.65")*(value["entry_count"]+value["closed_count"]) or _number(value["monthly_committed"])>500:raise OptionsRecoveryError("Strategy fees/commitments are invalid.")
+        _number(value["realized_pnl"],signed=True);_milestones(value["milestone_counts"],value["closed_count"])
+    if sum(value["entry_count"] for value in stats.values())!=state["trade_count"] or sum(value["closed_count"] for value in stats.values())!=state["closed_trade_count"] or sum((_number(value["monthly_committed"]) for value in stats.values()),Decimal(0))!=_number(state["monthly_committed"]):raise OptionsRecoveryError("Strategy attribution does not reconcile to the one shared ledger.")
+    for key in ("2x","5x","10x"):
+        if sum(value["milestone_counts"][key] for value in stats.values())!=state["milestone_counts"][key]:raise OptionsRecoveryError("Net payout attribution is inconsistent.")
+    position=state["position"]
+    if position is not None:
+        if type(position) is not dict or set(position)!=_POSITION or position["strategy_id"] not in STRATEGIES or STRATEGIES[position["strategy_id"]]["type"]!=position["type"] or type(position["quantity"]) is not int or position["quantity"]!=1 or type(position["multiplier"]) is not int or position["multiplier"]!=100 or state["trade_count"]-state["closed_trade_count"]!=1:raise OptionsRecoveryError("Only one standard long contract is permitted.")
+        identity(position)
+        for key in ("entry_ask","premium","entry_fee","exit_fee_reserved","budget_debit","marked_bid"):_number(position[key])
+        entry=_day(position["entry_source_date"]);expiry=_day(position["expiry"]);decision=_clock(position["decision_at"]);recorded=_clock(position["entry_recorded_at"])
+        if not active<=decision<recorded<=decided or entry<=_day_at(decision) or entry>_day_at(recorded) or not 7<=(expiry-entry).days<=21 or expiry.strftime("%Y-%m")!=_day_at(recorded).strftime("%Y-%m") or expiry.strftime("%Y-%m")!=month or position["forced_exit_session"]!=_deadline(entry,expiry).isoformat() or _day(position["forced_exit_session"])<=_day_at(decision):raise OptionsRecoveryError("A modeled entry crossed its actual decision/month/disposal boundary.")
+        if _day(position["last_marked_source_date"])<entry or position["last_marked_source_date"]>state["last_source_date"]:raise OptionsRecoveryError("A mark must follow the entry source date.")
+        if _number(position["entry_ask"])<=0 or _number(position["entry_fee"])!=Decimal("0.65") or _number(position["exit_fee_reserved"])!=Decimal("0.65") or _number(position["premium"])!=_debit(_number(position["entry_ask"])*100) or _number(position["budget_debit"])!=_number(position["premium"])+Decimal("1.30") or _number(position["budget_debit"])>100 or _number(position["budget_debit"])>_number(state["monthly_committed"]) or _number(state["cash"])<Decimal("0.65"):raise OptionsRecoveryError("The entry debit/reserved exit fee exceeds funded shared limits.")
+        if stats[position["strategy_id"]]["entry_count"]-stats[position["strategy_id"]]["closed_count"]!=1:raise OptionsRecoveryError("The open strategy attribution is inconsistent.")
+    elif state["trade_count"]!=state["closed_trade_count"]:raise OptionsRecoveryError("The open trade is missing its funded position.")
+    expected_cash=_number(state["contributions"])+sum((_number(value["realized_pnl"],signed=True) for value in stats.values()),Decimal(0))-( _number(position["premium"])+Decimal("0.65") if position else 0)
+    if _number(state["cash"])!=expected_cash or _equity(state)<_number(state["monthly_start_equity"])-500:raise OptionsRecoveryError("Cash, realized outcomes or the modeled monthly loss invariant do not reconcile.")
+    pending=state["pending"]
+    if pending is not None:
+        if type(pending) is not dict or set(pending)!=_PENDING or pending["strategy_id"] not in STRATEGIES or pending["type"]!=STRATEGIES[pending["strategy_id"]]["type"] or pending["action"] not in ("BUY","SELL") or (pending["action"]=="SELL")!=(position is not None):raise OptionsRecoveryError("A durable pending decision disagrees with the funded risk.")
+        identity(pending);stamp=_clock(pending["decided_at"])
+        if not active<=stamp<=decided or _clock(pending["signal_received_at"])>stamp or _day(pending["signal_source_date"])>_day_at(stamp) or pending["signal_source_date"]>state["last_source_date"] or type(pending["reasons"]) is not list or not pending["reasons"] or any(type(value) is not str or not 1<=len(value)<=200 for value in pending["reasons"]):raise OptionsRecoveryError("A pending decision used unavailable evidence.")
+        if pending["action"]=="BUY" and (not 7<=(_day(pending["expiry"])-_day(pending["signal_source_date"])).days<=21 or pending["expiry"][:7]!=_day_at(stamp).strftime("%Y-%m")):
+            raise OptionsRecoveryError("A pending entry disagrees with its registered signal DTE/month.")
+        if position and pending["contract_id"]!=position["contract_id"]:raise OptionsRecoveryError("Pending sale must reference the funded contract.")
+    daily=state["last_daily_result"]
+    if daily is not None:
+        if type(daily) is not dict or set(daily)!=_DAILY or daily["quote_observed_at"] is not None or daily["simulated"] is not True or daily["research_only"] is not True or daily["execution_qualified"] is not False or type(daily["partial_chain"]) is not bool or daily["date"]!=state["last_source_date"] or _clock(daily["recorded_at"])>decided:raise OptionsRecoveryError("Daily results must disclose the actual date-only model and cursor.")
+        for key in ("equity","cash","contributions","monthly_budget_used","monthly_budget_remaining","fees"):_number(daily[key],signed=key=="equity")
+        for key in ("daily_pnl","trading_pnl","monthly_pnl"):_number(daily[key],signed=True)
+        if daily["cash"]!=state["cash"] or daily["contributions"]!=state["contributions"] or _number(daily["equity"],signed=True)!=_equity(state) or daily["monthly_budget_used"]!=state["monthly_committed"] or _number(daily["monthly_budget_remaining"])!=500-_number(state["monthly_committed"]):raise OptionsRecoveryError("The dated daily result does not reconcile to its financial ledger.")
+    elif state["processed_count"]:raise OptionsRecoveryError("Accepted EOD evidence requires its dated daily result.")
+
+
+@_precision
+def validate_state(state):
+    """Validate lineage, bounded history, exact economics and clock separation."""
+    if type(state) is not dict or set(state)!=_STATE or type(state["schema"]) is not int or state["schema"]!=3 or state["rule_sha256"]!=RULE_SHA256 or state["symbol"]!="F" or state["source_id"]!=RULE["source_id"] or state["execution_qualified"] is not False or state["research_only"] is not True:
+        raise OptionsRecoveryError("The EOD ledger does not match its registered research-only contract.")
+    active=_clock(state["portfolio_activation_at"]);decided=_clock(state["last_decided_at"])
+    if not _clock(state["started_at"])<=active<=decided:raise OptionsRecoveryError("EOD account clocks moved backwards.")
+    migration=state["migration"]
+    initial=_validate_migration(state)
+    _validate_financial_header(state,initial,decided)
     if not _hash(state["prefix_sha256"]) or state["last_observed_at"] is not None:raise OptionsRecoveryError("Do not invent option quote-event timestamps.")
     history=_references(state["history"])
     if any(_clock(row["received_at"])>decided for row in history) or len(history)!=min(len(migration["baseline"])+state["processed_count"],15):raise OptionsRecoveryError("The available indicator ring does not match the accepted cursor.")
@@ -231,56 +294,16 @@ def validate_state(state):
         _clock(state["last_received_at"])
     elif any(state[key] is not None for key in ("last_source_date","last_received_at","last_snapshot_sha256")) or state["prefix_sha256"]!=_initial_prefix(migration) or history!=migration["baseline"]:
         raise OptionsRecoveryError("An empty EOD cursor cannot claim observations or changed warmup.")
-    if type(state["cap_qualified"]) is not bool:raise OptionsRecoveryError("Cap accounting qualification must be explicit.")
-    hold=state["hold"]
-    if hold is not None:
-        if type(hold) is not dict or set(hold)!={"code","message","recorded_at"} or any(type(hold[key]) is not str or not 1<=len(hold[key])<=1000 for key in ("code","message")) or _clock(hold["recorded_at"])>decided or state["cap_qualified"]:
-            raise OptionsRecoveryError("A held shared account cannot certify its cap accounting.")
-    elif not state["cap_qualified"]:raise OptionsRecoveryError("Unqualified cap accounting requires a durable hold.")
-    _milestones(state["milestone_counts"],state["closed_trade_count"])
-    stats=state["strategy_stats"]
-    if type(stats) is not dict or set(stats)!=set(STRATEGY_IDS):raise OptionsRecoveryError("Strategy attribution must cover all registered hypotheses.")
-    for value in stats.values():
-        if type(value) is not dict or set(value)!=_STATS or any(type(value[key]) is not int or not 0<=value[key]<=100000 for key in ("entry_count","closed_count")) or value["entry_count"]-value["closed_count"] not in (0,1):raise OptionsRecoveryError("Strategy counts are invalid.")
-        if _number(value["fees"])!=Decimal("0.65")*(value["entry_count"]+value["closed_count"]) or _number(value["monthly_committed"])>500:raise OptionsRecoveryError("Strategy fees/commitments are invalid.")
-        _number(value["realized_pnl"],signed=True);_milestones(value["milestone_counts"],value["closed_count"])
-    if sum(value["entry_count"] for value in stats.values())!=state["trade_count"] or sum(value["closed_count"] for value in stats.values())!=state["closed_trade_count"] or sum((_number(value["monthly_committed"]) for value in stats.values()),Decimal(0))!=_number(state["monthly_committed"]):raise OptionsRecoveryError("Strategy attribution does not reconcile to the one shared ledger.")
-    for key in ("2x","5x","10x"):
-        if sum(value["milestone_counts"][key] for value in stats.values())!=state["milestone_counts"][key]:raise OptionsRecoveryError("Net payout attribution is inconsistent.")
-    position=state["position"]
-    if position is not None:
-        if type(position) is not dict or set(position)!=_POSITION or position["strategy_id"] not in STRATEGIES or STRATEGIES[position["strategy_id"]]["type"]!=position["type"] or type(position["quantity"]) is not int or position["quantity"]!=1 or type(position["multiplier"]) is not int or position["multiplier"]!=100 or state["trade_count"]-state["closed_trade_count"]!=1:raise OptionsRecoveryError("Only one standard long contract is permitted.")
-        _identity(position)
-        for key in ("entry_ask","premium","entry_fee","exit_fee_reserved","budget_debit","marked_bid"):_number(position[key])
-        entry=_day(position["entry_source_date"]);expiry=_day(position["expiry"]);decision=_clock(position["decision_at"]);recorded=_clock(position["entry_recorded_at"])
-        if not active<=decision<recorded<=decided or entry<=_day_at(decision) or entry>_day_at(recorded) or not 7<=(expiry-entry).days<=21 or expiry.strftime("%Y-%m")!=_day_at(recorded).strftime("%Y-%m") or expiry.strftime("%Y-%m")!=month or position["forced_exit_session"]!=_deadline(entry,expiry).isoformat() or _day(position["forced_exit_session"])<=_day_at(decision):raise OptionsRecoveryError("A modeled entry crossed its actual decision/month/disposal boundary.")
-        if _day(position["last_marked_source_date"])<entry or position["last_marked_source_date"]>state["last_source_date"]:raise OptionsRecoveryError("A mark must follow the entry source date.")
-        if _number(position["entry_ask"])<=0 or _number(position["entry_fee"])!=Decimal("0.65") or _number(position["exit_fee_reserved"])!=Decimal("0.65") or _number(position["premium"])!=_debit(_number(position["entry_ask"])*100) or _number(position["budget_debit"])!=_number(position["premium"])+Decimal("1.30") or _number(position["budget_debit"])>100 or _number(position["budget_debit"])>_number(state["monthly_committed"]) or _number(state["cash"])<Decimal("0.65"):raise OptionsRecoveryError("The entry debit/reserved exit fee exceeds funded shared limits.")
-        if stats[position["strategy_id"]]["entry_count"]-stats[position["strategy_id"]]["closed_count"]!=1:raise OptionsRecoveryError("The open strategy attribution is inconsistent.")
-    elif state["trade_count"]!=state["closed_trade_count"]:raise OptionsRecoveryError("The open trade is missing its funded position.")
-    expected_cash=_number(state["contributions"])+sum((_number(value["realized_pnl"],signed=True) for value in stats.values()),Decimal(0))-( _number(position["premium"])+Decimal("0.65") if position else 0)
-    if _number(state["cash"])!=expected_cash or _equity(state)<_number(state["monthly_start_equity"])-500:raise OptionsRecoveryError("Cash, realized outcomes or the modeled monthly loss invariant do not reconcile.")
-    pending=state["pending"]
-    if pending is not None:
-        if type(pending) is not dict or set(pending)!=_PENDING or pending["strategy_id"] not in STRATEGIES or pending["type"]!=STRATEGIES[pending["strategy_id"]]["type"] or pending["action"] not in ("BUY","SELL") or (pending["action"]=="SELL")!=(position is not None):raise OptionsRecoveryError("A durable pending decision disagrees with the funded risk.")
-        _identity(pending);stamp=_clock(pending["decided_at"])
-        if not active<=stamp<=decided or _clock(pending["signal_received_at"])>stamp or _day(pending["signal_source_date"])>_day_at(stamp) or pending["signal_source_date"]>state["last_source_date"] or type(pending["reasons"]) is not list or not pending["reasons"] or any(type(value) is not str or not 1<=len(value)<=200 for value in pending["reasons"]):raise OptionsRecoveryError("A pending decision used unavailable evidence.")
-        if pending["action"]=="BUY" and (not 7<=(_day(pending["expiry"])-_day(pending["signal_source_date"])).days<=21 or pending["expiry"][:7]!=_day_at(stamp).strftime("%Y-%m")):
-            raise OptionsRecoveryError("A pending entry disagrees with its registered signal DTE/month.")
-        if position and pending["contract_id"]!=position["contract_id"]:raise OptionsRecoveryError("Pending sale must reference the funded contract.")
-    daily=state["last_daily_result"]
-    if daily is not None:
-        if type(daily) is not dict or set(daily)!=_DAILY or daily["quote_observed_at"] is not None or daily["simulated"] is not True or daily["research_only"] is not True or daily["execution_qualified"] is not False or type(daily["partial_chain"]) is not bool or daily["date"]!=state["last_source_date"] or _clock(daily["recorded_at"])>decided:raise OptionsRecoveryError("Daily results must disclose the actual date-only model and cursor.")
-        for key in ("equity","cash","contributions","monthly_budget_used","monthly_budget_remaining","fees"):_number(daily[key],signed=key=="equity")
-        for key in ("daily_pnl","trading_pnl","monthly_pnl"):_number(daily[key],signed=True)
-        if daily["cash"]!=state["cash"] or daily["contributions"]!=state["contributions"] or _number(daily["equity"],signed=True)!=_equity(state) or daily["monthly_budget_used"]!=state["monthly_committed"] or _number(daily["monthly_budget_remaining"])!=500-_number(state["monthly_committed"]):raise OptionsRecoveryError("The dated daily result does not reconcile to its financial ledger.")
-    elif state["processed_count"]:raise OptionsRecoveryError("Accepted EOD evidence requires its dated daily result.")
+    _validate_financial_tail(state,active=active,decided=decided)
     return deepcopy(state)
 
 
 @_precision
 def summarize(state,now=None):
-    state=validate_state(state)
+    return _summarize_ledger(validate_state(state),now=now)
+
+
+def _summarize_ledger(state,now=None):
     clock=_clock(state["last_decided_at"])
     if now is not None:
         clock=_clock(now.isoformat() if isinstance(now,datetime) else now)
@@ -298,7 +321,7 @@ def summarize(state,now=None):
         phase=("awaiting_source_session" if last_closed_session(clock)<deadline else
             "awaiting_next_session_publication" if clock<publication else "unverified_missing_required_source") if missing else "required_source_recorded"
         disposal={"required_source_date":deadline.isoformat(),"status":phase,"collection_window_ends_at":publication.isoformat(),"provider_publication_sla":False,"hard_clock_hold_applied":False}
-    return {"schema":3,"rule_sha256":RULE_SHA256,"symbol":"F","source_id":state["source_id"],"simulated":True,"research_only":True,"execution_qualified":False,
+    return {"schema":state["schema"],"rule_sha256":state["rule_sha256"],"symbol":state["symbol"],"source_id":state["source_id"],"simulated":True,"research_only":True,"execution_qualified":False,
         "cash":state["cash"],"equity":_text(equity),"contributions":state["contributions"],"trading_pnl":_text(equity-_number(state["contributions"])),"month":state["month"],"monthly_pnl":_text(equity-_number(state["monthly_start_equity"])),
         "monthly_budget_used":state["monthly_committed"],"monthly_budget_remaining":_text(500-_number(state["monthly_committed"])),"position":deepcopy(state["position"]),"pending":deepcopy(state["pending"]),"hold":deepcopy(state["hold"]),"cap_qualified":state["cap_qualified"],
         "fees":state["fees"],"trade_count":state["trade_count"],"closed_trade_count":state["closed_trade_count"],"milestone_counts":deepcopy(state["milestone_counts"]),"last_daily_result":deepcopy(state["last_daily_result"]),"last_source_date":state["last_source_date"],"last_observed_at":None,
@@ -360,13 +383,20 @@ def _sell(state,quote,row,clock,reasons,events):
     state["position"]=None;state["pending"]=None
 
 
-@_precision
-def _advance_paper(snapshot,state,*,decided_at,decision_gate=None,fill_gate=None):
-    """Shared ledger implementation; optional gates are trusted fixed code only.
+def _ledger_hold(state,code,message,clock):
+    """Root-neutral hold result; the public wrapper validates its envelope."""
+    result=deepcopy(state)
+    result["hold"]={"code":code,"message":message,"recorded_at":clock.isoformat()};result["cap_qualified"]=False;result["last_decided_at"]=clock.isoformat()
+    return {"state":result,"status":"held","events":[{"type":"held",**result["hold"]}],"accepted":False}
 
-    Gates may restrict new BUY exposure. They never intercept held positions,
-    SELL decisions, mandatory disposal, source-integrity holds or accounting.
-    Public legacy operation supplies no gates and retains its frozen behavior.
+
+@_precision
+def _step_eod_ledger(row,state,*,decided_at,decision_gate=None,fill_gate=None):
+    """Single money transition over an owned validated copy; no F envelope.
+
+    Only trusted wrappers call this internal function. They validate root,
+    source freshness, history and financial invariants before/after, then
+    publish their own cursor. No initial funding or source authority exists here.
     """
     if any(gate is not None and not callable(gate) for gate in (decision_gate,fill_gate)):
         raise OptionsRecoveryError("Entry policy hooks must be trusted callables or absent.")
@@ -374,25 +404,11 @@ def _advance_paper(snapshot,state,*,decided_at,decision_gate=None,fill_gate=None
         value=True if gate is None else gate(identifier,row,clock)
         if type(value) is not bool:raise OptionsRecoveryError("An entry policy gate must return an exact boolean.")
         return value
-    state=validate_state(state);clock=_clock(decided_at)
-    if clock<_clock(state["last_decided_at"]):raise OptionsRecoveryError("Actual durable decision clocks cannot move backwards.")
-    if state["hold"]:return _result(state,"held",[])
-    row=validate_snapshot(snapshot);day=_day(row["source_date"]);received=_clock(row["received_at"])
-    if received>clock:raise OptionsRecoveryError("Future-received evidence is unavailable to this decision.")
-    from .qqq_data import last_closed_session
-    if day>last_closed_session(clock):raise OptionsRecoveryError("Uncompleted source sessions cannot be accepted.")
-    digest=_digest(row)
-    if state["last_source_date"]==row["source_date"]:
-        if digest!=state["last_snapshot_sha256"]:return _hold(state,"accepted_source_changed","The accepted date-only snapshot changed; do not revise prior modeled work.",clock)
-        return _result(state,"unchanged",[])
-    if day!=last_closed_session(clock):return _hold(state,"stale_source","Source date is not the latest completed session; no historical fill adoption.",clock)
-    prior_day=_day(state["history"][-1]["source_date"]) if state["history"] else None
-    if prior_day is not None and (day<=prior_day or len(_sessions(prior_day+timedelta(days=1),day))!=1):return _hold(state,"missing_source_session","A required source session is missing or moved backwards; no retrospective fill.",clock)
-    if state["last_received_at"] is not None and received<_clock(state["last_received_at"]):raise OptionsRecoveryError("Accepted receipt clocks cannot move backwards.")
+    clock=_clock(decided_at);day=_day(row["source_date"]);received=_clock(row["received_at"])
     prior=deepcopy(state);events=[];month=_day_at(clock).strftime("%Y-%m")
     if month<state["month"]:raise OptionsRecoveryError("Actual decision predates the funded ledger month.")
     if month!=state["month"]:
-        if state["position"] is not None or state["pending"] is not None:return _hold(prior,"unresolved_month_boundary","Prior-month position or durable pending decision blocks new funding and allowance.",clock)
+        if state["position"] is not None or state["pending"] is not None:return _ledger_hold(prior,"unresolved_month_boundary","Prior-month position or durable pending decision blocks new funding and allowance.",clock)
         state["month"]=month;state["cash"]=_text(_number(state["cash"])+500);state["contributions"]=_text(_number(state["contributions"])+500);state["funding_count"]+=1
         state["monthly_start_equity"]=state["cash"];state["monthly_committed"]="0"
         for value in state["strategy_stats"].values():value["monthly_committed"]="0"
@@ -400,15 +416,15 @@ def _advance_paper(snapshot,state,*,decided_at,decision_gate=None,fill_gate=None
     quotes={quote["contract_id"]:quote for quote in row["quotes"]};position=state["position"]
     if position:
         deadline=_day(position["forced_exit_session"])
-        if day>deadline:return _hold(prior,"missed_disposal_source_session","Mandatory exact source-date disposal was not verified; no backfill or invented settlement.",clock)
+        if day>deadline:return _ledger_hold(prior,"missed_disposal_source_session","Mandatory exact source-date disposal was not verified; no backfill or invented settlement.",clock)
         quote=quotes.get(position["contract_id"])
-        if quote is None:return _hold(prior,"missing_position_quote","The held contract is absent from the returned partial chain; retain its previous dated mark.",clock)
+        if quote is None:return _ledger_hold(prior,"missing_position_quote","The held contract is absent from the returned partial chain; retain its previous dated mark.",clock)
         position["marked_bid"]=quote["bid"];position["last_marked_source_date"]=row["source_date"]
         pending=state["pending"];due=day==deadline
         eligible_due=day>_day_at(_clock(position["decision_at"])) and received>_clock(position["decision_at"])
         if due:
             if eligible_due and _liquid(quote,"SELL"):_sell(state,quote,row,clock,["precommitted_disposal_source_session"],events)
-            else:return _hold(prior,"unexecutable_disposal","No actual positive sized executable bid for the mandatory source session; hold the shared account.",clock)
+            else:return _ledger_hold(prior,"unexecutable_disposal","No actual positive sized executable bid for the mandatory source session; hold the shared account.",clock)
         elif pending and _later(row,pending):
             if _liquid(quote,"SELL"):_sell(state,quote,row,clock,pending["reasons"],events)
             else:events.append({"type":"waiting","reason":"conditional_exit_bid_unavailable","contract_id":quote["contract_id"]})
@@ -450,6 +466,41 @@ def _advance_paper(snapshot,state,*,decided_at,decision_gate=None,fill_gate=None
                     state["pending"]=_pending("BUY",quote,row,clock,[identifier+"_registered_signal"],identifier);events.append({"type":"decision",**deepcopy(state["pending"])});break
     equity=_equity(state);previous=prior["last_daily_result"];prior_equity=_number(previous["equity"],signed=True) if previous and previous["month"]==month else _number(state["monthly_start_equity"])
     state["last_daily_result"]={"date":row["source_date"],"month":month,"quote_observed_at":None,"recorded_at":clock.isoformat(),"equity":_text(equity),"cash":state["cash"],"contributions":state["contributions"],"daily_pnl":_text(equity-prior_equity),"trading_pnl":_text(equity-_number(state["contributions"])),"monthly_pnl":_text(equity-_number(state["monthly_start_equity"])),"monthly_budget_used":state["monthly_committed"],"monthly_budget_remaining":_text(500-_number(state["monthly_committed"])),"fees":state["fees"],"trade_count":state["trade_count"],"closed_trade_count":state["closed_trade_count"],"cap_qualified":True,"simulated":True,"research_only":True,"execution_qualified":False,"partial_chain":row["partial_chain"]}
+    return {"state":state,"status":"completed","events":events,"accepted":True}
+
+
+@_precision
+def _advance_paper(snapshot,state,*,decided_at,decision_gate=None,fill_gate=None):
+    """Shared ledger implementation; optional gates are trusted fixed code only.
+
+    Gates may restrict new BUY exposure. They never intercept held positions,
+    SELL decisions, mandatory disposal, source-integrity holds or accounting.
+    Public legacy operation supplies no gates and retains its frozen behavior.
+    """
+    if any(gate is not None and not callable(gate) for gate in (decision_gate,fill_gate)):
+        raise OptionsRecoveryError("Entry policy hooks must be trusted callables or absent.")
+    def allowed(gate,identifier,row,clock):
+        value=True if gate is None else gate(identifier,row,clock)
+        if type(value) is not bool:raise OptionsRecoveryError("An entry policy gate must return an exact boolean.")
+        return value
+    state=validate_state(state);clock=_clock(decided_at)
+    if clock<_clock(state["last_decided_at"]):raise OptionsRecoveryError("Actual durable decision clocks cannot move backwards.")
+    if state["hold"]:return _result(state,"held",[])
+    row=validate_snapshot(snapshot);day=_day(row["source_date"]);received=_clock(row["received_at"])
+    if received>clock:raise OptionsRecoveryError("Future-received evidence is unavailable to this decision.")
+    from .qqq_data import last_closed_session
+    if day>last_closed_session(clock):raise OptionsRecoveryError("Uncompleted source sessions cannot be accepted.")
+    digest=_digest(row)
+    if state["last_source_date"]==row["source_date"]:
+        if digest!=state["last_snapshot_sha256"]:return _hold(state,"accepted_source_changed","The accepted date-only snapshot changed; do not revise prior modeled work.",clock)
+        return _result(state,"unchanged",[])
+    if day!=last_closed_session(clock):return _hold(state,"stale_source","Source date is not the latest completed session; no historical fill adoption.",clock)
+    prior_day=_day(state["history"][-1]["source_date"]) if state["history"] else None
+    if prior_day is not None and (day<=prior_day or len(_sessions(prior_day+timedelta(days=1),day))!=1):return _hold(state,"missing_source_session","A required source session is missing or moved backwards; no retrospective fill.",clock)
+    if state["last_received_at"] is not None and received<_clock(state["last_received_at"]):raise OptionsRecoveryError("Accepted receipt clocks cannot move backwards.")
+    transition=_step_eod_ledger(row,state,decided_at=clock.isoformat(),decision_gate=decision_gate,fill_gate=fill_gate)
+    state,events=transition["state"],transition["events"]
+    if not transition["accepted"]:return _result(state,transition["status"],events)
     prefix=_digest({"previous_sha256":state["prefix_sha256"],"snapshot_sha256":digest})
     state["cursor_history"]=(state["cursor_history"]+[{"source_date":row["source_date"],"snapshot_sha256":digest,"previous_sha256":state["prefix_sha256"],"prefix_sha256":prefix}])[-15:]
     state.update(processed_count=state["processed_count"]+1,prefix_sha256=prefix,last_source_date=row["source_date"],last_received_at=row["received_at"],last_snapshot_sha256=digest,last_decided_at=clock.isoformat())

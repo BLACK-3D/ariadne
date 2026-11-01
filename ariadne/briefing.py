@@ -97,7 +97,7 @@ def options_eod_brief_view(options):
         return None
     account = options.get("paper") if type(options.get("paper")) is dict else {}
     summary = account.get("summary") if type(account.get("summary")) is dict else {}
-    if type(summary.get("schema")) is not int or summary["schema"] not in (3,4):
+    if type(summary.get("schema")) is not int or summary["schema"] not in (3,4,5):
         return None
     def mapping(value):
         return value if type(value) is dict else {}
@@ -141,7 +141,7 @@ def options_eod_brief_view(options):
         else "saved_current_session" if fresh else "saved_stale_or_unverified")
     position, pending = mapping(summary.get("position")), mapping(summary.get("pending"))
     result = {"schema":summary["schema"], "symbol":text(summary.get("symbol"), 8), "source_id":text(summary.get("source_id"), 40),
-        "profile":"experimental_stress_put_eod_paper" if summary["schema"]==4 else "experimental_eod_date_only_paper", "execution_qualified":False,
+        "profile":"experimental_stress_put_eod_paper" if summary["schema"] in (4,5) else "experimental_eod_date_only_paper", "execution_qualified":False,
         **{key:money(summary.get(key)) for key in ("equity", "cash", "contributions", "trading_pnl", "monthly_pnl", "monthly_budget_used", "monthly_budget_remaining", "fees")},
         "monthly_cap":"500.00", "entry_all_in_cap":"100.00", "shared_portfolio":True,
         "trade_count":count(summary.get("trade_count")), "closed_trade_count":count(summary.get("closed_trade_count")),
@@ -161,16 +161,17 @@ def options_eod_brief_view(options):
         "next_check_window":"After09:35Eastern on a market session; publication time unknown; failed work is not retried.",
         "waiting_for_disposal_source":assurance.get("waiting_for_disposal_source") is True,
         "disposal_source_date":day(assurance.get("deadline_source_date")), "rule_sha256":text(summary.get("rule_sha256"),64)}
-    if summary["schema"]==4:
+    if summary["schema"] in (4,5):
         gate=mapping(summary.get("last_entry_gate"))
-        witness=mapping(gate.get("witness"))
+        benchmark=mapping(gate.get("benchmark_gate")) if summary["schema"]==5 else gate
+        witness=mapping(benchmark.get("witness"))
         context_status=mapping(eod.get("stress"))
         latest=mapping(context_status.get("last_context")) if not gate else {}
         result.update(stress_policy_active=True,stress_strategy=text(summary.get("strategy_id"),64),
             stress_activated_at=stamp(summary.get("stress_policy_activated_at")),
-            stress_gate_stage=text(gate.get("stage"),12),stress_gate_allowed=gate.get("allowed") if type(gate.get("allowed")) is bool else None,
-            stress_context_reason=text(gate.get("reason") or context_status.get("context_status"),100),
-            stress_context_label=text(gate.get("label") or latest.get("label"),32),
+            stress_gate_stage=text(gate.get("stage") or benchmark.get("stage"),12),stress_gate_allowed=gate.get("allowed") if type(gate.get("allowed")) is bool else None,
+            stress_context_reason=text(gate.get("reason") or benchmark.get("reason") or context_status.get("context_status"),100),
+            stress_context_label=text(gate.get("label") or benchmark.get("label") or latest.get("label"),32),
             stress_context_published_at=stamp(witness.get("published_at") or latest.get("published_at")))
     return result
 
@@ -746,13 +747,13 @@ class BriefingService:
                     lines.append("- Latest dated paper result: "+_md(json.dumps(daily, ensure_ascii=False)))
                 else:
                     lines.append("- No forward daily trading result yet; starting cash and indicator warmup are not returns.")
-                if summary.get("schema")==4:
-                    lines.append("- Active forward hypothesis: stress-filtered long puts only on the same F account; experimental, not a selected proven winner.")
+                if summary.get("schema") in (4,5):
+                    lines.append("- Active forward hypothesis: stress-filtered long puts only on the same "+_md(summary.get("symbol") or "unavailable")+" account; experimental, not a selected proven winner.")
                     lines.append("- New BUY decisions require fresh stress context; modeled fills require context published before the source session open. Missing context blocks entries, while position-management and disposal checks continue.")
                     lines.append("- Latest saved stress gate: "+_md(eod_view["stress_gate_stage"] or "not evaluated")+" / "+_md(eod_view["stress_context_reason"] or "waiting for forward observations")+". Context publication: "+_md(eod_view["stress_context_published_at"] or "unavailable")+".")
-                if summary.get("schema") in {2, 3, 4}:
+                if summary.get("schema") in {2, 3, 4, 5}:
                     lines.append("- Active portfolio rule SHA-256: "+_md(eod_view["rule_sha256"] if eod_view else options.get("portfolio_rule_sha256")))
-                    lines.append("- Next fixed selector priority: "+_md(summary.get("next_strategy"))+(". Owner-requested stress hypothesis; no outcome ranking." if summary.get("schema")==4 else ". Priority rotates after fills, never by backtest profit."))
+                    lines.append("- Next fixed selector priority: "+_md(summary.get("next_strategy"))+(". Owner-requested stress hypothesis; no outcome ranking." if summary.get("schema") in (4,5) else ". Priority rotates after fills, never by backtest profit."))
                     for strategy, stats in summary.get("strategy_stats", {}).items():
                         lines.append("- Forward strategy attribution "+_md(strategy)+": "+_md(json.dumps(stats, ensure_ascii=False)))
             else:
