@@ -18,4 +18,6 @@ Old 2008/2009/2011/2019/2022/2024 studies and their original receipts remain imm
 
 Recent data is still incomplete: KO availability labels are metadata, while the saved actual option observations cover only October 28–30, 2026, with partial chains and unknown quote-event clocks. Their acquisition order also differs from source-date order. These captures do not establish a complete chronological twelve-month options backtest, and their publication clocks must not be reordered or invented.
 
+The [recent-history acquisition tools and source findings](OPTIONS_RECENT_HISTORY.md) preserve this window. Their first declared cohort failed before acquiring any options; no current-window result or candidate ranking follows from that failure.
+
 The date policy changes no cash, funding, fees, risk limits, paper positions, microphone state or services. The existing one-time $25,000 paper bankroll and separately frozen schema6 controls remain in force. Saved reports remain available offline; obtaining new market data requires its existing authorized source controls.
