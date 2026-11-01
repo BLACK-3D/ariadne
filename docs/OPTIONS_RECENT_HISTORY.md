@@ -1,5 +1,7 @@
 # Recent options history: acquisition and comparison readiness
 
+Earlier November 1 status, superseded by [working history and matched comparisons](OPTIONS_WORKING_HISTORY.md). The failed attempts described below remain stopped and preserved; the later acquisition used separately versioned reference and historical-nullable observation contracts.
+
 Checked November 1, 2026. **No new historical strategy comparison or candidate promotion completed.** The new source acquisition timed out before receiving its first stock body; no new options chains or simulated trades were created. A source failure is not a zero-trade backtest or a zero-return result.
 
 The owner's rolling window currently admits observations from **November 1, 2025 through October 30, 2026**, the latest finalized session. Existing older crisis-era studies remain archived reference. Current saved KO quotes still cover only three partial dates, October 28–30. The 126 availability labels are not captured history.
