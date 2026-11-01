@@ -1,6 +1,7 @@
 """Bounded offline $25k options comparison; no owner account operations.
 
 Register immutable local archives, benchmark bytes and a prior JSON intent.
+New studies are limited to the last twelve calendar months at registration.
 An attempt reserves a new private folder and is never replayed or overwritten.
 """
 from contextlib import ExitStack
@@ -21,7 +22,7 @@ from scripts.options_universe import SourceLease, _json, SOURCE_FILES as OLD_SOU
 
 MAX_OUTPUT, FAILURE_RESERVE, MAX_SECONDS = 8*1024**2, 16*1024, 600
 SOURCE_FILES = tuple(dict.fromkeys((*OLD_SOURCE_FILES, "ariadne/options_bankroll_plan.py",
-    "ariadne/options_bankroll_research.py", "scripts/options_bankroll_research.py")))
+    "ariadne/options_bankroll_research.py", "scripts/options_bankroll_research.py", "ariadne/research_window.py")))
 HASH = re.compile(r"[0-9a-f]{64}\Z")
 
 
@@ -51,6 +52,7 @@ def run(args, *, root=ROOT, now=None):
     from ariadne.options_archive import MAX_ARCHIVE, load_manifest, iter_archive
     from ariadne.options_data import research_symbol_set
     from ariadne.options_regime import build_timeline
+    from ariadne.research_window import derive_window, require_archive_manifest, require_option_dataset
     from ariadne import options_bankroll_research as engine
     box = _root_guard(root)
     paths, hashes = args.manifest, args.manifest_sha256
@@ -95,8 +97,9 @@ def run(args, *, root=ROOT, now=None):
         stamp = datetime.now(timezone.utc) if now is None else now
         if not isinstance(stamp, datetime) or stamp.tzinfo is None:
             raise ValueError("Use an aware registration clock.")
+        window = derive_window(stamp)
         publish("attempt.json", _canonical({"schema": 1, "registered_at": stamp.isoformat(),
-                "replay_allowed": False, "paper_operations": 0}), failure=True)
+                "study_window": window.as_dict(), "replay_allowed": False, "paper_operations": 0}), failure=True)
         check()
         workspace = guard_for(args.workspace, root=box.root)
         module_raw, module_hashes = _modules(box)
@@ -127,6 +130,7 @@ def run(args, *, root=ROOT, now=None):
         for name, digest, raw, _ in inputs:
             checked, value = load_manifest(workspace, name, expected_manifest_sha256=digest, research_symbols=symbols)
             if checked != raw: raise ValueError("Manifest changed during validation.")
+            require_archive_manifest(value, window)
             total += sum(item["bytes"] for item in value["chunks"])
             manifests.append((name, digest, raw, value))
         if total > MAX_ARCHIVE:
@@ -143,6 +147,7 @@ def run(args, *, root=ROOT, now=None):
         rule_sha, rule = engine.RULE_SHA256, engine.profile_rule()
         registration = {"schema": 1, "kind": "pre_iteration_total_bankroll_research_registration", "registered_at": stamp.isoformat(),
             "symbols": list(symbols), "rule": rule, "rule_sha256": rule_sha, "module_sha256": module_hashes,
+            "study_window": window.as_dict(),
             "intent": {"path": args.intent, "sha256": args.intent_sha256},
             "benchmark": {"path": args.benchmark, "sha256": args.benchmark_sha256, "clock_profile": args.benchmark_clock_profile},
             "manifests": [{"path": name, "sha256": digest, "symbol": value["symbol"], "selection": value["selection"], "chunks": value["chunks"]} for name, digest, _, value in manifests],
@@ -152,14 +157,20 @@ def run(args, *, root=ROOT, now=None):
         registration_raw = _canonical(registration)
         publish("registration.json", registration_raw)
         publish("study-intent.json", intent_raw)
-        for name in ("ariadne/options_bankroll_plan.py", "ariadne/options_bankroll_research.py", "scripts/options_bankroll_research.py"):
+        for name in ("ariadne/options_bankroll_plan.py", "ariadne/options_bankroll_research.py", "scripts/options_bankroll_research.py", "ariadne/research_window.py"):
             publish("source_snapshot/"+name.replace("/", "_"), module_raw[name])
         phase = "benchmark_context"
         timeline = build_timeline(_json(benchmark_raw), clock_profile=args.benchmark_clock_profile, checkpoint=check)
         phase = "source_iteration"
-        streams = {value["symbol"]: ExhaustedStream(iter_archive(workspace, name, expected_manifest_sha256=digest,
-                    checkpoint=check, research_symbols=symbols), check) for name, digest, _, value in manifests}
+        def admitted_chunks(name, digest):
+            for chunk in iter_archive(workspace, name, expected_manifest_sha256=digest, checkpoint=check, research_symbols=symbols):
+                check()
+                require_option_dataset(chunk, window)
+                yield chunk
+        streams = {value["symbol"]: ExhaustedStream(admitted_chunks(name, digest), check)
+                   for name, digest, _, value in manifests}
         result = engine.backtest(streams, symbols=symbols, benchmark=timeline, checkpoint=check)
+        result["study_window"] = window.as_dict()
         if not all(stream.exhausted for stream in streams.values()) or not result.get("source_streams_exhausted"):
             raise ValueError("Every registered stock stream must be exhausted.")
 
@@ -183,7 +194,7 @@ def run(args, *, root=ROOT, now=None):
         verify_outputs()
         receipt = {"schema": 1, "status": "completed", "registered_sha256": hashlib.sha256(registration_raw).hexdigest(),
             "artifacts": dict(written), "source_streams_exhausted": True, "source_stable": True, "symbols": list(symbols),
-            "seconds": round(time.monotonic()-started, 3), "paper_operations": 0, "model_calls": 0,
+            "seconds": round(time.monotonic()-started, 3), "study_window": window.as_dict(), "paper_operations": 0, "model_calls": 0,
             "network_calls": 0, "execution_qualified": False, "automatic_adoption": False}
         publish("completed.json", _canonical(receipt), verify=verify)
         return receipt

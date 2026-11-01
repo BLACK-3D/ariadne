@@ -21,6 +21,8 @@ Schema3/4/5 contracts are unchanged. Once activated, schema6 and its bound sizin
 
 ## Historical evaluation at the larger size
 
+These completed development cases predate the owner's recent-only study direction. They remain archived evidence; new studies are limited by the [rolling twelve-month policy](TRADING_STUDY_WINDOW.md).
+
 The offline runner compares four separate same-capital counterfactuals: stress-filtered puts, raw breakdown puts, recovery-growth calls and cash. Each receives $25,000 once, with no later funding. Every candidate uses the same window, registered sources, clock assumptions, fees, quantity constraints and delayed fills. Returns or capital from different candidates/cases must never be added. Cash participates in eligible rankings so a losing strategy cannot silently beat the zero-return control. Held/open results cannot rank.
 
 Three fixed development cases were registered before their new outcomes: IWM 2008 (253 sessions), newly acquired IWM 2009 (252 sessions), and pooled IWM/QQQ 2011 (197 shared sessions). None is a qualified independent holdout.

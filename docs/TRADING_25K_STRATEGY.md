@@ -30,6 +30,8 @@ The original signal/exit settings are retained to keep the next comparison inter
 
 ## Matched research, before promotion
 
+New performance studies use only the [last twelve calendar months](TRADING_STUDY_WINDOW.md). The older case results below remain historical reference, outside the current research window.
+
 Compare stress-filtered puts with unfiltered breakdown puts, recovery-growth calls and cash. Each counterfactual starts with the same one-time $25,000 and uses identical dates, sources, clocks, size rules, fees and sizing. Do not add their returns together or multiply earlier one-contract P&L by the larger budget. Higher entry limits change the eligible contracts, quantity and liquidity requirements.
 
 Existing windows have already been examined and are **development evidence**, not new holdouts:

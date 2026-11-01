@@ -341,6 +341,7 @@ class BankrollResearchCLITests(unittest.TestCase):
             "--benchmark", "benchmark.json", "--benchmark-sha256", digest((self.workspace/"benchmark.json").read_bytes()),
             "--benchmark-clock-profile", "retained_capture", "--intent", "intent.json", "--intent-sha256", digest((self.root/"intent.json").read_bytes()),
             "--workspace", "workspace", "--detached-research", "--output", "staging/run"])
+        self.now = datetime(2024,1,8,15,tzinfo=timezone.utc)
         self.consume = None
         self.seen = []
 
@@ -353,7 +354,7 @@ class BankrollResearchCLITests(unittest.TestCase):
     def _run(self):
         context = SimpleNamespace(describe=lambda: {"test_fixture": True})
         with patch("ariadne.options_regime.build_timeline", return_value=context), patch.object(research, "backtest", side_effect=self._study):
-            return cli.run(self.args, root=self.root, now=datetime(2026,11,1,15,tzinfo=timezone.utc))
+            return cli.run(self.args, root=self.root, now=self.now)
 
     def _failed(self):
         with self.assertRaises((ValueError, OSError)): self._run()
@@ -370,6 +371,27 @@ class BankrollResearchCLITests(unittest.TestCase):
         registration = json.loads((self.root/"staging/run/registration.json").read_bytes())
         self.assertEqual(registration["rule"]["initial_total_capital"], "25000.00")
         self.assertEqual(registration["owner_authority"]["mode"], "detached_research_owner_unchecked")
+
+    def test_old_cohort_is_rejected_before_any_financial_study_or_context_build(self):
+        self.now = datetime(2026,11,1,15,tzinfo=timezone.utc)
+        failure = self._failed()
+        self.assertIn("2025-11-01 through 2026-10-30", failure["reason"])
+        self.assertEqual(self.seen, [])
+        attempt = json.loads((self.root/"staging/run/attempt.json").read_bytes())
+        self.assertEqual(attempt["study_window"]["oldest"], "2025-11-01")
+        self.assertFalse((self.root/"staging/run/registration.json").exists())
+
+    def test_completed_study_retains_its_frozen_window_and_policy_source(self):
+        self._run()
+        registration = json.loads((self.root/"staging/run/registration.json").read_bytes())
+        result = json.loads((self.root/"staging/run/results.json").read_bytes())
+        completed = json.loads((self.root/"staging/run/completed.json").read_bytes())
+        self.assertEqual(registration["study_window"], result["study_window"])
+        self.assertEqual(completed["study_window"], result["study_window"])
+        self.assertEqual(result["study_window"]["oldest"], "2023-01-08")
+        self.assertEqual(result["study_window"]["newest"], "2024-01-05")
+        self.assertIn("ariadne/research_window.py", registration["module_sha256"])
+        self.assertTrue((self.root/"staging/run/source_snapshot/ariadne_research_window.py").is_file())
 
     def test_existing_or_interrupted_output_never_replays(self):
         self._run()
