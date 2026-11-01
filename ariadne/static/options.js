@@ -9,6 +9,7 @@
   let baselineDraft="";
   const strategyNames={recovery_call_v1:"Recovery / calls",breakout_call_v1:"Breakout / calls",breakdown_put_v1:"Breakdown / puts",eod_recovery_call_v1:"EOD recovery / calls",eod_breakout_call_v1:"EOD breakout / calls",eod_breakdown_put_v1:"EOD breakdown / puts",regime_recovery_call_v1:"Trend-filtered recovery / calls",trend_breakout_call_v1:"Trend breakout / calls",trend_breakdown_put_v1:"Trend breakdown / puts"};
   const $=id=>document.getElementById(id), e=(tag,cls="",value)=>app.node(tag,cls,value);
+  strategyNames.f_stress_breakdown_put_v1="Stress-filtered / puts";
   const txt=value=>typeof value==="string"?value:"";
   const identity=/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
   const current=(marker,token)=>marker===generation&&app?.state.authenticated&&app.state.token===token;
@@ -36,6 +37,7 @@
       return {...body,enabled:extra.enabled,acknowledge_source:true};
     }
     if(kind==="eod-migrate")return {...body,acknowledge_simulated:true,acknowledge_partial_eod:true,baseline_path:extra.baseline_path==null||extra.baseline_path===""?null:path(extra.baseline_path)};
+    if(kind==="stress-activate")return {...body,acknowledge_simulated:true,acknowledge_stress_only:true};
     if(kind==="feed"){
       if(typeof extra.enabled!=="boolean")throw new Error("Choose an explicit feed setting.");
       return {...body,enabled:extra.enabled,acknowledge_feed:true};
@@ -52,7 +54,7 @@
   }
   function writable(held=false){return Boolean(app?.state.authenticated&&data&&!busy&&!loading&&!stale&&!uncertain&&!app.state.status?.paused&&(held||!data.hold));}
   function runnable(){return writable()&&data.config.enabled&&!data.config.paused;}
-  function eodActive(){return Boolean(data?.eod?.config?.initialized||data?.paper?.state?.schema===3||data?.paper?.summary?.schema===3);}
+  function eodActive(){return Boolean(data?.eod?.config?.initialized||[3,4].includes(data?.paper?.state?.schema)||[3,4].includes(data?.paper?.summary?.schema));}
   function controls(){
     if($("refresh-options"))$("refresh-options").disabled=busy||loading||!app?.state.authenticated;
     for(const item of actions)item.node.disabled=!writable(item.held)||!item.allowed();
@@ -122,6 +124,17 @@
         if(data.eod.migration_eligible!==true)p(source,"Migration is unavailable for this saved account. Its evidence or existing activity must be reviewed; no replacement account is created.");
       }else controls.append(button(data.eod.config.enabled?"Pause F EOD source":"Resume F EOD source",configureEOD,runnable),button("Capture available F EOD quotes",()=>mutate("eod-collect"),()=>runnable()&&data.eod.config.enabled===true&&data.eod.collection_window_open===true));
       source.append(controls);root.append(source);
+      if(data.eod.stress){
+        const stress=data.eod.stress,card=e("section","options-card");
+        card.append(e("span","eyebrow","FORWARD / STRESS FILTER"),e("h3","",stress.active?"Stress-filtered puts / active":"Stress-filtered puts / available"));
+        p(card,"One fully paid F put at a time. The existing $500 shared monthly commitment and $100 all-in entry cap stay in force. This is an owner-selected hypothesis, with no established profitable edge.");
+        p(card,"A fresh QQQ/SPY stress regime is required for a new decision. A modeled BUY fill requires prior-session context published before that source session opened. Missing context blocks entries while exit checks continue.");
+        const last=stress.last_context;
+        p(card,last?`Saved context: ${txt(last.source_session)} · ${txt(last.label)} · actually published ${txt(last.published_at)}.`:"No published forward context yet. Cash remains available; no benchmark is invented.");
+        if(stress.context_hold)p(card,`Context entry hold: ${txt(stress.context_hold.reason)||txt(stress.context_hold.status)}. Inspect saved evidence; no automatic retry.`,"options-warning");
+        if(!stress.active)card.append(button("Focus this paper account on stress puts",activateStress,()=>runnable()&&stress.migration_eligible===true));
+        root.append(card);
+      }
     }
     if(data.feed&&!eodActive()){
       const source=e("section","options-card");source.append(e("span","eyebrow","PUBLIC QUOTES / NO ACCOUNT"),e("h3","","AAPL daily quote source"));
@@ -147,22 +160,25 @@
       p(paper,summary.position?`Open contract: ${txt(summary.position.contract_id)} · last bid mark ${amount(summary.position.marked_bid)} per share.`:"No open option position.");
       p(paper,summary.pending?`Pending paper decision: ${JSON.stringify(summary.pending).slice(0,1200)}`:"No pending paper decision. Cash is a valid outcome.");
       p(paper,summary.last_daily_result?`Latest dated result: ${JSON.stringify(summary.last_daily_result).slice(0,2200)}`:"No forward daily trading result yet. Starting cash is not a return.");
-      if(summary.schema===2||summary.schema===3){
+      if([2,3,4].includes(summary.schema)){
         p(paper,`ONE shared $500 allowance for all enabled strategies. One open position total. Next selector priority: ${strategyNames[summary.next_strategy]||txt(summary.next_strategy)}.`);
-        for(const[id,stats]of Object.entries(summary.strategy_stats||{}).slice(0,3))p(paper,`${strategyNames[id]||id}: ${Number.isInteger(stats.entry_count)?stats.entry_count:"unknown"} entries / ${Number.isInteger(stats.closed_count)?stats.closed_count:"unknown"} closed · realized P/L ${amount(stats.realized_pnl)} · month committed ${amount(stats.monthly_committed)}.`);
+        const statsRows=summary.schema===4?{f_stress_breakdown_put_v1:summary.policy_stats}:summary.strategy_stats||{};
+        for(const[id,stats]of Object.entries(statsRows).slice(0,3))if(stats)p(paper,`${strategyNames[id]||id}: ${Number.isInteger(stats.entry_count)?stats.entry_count:"unknown"} entries / ${Number.isInteger(stats.closed_count)?stats.closed_count:"unknown"} closed · realized P/L ${amount(stats.realized_pnl)} · month committed ${amount(stats.monthly_committed)}.`);
       }else if(data.paper.state?.schema===1&&data.portfolio_rule){
         p(paper,"This is the retained frozen recovery-call account. A pristine account can upgrade in place; its existing cash, month and allowance stay intact.");
         paper.append(button("Upgrade pristine account to shared portfolio",upgradePortfolio,runnable));
       }
     }else{p(paper,"Start with $500 simulated cash. Later observed calendar months add $500 of simulated external funding only after the previous month is verified flat. This does not spend your money.");paper.append(button("Start $500 monthly paper experiment",startPaper,runnable));}
-    if(summary?.schema===3){p(paper,"EXPERIMENTAL EOD PROXY · source dates are not quote-event timestamps; no execution qualification.","options-warning");if(summary.disposal)p(paper,`Disposal source ${txt(summary.disposal.required_source_date)} · ${txt(summary.disposal.status)}. Missing evidence is not a sale.`);if(summary.cap_assurance==="unverified_missing_disposal_source")p(paper,"CAP ASSURANCE UNVERIFIED · required disposal source evidence is missing.","options-warning");}
+    if([3,4].includes(summary?.schema)){p(paper,"EXPERIMENTAL EOD PROXY · source dates are not quote-event timestamps; no execution qualification.","options-warning");if(summary.disposal)p(paper,`Disposal source ${txt(summary.disposal.required_source_date)} · ${txt(summary.disposal.status)}. Missing evidence is not a sale.`);if(summary.cap_assurance==="unverified_missing_disposal_source")p(paper,"CAP ASSURANCE UNVERIFIED · required disposal source evidence is missing.","options-warning");}
     p(paper,eodActive()?"The 6 AM Chicago brief reports dated saved F EOD experimental results. No paid options subscription, brokerage or real orders.":data.feed?.config?.initialized?"The public source is collected after the market opens. The 6 AM Chicago brief reports the latest saved results. No paid options subscription or broker is connected.":"The 6 AM Chicago brief reads the fixed local quote inbox. There is no connected options subscription. Offline reads and backtests work; absent or stale quotes never become invented fills.");grid.append(paper);
     if(data.portfolio_rule||eodActive()){
-      const tracks=e("section","options-card");tracks.append(e("span","eyebrow","REGISTERED / NO WINNER CHASING"),e("h3","","Three hypotheses. One risk ledger."));
-      for(const[id,value]of Object.entries((eodActive()?data.eod?.rule:data.portfolio_rule)?.strategies||{}).slice(0,3)){
+      const stressMode=summary?.schema===4;
+      const tracks=e("section","options-card");tracks.append(e("span","eyebrow","REGISTERED / NO WINNER CHASING"),e("h3","",stressMode?"Stress puts. One risk ledger.":"Three hypotheses. One risk ledger."));
+      const hypotheses=stressMode?{f_stress_breakdown_put_v1:{signal:data.eod?.stress?.rule?.entry||"Fixed breakdown-put signal plus fresh stress context."}}:(eodActive()?data.eod?.rule:data.portfolio_rule)?.strategies||{};
+      for(const[id,value]of Object.entries(hypotheses).slice(0,3)){
         const card=e("div","options-strategy");card.append(e("strong","",strategyNames[id]||id));p(card,txt(value.signal));tracks.append(card);
       }
-      p(tracks,`Fixed priority rotates after an entry. Backtest performance never chooses the next strategy. Each entry costs at most $${eodActive()?"100":"125"} including premium and both fees. Profits cannot replenish the $500 monthly commitment allowance.`);grid.append(tracks);
+      p(tracks,`${stressMode?"The fixed stress-put policy controls new entries.":"Fixed priority rotates after an entry."} Backtest performance never chooses the next strategy. Each entry costs at most $${eodActive()?"100":"125"} including premium and both fees. Profits cannot replenish the $500 monthly commitment allowance.`);grid.append(tracks);
       if(!eodActive()){
       const study=e("section","options-card options-full");study.append(e("span","eyebrow","SAME SOURCE / SEPARATE COUNTERFACTUALS"),e("h3","","Expanded strategy comparison"));
       if(data.archive_catalog){coverage(study,data.archive_catalog.quality,"Registered for next run");p(study,`Registered manifest for the next study: ${txt(data.archive_catalog.manifest_sha256)}. Price hashes establish identity, not accuracy.`);}
@@ -274,15 +290,17 @@
       if(!Number.isSafeInteger(result?.revision)||result.revision<0||typeof result.config?.enabled!=="boolean"||typeof result.config?.paused!=="boolean")throw new Error("Saved options status is incomplete. No action is permitted.");
       if(result.feed&&(typeof result.feed.config?.enabled!=="boolean"||typeof result.feed.config?.initialized!=="boolean"||typeof result.feed.collection_window_open!=="boolean"))throw new Error("Saved quote-source controls are incomplete. Inspect before another action.");
       if(result.eod&&(typeof result.eod.config?.enabled!=="boolean"||typeof result.eod.config?.initialized!=="boolean"||typeof result.eod.collection_window_open!=="boolean"||typeof result.eod.migration_eligible!=="boolean"))throw new Error("Saved experimental EOD controls are incomplete. Inspect before another action.");
-      if((result.paper?.state?.schema===3||result.paper?.summary?.schema===3)&&result.eod?.config?.initialized!==true)throw new Error("The experimental EOD account lacks its matching source authority. No action is permitted.");
-      if(result.eod?.config?.initialized===true&&(result.paper?.state?.schema!==3||result.paper?.summary?.schema!==3||!result.eod.rule||typeof result.eod.rule_sha256!=="string"))throw new Error("The initialized EOD source lacks its matching account/rule. No action is permitted.");
+      if(([3,4].includes(result.paper?.state?.schema)||[3,4].includes(result.paper?.summary?.schema))&&result.eod?.config?.initialized!==true)throw new Error("The experimental EOD account lacks its matching source authority. No action is permitted.");
+      if(result.eod?.config?.initialized===true&&(![3,4].includes(result.paper?.state?.schema)||result.paper?.summary?.schema!==result.paper?.state?.schema||!result.eod.rule||typeof result.eod.rule_sha256!=="string"))throw new Error("The initialized EOD source lacks its matching account/rule. No action is permitted.");
+      if(result.paper?.state?.schema===4&&(result.eod?.stress?.active!==true||result.eod.stress.rule_sha256!==result.paper?.summary?.rule_sha256))throw new Error("Stress policy authority is incomplete. Inspect saved records before another action.");
       data=result;stale=false;if(uncertain)inspected=true;render();
     }catch(error){if(current(marker,token)){notice=error.message;stale=true;if(data)render();else $("options-content")?.replaceChildren(e("p","options-warning",notice));}}
     finally{if(current(marker,token)){loading=false;controls();}}
   }
   async function mutate(kind,extra={},identifier=null){
     if(!writable(kind==="config"||kind==="acknowledge"))return;
-    if(["refresh","backtest","import","paper","portfolio","upgrade-portfolio","register-archive","compare","feed","collect-feed","research-compare","vix-signals","vix-backtest","eod-migrate","eod-config","eod-collect"].includes(kind)&&!runnable())return;
+    if(["refresh","backtest","import","paper","portfolio","upgrade-portfolio","register-archive","compare","feed","collect-feed","research-compare","vix-signals","vix-backtest","eod-migrate","eod-config","eod-collect","stress-activate"].includes(kind)&&!runnable())return;
+    if(kind==="stress-activate"&&data.eod?.stress?.migration_eligible!==true)return;
     if(eodActive()&&["refresh","feed","collect-feed","archive","paper","portfolio","upgrade-portfolio"].includes(kind))return;
     if(kind==="eod-migrate"&&(!data.eod||eodActive()||data.eod.migration_eligible!==true))return;
     if(kind==="eod-config"&&(!eodActive()||data.eod?.config?.initialized!==true))return;
@@ -304,6 +322,7 @@
     if(await app.confirmAction(title,description,label,"Keep current state")&&current(marker,token)&&revision===data.revision)await fn();
   }
   async function startPaper(){if(!runnable()||data.paper)return;await confirmed("Start the options paper experiment?","Start $500 simulated cash with at most $500 committed premium/fees per month across ALL strategies, one position total. No profits recycle the allowance. No cross-month positions or real orders. A restart cannot reset this month's budget.","Start simulated experiment",()=>mutate(data.portfolio_rule?"portfolio":"paper"));}
+  async function activateStress(){if(!runnable()||data.eod?.stress?.migration_eligible!==true)return;await confirmed("Focus this paper account on stress-filtered puts?","Version the same pristine account without adding cash or resetting its $500 monthly allowance. Only new stress-filtered F long puts may enter, up to $100 including fees. Context must meet actual publication and preopen rules. This is an experimental hypothesis, not a proven winner. Existing evidence and source holds remain.","Keep budget and focus on puts",()=>mutate("stress-activate"));}
   async function upgradePortfolio(){if(!runnable()||data.paper?.state?.schema!==1)return;await confirmed("Upgrade this pristine account in place?","Enable all three fixed strategies on the SAME account. Existing $500 simulated cash, contributions, ledger month and monthly allowance remain unchanged. No historical positions, new funding or reset. The server refuses any prior observed or traded account.","Preserve budget and upgrade",()=>mutate("upgrade-portfolio"));}
   async function configureFeed(){if(!runnable()||!data.feed||eodActive())return;const enabled=!data.feed.config.enabled;await confirmed(enabled?"Enable the free AAPL daily source?":"Pause the free AAPL source?",!data.feed.config.initialized?"Retarget the pristine QQQ paper portfolio to AAPL on the SAME account. Preserve cash, contributions and the shared $500 monthly allowance. Quotes are delayed EOD; capture starts at 9:35 AM Eastern. No paid service, account, broker or added funding.":"Change only collection permission. Cash, losses, committed risk, source history and existing holds remain. No replay of missed sessions or automatic failure retry.",enabled?"Enable AAPL source":"Pause collection",()=>mutate("feed",{enabled}));}
   async function migrateEOD(){if(!runnable()||!data.eod||eodActive()||data.eod.migration_eligible!==true)return;const body=request("eod-migrate",data.revision,newId(),{baseline_path:baselineDraft});await confirmed("Migrate this same shared account to F EOD?","Use the experimental partial date-only F chain with UNKNOWN quote-event clocks. Preserve the SAME account ID, cash, contributions, existing month and shared $500 allowance. NO new funding, risk reset or historical trade adoption. Underlying shares must be below $100; each entry is at most $100 including both fees. Optional stock seeds only warm indicators. This is a lower-evidence EOD price proxy, not execution qualification.","Preserve account and migrate",()=>mutate("eod-migrate",{baseline_path:body.baseline_path},body.request_id));}
@@ -313,5 +332,5 @@
   function status(){if(data&&lastPause!==Boolean(app?.state.status?.paused))render();else controls();}
   function locked(){generation++;data=null;busy=false;loading=false;stale=false;notice="";uncertain=null;inspected=false;actions=[];fields=[];lastPause=null;importDraft="market-data/options/current.json";manifestDraft="market-data/options/archives/qqq-2022/catalog.json";vixSignalDraft="market-data/vix/index-history.json";vixQuoteDraft="market-data/vix/option-history.json";baselineDraft="";reasonDraft="";archiveData=false;$("options-content")?.replaceChildren();controls();}
   function attach(value){app=value;const root=$("options-content");if(!root||attached===root)return;attached=root;$("refresh-options")?.addEventListener("click",load);controls();}
-  window.ariadneOptions={attach,load,status,locked,request,path,amount,mutate,startPaper,upgradePortfolio,configureFeed,migrateEOD,configureEOD,acknowledge,archiveExperiment};
+  window.ariadneOptions={attach,load,status,locked,request,path,amount,mutate,startPaper,upgradePortfolio,configureFeed,migrateEOD,configureEOD,activateStress,acknowledge,archiveExperiment};
 })();

@@ -453,10 +453,11 @@ class Application:
             result = review_options(self.briefing.options)
         elif parts == ["options", "config"] and method == "PUT":
             result = self.briefing.options.configure(self.client_handoff_body(env))
-        elif len(parts) == 2 and parts[0] == "options" and parts[1] in {"eod-migrate", "eod-config", "eod-collect"} and method == "POST":
+        elif len(parts) == 2 and parts[0] == "options" and parts[1] in {"eod-migrate", "eod-config", "eod-collect", "stress-activate"} and method == "POST":
             handlers = {"eod-migrate": self.briefing.options.eod.migrate,
                         "eod-config": self.briefing.options.eod.configure,
-                        "eod-collect": self.briefing.options.eod.collect}
+                        "eod-collect": self.briefing.options.eod.collect,
+                        "stress-activate": self.briefing.options.eod.stress.activate}
             result = handlers[parts[1]](self.client_handoff_body(env))
         elif len(parts) == 2 and parts[0] == "options" and parts[1] in {"import", "refresh", "backtest", "paper", "acknowledge", "archive", "register-archive", "compare", "portfolio", "upgrade-portfolio", "feed", "collect-feed", "research-compare", "vix-signals", "vix-backtest"} and method == "POST":
             handlers = {"import": self.briefing.options.import_data, "refresh": self.briefing.options.refresh,

@@ -11,6 +11,7 @@ import copy
 import hashlib
 import json
 import os
+import sqlite3
 import threading
 import uuid
 
@@ -48,6 +49,9 @@ def _now(value=None):
 
 def _paper_engine(state):
     """Old accounts retain their frozen engine until an explicit safe upgrade."""
+    if type(state) is dict and type(state.get("schema")) is int and state["schema"] == 4:
+        from . import options_stress_eod
+        return options_stress_eod
     if type(state) is dict and type(state.get("schema")) is int and state["schema"] == 3:
         from . import options_eod
         return options_eod
@@ -59,10 +63,11 @@ def _paper_engine(state):
 
 
 class OptionsWorkflow(HandoffDesk):
-    def __init__(self, registry, store, controls=None, publication_lease=None):
+    def __init__(self, registry, store, controls=None, publication_lease=None, benchmark_guard=None):
         super().__init__(registry, store)
         self.controls = controls or (lambda: {"enabled": False, "paused": True, "revision": 0})
         self.publication_lease = publication_lease
+        self.benchmark_guard = benchmark_guard
         self.stopped = threading.Event()
         from .options_live import OptionsFeedWorkflow
         self.feed = OptionsFeedWorkflow(self)
@@ -224,7 +229,9 @@ class OptionsWorkflow(HandoffDesk):
             if state["processed_count"] == 0 and state["trade_count"] == 0:
                 if any(state[key] != initial[key] for key in ("cash", "contributions", "month", "monthly_start_equity", "monthly_committed", "fees")):
                     raise ValueError("An untouched migrated portfolio cannot change its inherited cash or monthly allowance.")
-        if type(state.get("schema")) is int and state["schema"] == 3:
+        if type(state.get("schema")) is int and state["schema"] == 4:
+            self.eod.stress.verify_account(db, row["id"], state)
+        elif type(state.get("schema")) is int and state["schema"] == 3:
             self.eod.verify_account(db, row["id"], state)
         else:
             self.feed.verify_account(db, row["id"], state)
@@ -290,6 +297,9 @@ class OptionsWorkflow(HandoffDesk):
                 self._finish(db, receipt)
 
     def _verify_artifacts(self, receipt):
+        if receipt["action"] == "stress_activate":
+            self.eod.stress.verify(receipt)
+            return
         if receipt["action"] in {"eod_migrate", "eod_collect", "eod_config"}:
             self.eod.verify(receipt)
             return
@@ -394,8 +404,8 @@ class OptionsWorkflow(HandoffDesk):
         hold = {"request_id": held["request_id"], "action": held["action"], "status": held["status"], "reason": _load(held["receipt"]).get("reason", "Interrupted owner operation; inspect before acknowledgment.")} if held else None
         return {"schema": 1, "revision": revision, "config": cfg, "rule": RULE, "rule_sha256": RULE_SHA256,
                 "quality": quality, "data_sha256": data["sha256"] if data else None,
-                "forward_quality": eod.get("quality") if account and account["state"].get("schema") == 3 else forward["quality"] if forward else None,
-                "legacy_forward_quality": forward["quality"] if forward and account and account["state"].get("schema") == 3 else None,
+                "forward_quality": eod.get("quality") if account and account["state"].get("schema") in (3,4) else forward["quality"] if forward else None,
+                "legacy_forward_quality": forward["quality"] if forward and account and account["state"].get("schema") in (3,4) else None,
                 "forward_data_sha256": forward["sha256"] if forward else None, "paper": account,
                 "events": events, "hold": hold, "last_run": _load(last[0]) if last else None, "history": runs,
                 "backtest": historical, "inbox": INBOX, "model_calls": 0, "brokerage_connected": False,
@@ -878,4 +888,11 @@ class OptionsWorkflow(HandoffDesk):
         """One selected source on the same account; no parallel funded books."""
         with self.database() as db:
             selected = self.eod.config(db)["initialized"]
+        if selected:
+            try:
+                self.eod.stress.capture_due(now)
+            except (ValueError,OSError,sqlite3.Error):
+                # Context owns its entry-only hold. Its unavailable source must
+                # not suppress the quote collector that manages existing exits.
+                pass
         return self.eod.run_due(now) if selected else self.feed.run_due(now)

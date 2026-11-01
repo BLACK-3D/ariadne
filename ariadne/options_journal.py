@@ -177,6 +177,10 @@ def build_review(account, captures, *, now, paused=False, workflow_hold=None, fa
         return result
     _object(account, "account", ("id", "state"))
     _object(account["state"], "account state")
+    if account["state"].get("schema")==4:
+        return _stress_review(account,captures,now=clock,paused=paused,workflow_hold=workflow_hold,
+            failed_checks=failed_checks,omitted_failed_checks=omitted_failed_checks,revision=revision,
+            collection_enabled=collection_enabled)
     result.update(account_id=account["id"],symbol=account["state"].get("symbol"))
     if account["state"].get("schema") != 3:
         if captures:raise ValueError("F captures cannot be merged into another paper profile.")
@@ -302,6 +306,57 @@ def build_review(account, captures, *, now, paused=False, workflow_hold=None, fa
     return result
 
 
+def _stress_review(account,captures,**kwargs):
+    """Audit policy states, then reuse the original journal's exact economics.
+
+    This projection removes only policy metadata and a zero-risk activation
+    timestamp. It does not replay trades or alter saved artifacts.
+    """
+    from . import options_stress_eod as stress
+    actual=stress.validate_state(account["state"])
+    projected=deepcopy(account);projected["state"]=stress.legacy_state(actual)
+    converted=[];previous=None
+    for item in captures:
+        if type(item) is not dict or set(item)!={"receipt","snapshot","paper","before_state"}:
+            raise ValueError("Use the exact verified stress journal capture fields.")
+        value=deepcopy(item)
+        prior=item["before_state"]
+        _object(prior,"before stress state")
+        _object(item["paper"],"stress paper report",("state","summary","status"))
+        value["before_state"]=stress.legacy_state(prior) if prior.get("schema")==4 else validate_state(prior)
+        after=item["paper"]["state"]
+        _object(after,"after stress state")
+        recorded=_clock(item["receipt"]["recorded_at"])
+        actual_summary=stress.summarize(after,now=recorded) if after.get("schema")==4 else summarize(after,now=recorded)
+        if item["paper"]["summary"]!=actual_summary:
+            raise ValueError("The retained stress journal summary disagrees with its sealed state.")
+        value["paper"]["state"]=stress.legacy_state(after) if after.get("schema")==4 else validate_state(after)
+        if previous is not None and value["before_state"]!=previous:
+            activation=prior.get("stress_policy",{}).get("activation",{})
+            candidate=deepcopy(value["before_state"]);candidate["last_decided_at"]=previous["last_decided_at"]
+            if (prior.get("schema")!=4 or activation.get("old_canonical_state_sha256")!=snapshot_digest(previous)
+                or prior["stress_policy"]["context_count"]!=0 or candidate!=previous):
+                raise ValueError("The journal policy transition changed economic/source state.")
+            value["before_state"]=candidate
+        value["paper"]["summary"]=summarize(value["paper"]["state"],now=recorded)
+        previous=value["paper"]["state"];converted.append(value)
+    result=build_review(projected,converted,**kwargs)
+    result.update(profile="experimental_stress_put_eod_paper",rule_sha256=stress.RULE_SHA256,
+        policy_id=stress.STRATEGY_ID,policy_activated_at=actual["stress_policy"]["activation"]["activated_at"])
+    if result["performance"]:
+        rows=result["performance"]["by_strategy"]
+        result["performance"]["by_strategy"]=[{**row,"id":stress.STRATEGY_ID} for row in rows if row["id"]==stress.KERNEL_STRATEGY_ID]
+    gate=actual["stress_policy"]["context_history"][-1]["gate"] if actual["stress_policy"]["context_history"] else None
+    result["diagnostics"]={"status":"stress_policy_only","strategies":[],
+        "last_entry_gate":None if gate is None else {key:deepcopy(gate[key]) for key in
+            ("stage","allowed","reason","decision_at","source_date","required_source_session","cutoff_at")},
+        "scope":"Saved stress-policy gate evidence. Raw ungated call/put diagnostics do not represent this policy's entry authority."}
+    result["limitations"].append("Economics reuse the original ledger projection after validating schema4 gates. A zero-risk policy activation is not a trade, contribution or new allowance.")
+    if len(json.dumps(result,ensure_ascii=False,allow_nan=False).encode())>MAX_OUTPUT:
+        raise ValueError("Stress journal exceeds its fixed response bound.")
+    return result
+
+
 def _review_options(owner, now=None):
     """Verify the retained account/prefix and read a bounded journal snapshot."""
     clock = _now(now)
@@ -319,7 +374,7 @@ def _review_options(owner, now=None):
         paused=_decode(paused_row[0],128) if paused_row else False
         if type(paused) is not bool:
             raise ValueError("Options journal retained autonomy pause is not a boolean; no metrics were produced.")
-        if not account or account["state"].get("schema") != 3:
+        if not account or account["state"].get("schema") not in (3,4):
             return build_review(account,[],now=clock,paused=paused,revision=revision)
         owner.eod._audit_prefix(db,account["id"],account["state"],full=True)
         config=owner.eod.config(db)

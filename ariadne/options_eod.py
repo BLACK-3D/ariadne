@@ -361,8 +361,19 @@ def _sell(state,quote,row,clock,reasons,events):
 
 
 @_precision
-def advance_paper(snapshot,state,*,decided_at):
-    """Accept one current source session; never replay an unseen historical run."""
+def _advance_paper(snapshot,state,*,decided_at,decision_gate=None,fill_gate=None):
+    """Shared ledger implementation; optional gates are trusted fixed code only.
+
+    Gates may restrict new BUY exposure. They never intercept held positions,
+    SELL decisions, mandatory disposal, source-integrity holds or accounting.
+    Public legacy operation supplies no gates and retains its frozen behavior.
+    """
+    if any(gate is not None and not callable(gate) for gate in (decision_gate,fill_gate)):
+        raise OptionsRecoveryError("Entry policy hooks must be trusted callables or absent.")
+    def allowed(gate,identifier,row,clock):
+        value=True if gate is None else gate(identifier,row,clock)
+        if type(value) is not bool:raise OptionsRecoveryError("An entry policy gate must return an exact boolean.")
+        return value
     state=validate_state(state);clock=_clock(decided_at)
     if clock<_clock(state["last_decided_at"]):raise OptionsRecoveryError("Actual durable decision clocks cannot move backwards.")
     if state["hold"]:return _result(state,"held",[])
@@ -409,6 +420,8 @@ def advance_paper(snapshot,state,*,decided_at):
     elif state["pending"]:
         pending=state["pending"]
         if not _later(row,pending):events.append({"type":"waiting","reason":"source_session_not_after_actual_decision_day","decision":deepcopy(pending)})
+        elif not allowed(fill_gate,pending["strategy_id"],row,clock):
+            events.append({"type":"cancelled","reason":"entry_policy_denied","decision":deepcopy(pending)});state["pending"]=None
         else:
             quote=quotes.get(pending["contract_id"])
             if quote is None or not _eligible(quote,row,pending["type"],clock):
@@ -427,6 +440,7 @@ def advance_paper(snapshot,state,*,decided_at):
     if state["position"] is None and state["pending"] is None:
         order=STRATEGY_IDS[state["next_strategy"]:]+STRATEGY_IDS[:state["next_strategy"]]
         for identifier in order:
+            if not allowed(decision_gate,identifier,row,clock):continue
             if not _signal(identifier,state["history"]):continue
             candidates=[quote for quote in row["quotes"] if _eligible(quote,row,STRATEGIES[identifier]["type"],clock)]
             candidates.sort(key=lambda quote:(abs((_day(quote["expiry"])-day).days-14),abs(_number(quote["strike"])-_number(row["underlying_close"])),quote["contract_id"]))
@@ -441,3 +455,8 @@ def advance_paper(snapshot,state,*,decided_at):
     state.update(processed_count=state["processed_count"]+1,prefix_sha256=prefix,last_source_date=row["source_date"],last_received_at=row["received_at"],last_snapshot_sha256=digest,last_decided_at=clock.isoformat())
     events.append({"type":"paper_daily_result",**deepcopy(state["last_daily_result"])})
     return _result(state,"completed",events)
+
+
+def advance_paper(snapshot,state,*,decided_at):
+    """Frozen public schema3 API; no policy or executable input is accepted."""
+    return _advance_paper(snapshot,state,decided_at=decided_at)

@@ -226,6 +226,10 @@ def compact_summary(report, now=None):
                 configured_check_at=eod["configured_check_at"],
                 next_check_window=eod["next_check_window"],
                 note="Saved experimental EOD model; source dates are not quote-event times. Contributions are not returns; no verified market fills.")
+            if eod.get("stress_policy_active") is True:
+                result["options_paper"].update({key:eod[key] for key in
+                    ("stress_policy_active","stress_strategy","stress_activated_at","stress_gate_stage",
+                     "stress_gate_allowed","stress_context_reason","stress_context_label","stress_context_published_at")})
     if type(options) is dict and options.get("config", {}).get("enabled") is True and options.get("vix"):
         vix = options["vix"]
         result["options_paper"]["vix"] = {"paper_status":_short(vix.get("paper_status"),64)[0], "paper_fills_enabled":False,

@@ -7,6 +7,7 @@ before publishing any simulated state.  No brokerage/order interface exists.
 from __future__ import annotations
 
 from copy import deepcopy
+from contextlib import ExitStack
 from datetime import date, datetime, timedelta
 import json
 import threading
@@ -35,11 +36,31 @@ def _basis(account):
     return {key: account[key] for key in ("id", "state", "started_at", "policy")}
 
 
+def _stress_extension(previous, current):
+    """Bind each retained policy to the preceding immutable gate cursor."""
+    delta = current["context_count"] - previous["context_count"]
+    if current["activation"] != previous["activation"] or not 0 <= delta <= 2:
+        raise ValueError("Retained stress policy lost its activation or ordered gate count.")
+    old = {row["sequence"]: row for row in previous["context_history"]}
+    for row in current["context_history"]:
+        if row["sequence"] in old and row != old[row["sequence"]]:
+            raise ValueError("An older retained stress gate was rewritten.")
+    added = [row for row in current["context_history"] if row["sequence"] > previous["context_count"]]
+    if delta == 0:
+        if current != previous:
+            raise ValueError("Retained stress policy changed without a new gate.")
+    elif (len(added) != delta or added[0]["sequence"] != previous["context_count"]+1
+          or added[0]["previous_sha256"] != previous["context_prefix_sha256"]):
+        raise ValueError("Retained stress policy gates do not extend the preceding cursor.")
+
+
 class OptionsEodWorkflow:
     def __init__(self, owner):
         self.owner = owner
         self.lock = threading.RLock()
         self.processes = set()
+        from .options_stress_workflow import OptionsStressWorkflow
+        self.stress = OptionsStressWorkflow(self)
 
     def stop(self):
         with self.lock:
@@ -87,7 +108,7 @@ class OptionsEodWorkflow:
         return cfg, feed, internet, brief
 
     def _account_authority(self, db, account, cfg, brief):
-        if (not account or account["state"].get("schema") != 3
+        if (not account or account["state"].get("schema") not in (3,4)
                 or account["state"].get("source_id") != SOURCE_ID
                 or account["policy"] != self.owner._epoch(db, cfg, brief)):
             raise HandoffConflict("The EOD account or permission epoch changed.")
@@ -139,6 +160,8 @@ class OptionsEodWorkflow:
         from .options_eod import RULE_SHA256
         _identifier(receipt.get("request_id"))
         action = receipt.get("action")
+        if action == "stress_activate":
+            return self.stress.verify(receipt)
         if action == "eod_config":
             if receipt.get("artifacts") != []:
                 raise ValueError("EOD configuration cannot adopt external artifacts.")
@@ -201,7 +224,22 @@ class OptionsEodWorkflow:
         bytes; no older accepted source can silently disappear or be revised.
         """
         from .options_eod import RULE_SHA256, validate_state, validate_snapshot
+        committed_stress = None
+        if type(state) is dict and state.get("schema")==4:
+            from .options_stress_eod import legacy_state
+            committed_stress = state
+            state=legacy_state(state)
         checked = validate_state(state)
+        published, previous_policy, activation_count = None, None, None
+        if full and committed_stress is not None:
+            from .options_stress_eod import validate_state as validate_stress
+            migration = db.execute("SELECT initial_state,initial_state_sha256 FROM opt_stress_migrations WHERE account_id=?", (account_id,)).fetchone()
+            if not migration or _digest(migration["initial_state"].encode()) != migration["initial_state_sha256"]:
+                raise ValueError("Retained stress policy lost its immutable initial state.")
+            initial = validate_stress(_load(migration["initial_state"]))
+            previous_policy = initial["stress_policy"]
+            activation_count = previous_policy["activation"]["initial_processed_count"]
+            published = {w["witness_sha256"]: w for w in self.stress._verified_context_rows(db, account_id)}
         total = db.execute("SELECT count(*),coalesce(sum(bytes),0) FROM opt_eod_data").fetchone()
         if (type(total[0]) is not int or not 0 <= total[0] <= 100 or total[0] != checked["processed_count"]
                 or type(total[1]) is not int or not 0 <= total[1] <= MAX_DATA):
@@ -256,7 +294,22 @@ class OptionsEodWorkflow:
                 if (snapshot["source_date"] != row["source_date"] or snapshot["received_at"] != receipt["received_at"]
                         or _raw(snapshot) != value):
                     raise ValueError("The EOD prefix snapshot disagrees with its retained source identity.")
-                prior_state = validate_state(_load(saved["paper.json"])["state"])
+                retained_state=_load(saved["paper.json"])["state"]
+                if type(retained_state) is dict and retained_state.get("schema")==4:
+                    from .options_stress_eod import legacy_state
+                    if previous_policy is None or index < activation_count:
+                        raise ValueError("An EOD source transition has an unexpected stress policy.")
+                    policy = retained_state["stress_policy"]
+                    retained_state=legacy_state(retained_state)
+                    for record in policy["context_history"]:
+                        witness = record["gate"]["witness"]
+                        if witness is not None and published.get(witness["witness_sha256"]) != witness:
+                            raise ValueError("An older financial policy gate lost its retained published context.")
+                    _stress_extension(previous_policy, policy)
+                    previous_policy = policy
+                elif previous_policy is not None and index >= activation_count:
+                    raise ValueError("An accepted EOD transition dropped its activated stress policy.")
+                prior_state = validate_state(retained_state)
                 if (prior_state["migration"] != checked["migration"] or prior_state["processed_count"] != index+1
                         or prior_state["prefix_sha256"] != next_cursor or prior_state["last_source_date"] != row["source_date"]
                         or prior_state["last_snapshot_sha256"] != row["digest"]):
@@ -270,11 +323,17 @@ class OptionsEodWorkflow:
             raise ValueError("The EOD accepted prefix no longer matches the active state cursor.")
         if full and references[-15:] != checked["history"]:
             raise ValueError("The EOD indicator history differs from retained accepted source prices.")
+        if full and committed_stress is not None and committed_stress["stress_policy"] != previous_policy:
+            raise ValueError("The active stress policy differs from its retained gate history.")
         return {"snapshots": len(rows), "bytes": total[1], "prefix_sha256": cursor}
 
-    def verify_account(self, db, account_id, state):
+    def verify_account(self, db, account_id, state, *, committed_state=None):
         from .options_eod import migrate_flat, validate_state
         checked = validate_state(state)
+        if committed_state is not None:
+            from .options_stress_eod import legacy_state
+            if legacy_state(committed_state)!=checked:
+                raise ValueError("The stress account changed its original ledger projection.")
         cfg = self.config(db)
         if not cfg["initialized"]:
             raise ValueError("An EOD account has no source activation witness.")
@@ -305,7 +364,7 @@ class OptionsEodWorkflow:
         if not account_row or account_row[0] != checked["started_at"]:
             raise ValueError("The shared account identity changed.")
         transition = migration if anchor["request_id"] == row["request_id"] else self._completed(db, anchor["request_id"])
-        if (transition.get("account_id") != account_id or _digest(_raw(checked)) != anchor["state_sha256"]
+        if (transition.get("account_id") != account_id or _digest(_raw(checked if committed_state is None else committed_state)) != anchor["state_sha256"]
                 or transition.get("state_sha256") != anchor["state_sha256"]):
             raise ValueError("The active EOD state differs from its completed transition.")
         self._audit_prefix(db, account_id, checked)
@@ -353,11 +412,12 @@ class OptionsEodWorkflow:
                 eligible = account["policy"] == self.owner._epoch(db, self.owner._meta(db)[1], self.owner.controls())
             except (ValueError, HandoffConflict):
                 eligible = False
-        baseline_count = len((account or {}).get("state", {}).get("migration", {}).get("baseline", [])) if (account or {}).get("state", {}).get("schema") == 3 else 0
+        baseline_count = len((account or {}).get("state", {}).get("migration", {}).get("baseline", [])) if (account or {}).get("state", {}).get("schema") in (3,4) else 0
         return {"schema": 1, "config": cfg, "last_run": _load(last[0]) if last else None,
                 "quality": quality, "collection_window_open": ready, "expected_market_session": expected.isoformat(),
                 "collection_check_at": slot.isoformat(), "rule": deepcopy(RULE), "rule_sha256": RULE_SHA256,
                 "migration_eligible": eligible, "baseline_count": baseline_count,
+                "stress": self.stress.snapshot(db, now, account),
                 "source_scope": "Personal educational research using a vendor's partial date-only chain and unadjusted stock references; original-provider rights, option quote-event clocks, standard deliverables and ongoing reliability are not independently established. No execution qualification or real orders.",
                 "publication": "One configured collection cycle after09:35Eastern on a market session, for the previous completed source session; provider publication time is not guaranteed. Failed/uncertain work is never automatically retried.",
                 "quote_scope": "Experimental partial date-only F EOD paper price proxies; not live quotes or execution-qualified observations.",
@@ -493,7 +553,7 @@ class OptionsEodWorkflow:
                     if not feed["initialized"]:
                         raise HandoffConflict("The EOD source has not been migrated onto the shared account.")
                     account = owner._account(db)
-                    if not account or account["state"].get("schema") != 3 or account["policy"] != owner._epoch(db, cfg, brief):
+                    if not account or account["state"].get("schema") not in (3,4) or account["policy"] != owner._epoch(db, cfg, brief):
                         raise HandoffConflict("The source lost its shared-account authority.")
                     feed.update(enabled=body["enabled"], revision=feed["revision"]+1)
                     db.execute("UPDATE opt_eod_meta SET config=? WHERE id=1", (_json(feed),))
@@ -514,7 +574,7 @@ class OptionsEodWorkflow:
             raise HandoffConflict("Wait for the configured09:35Eastern prior-EOD collection window; no request made.")
         from .options_eod import advance_paper, RULE_SHA256
         from .options_eod_data import normalize_bundle, canonical
-        with owner._ownership():
+        with owner._ownership(), ExitStack() as held:
             try:
                 with owner.database() as db:
                     db.execute("BEGIN IMMEDIATE")
@@ -536,7 +596,12 @@ class OptionsEodWorkflow:
                         raise HandoffConflict("The shared EOD portfolio is held; a new source cannot heal it.")
                     required = sorted({item["contract_id"] for item in (account["state"]["position"], account["state"]["pending"]) if item})
                     self._audit_prefix(db, account["id"], account["state"], full=True)
+                    stress_mode = account["state"].get("schema")==4
+                    runtime_check = held.enter_context(self.stress._runtime_lease()) if stress_mode else (lambda:None)
+                    contexts = self.stress.contexts(db,account["id"]) if stress_mode else ()
+                    contexts_sha = _digest(_raw(contexts))
                 def checkpoint():
+                    runtime_check()
                     with owner.database() as db:
                         current = self._policy(db)
                         if current != (cfg, feed, internet, brief) or owner._epoch(db, current[0], current[3]) != account["policy"]:
@@ -562,7 +627,14 @@ class OptionsEodWorkflow:
                 snapshot = normalized["snapshot"]
                 if _now(datetime.fromisoformat(snapshot["received_at"].replace("Z", "+00:00"))) > decision_clock:
                     raise ValueError("The actual EOD receipt is later than its decision clock.")
-                advancement = advance_paper(snapshot, account["state"], decided_at=decision_clock.isoformat())
+                if stress_mode:
+                    from .options_stress_eod import advance_paper as stress_advance, RULE_SHA256 as stress_rule
+                    advancement = stress_advance(snapshot,account["state"],decided_at=decision_clock.isoformat(),contexts=contexts)
+                    receipt.update(paper_schema=4,stress_rule_sha256=stress_rule,context_ring_sha256=contexts_sha)
+                else:
+                    advancement = advance_paper(snapshot, account["state"], decided_at=decision_clock.isoformat())
+                creates_entry = any(event.get("action")=="BUY" and event.get("type") in ("decision","fill")
+                                    for event in advancement["events"])
                 snapshot_raw, provenance_raw, paper_raw = canonical(snapshot), canonical(normalized["provenance"]), _raw(advancement)
                 state_raw = _raw(advancement["state"])
                 adopted = advancement["state"]["processed_count"] == account["state"]["processed_count"]+1
@@ -581,7 +653,10 @@ class OptionsEodWorkflow:
                     current = owner._account(db)
                     if not current or _basis(current) != _basis(account):
                         raise HandoffConflict("The shared portfolio changed before EOD state publication.")
+                    if stress_mode and creates_entry and _digest(_raw(self.stress.contexts(db,account["id"])))!=contexts_sha:
+                        raise HandoffConflict("Retained stress context changed before publication; no state was adopted.")
                     self._audit_prefix(db, account["id"], account["state"], full=True)
+                    self.verify(receipt)
                     if db.execute("SELECT count(*) FROM opt_events").fetchone()[0]+len(advancement["events"]) > MAX_EVENTS:
                         raise ValueError("Options event history is full; no deletion or extra quota.")
                     if adopted:

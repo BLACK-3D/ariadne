@@ -28,7 +28,7 @@ def run_collector(workflow, cfg, source_cfg, internet, brief, request_id, requir
             raise HandoffConflict("Ford source authority changed before collection.")
         account = owner._account(db)
         epoch = owner._epoch(db, cfg, brief)
-        if not account or account["state"].get("schema") != 3 or account["policy"] != epoch:
+        if not account or account["state"].get("schema") not in (3,4) or account["policy"] != epoch:
             raise HandoffConflict("Ford account or permission epoch changed.")
     script = _allowed_path(Path(__file__).resolve().parents[1] / "scripts/options_eod_feed.py")
     folder = _allowed_path(owner.registry.settings.data_dir / "options-eod-collector")

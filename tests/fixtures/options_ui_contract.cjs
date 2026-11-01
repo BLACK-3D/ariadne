@@ -169,6 +169,30 @@ async function main(){
  await check("Malformed EOD authority fails closed instead of revealing usable legacy fallback",async()=>{for(const mutate of [value=>delete value.eod,value=>value.eod.config.initialized=false,value=>delete value.eod.rule,value=>value.eod.collection_window_open="true"]){const value=eodBoard(true);mutate(value);const h=harness(value);await h.api.load();await h.api.mutate("collect-feed");await h.api.mutate("eod-collect");assert.equal(h.writes().length,0);assert.match(h.body.textContent,/incomplete|lacks|lacks its matching/i);}});
  await check("Interrupted EOD capture cannot auto retry from reads or ordinary ticks",async()=>{const h=harness(eodBoard(true));await h.api.load();h.handler=(url,options)=>{if(options)throw new Error("lost EOD response");return h.defaultReply(url,options);};await h.api.mutate("eod-collect");await h.api.mutate("eod-collect");await h.api.load();for(let i=0;i<10;i++)h.api.status();assert.equal(h.writes().length,1);assert.match(h.body.textContent,/Interrupted eod-collect response/);assert.match(h.body.textContent,/No automatic retry/);assert.equal(h.toasts.length,0);});
  await check("EOD disposal publication warning does not claim a sale or restored cap assurance",async()=>{const value=eodBoard(true);value.eod.publication_assurance={waiting_for_disposal_source:true,deadline_source_date:"2026-10-29"};value.paper.summary.disposal={required_source_date:"2026-10-29",status:"unverified_missing_required_source"};value.paper.summary.cap_assurance="unverified_missing_disposal_source";const h=harness(value);await h.api.load();assert.match(h.body.textContent,/Awaiting publication is not a verified sale or permission for funding rollover/);assert.match(h.body.textContent,/CAP ASSURANCE UNVERIFIED/);assert.equal(h.writes().length,0);});
+ await check("Stress activation is explicit and preserves the single risk ledger",async()=>{
+  const value=eodBoard(true);value.eod.stress={active:false,migration_eligible:true};
+  const h=harness(value);await h.api.load();assert.equal(h.writes().length,0);
+  await h.api.activateStress();const call=h.writes()[0];
+  assert.equal(call.path,"/options/stress-activate");
+  assert.deepEqual(copy(call.options.body),{request_id:call.options.body.request_id,expected_revision:7,acknowledge_simulated:true,acknowledge_stress_only:true});
+  assert.match(h.confirmations[0][1],/without adding cash or resetting its \$500 monthly allowance/);
+  assert.match(h.confirmations[0][1],/up to \$100 including fees/);
+ });
+ await check("Cancelled stress activation never mutates the account",async()=>{
+  const value=eodBoard(true);value.eod.stress={active:false,migration_eligible:true};
+  const h=harness(value);h.confirmHandler=()=>false;await h.api.load();const before=copy(h.response.paper);
+  await h.api.activateStress();assert.equal(h.writes().length,0);assert.deepEqual(h.response.paper,before);
+ });
+ await check("Active schema4 context is passive and missing policy authority fails closed",async()=>{
+  const value=eodBoard(true);value.paper.state.schema=value.paper.summary.schema=4;
+  value.paper.summary.rule_sha256="c".repeat(64);value.paper.summary.next_strategy="f_stress_breakdown_put_v1";
+  value.paper.summary.policy_stats={entry_count:0,closed_count:0,realized_pnl:"0",monthly_committed:"0"};
+  value.eod.stress={active:true,migration_eligible:false,rule_sha256:"c".repeat(64),rule:{entry:"Fixed stress-gated put"},last_context:{source_session:"2026-10-29",published_at:"2026-10-30T11:01:00Z",label:"stress_unwind"}};
+  const h=harness(value);await h.api.load();assert.equal(h.writes().length,0);
+  assert.match(h.body.textContent,/Stress-filtered puts \/ active/);assert.match(h.body.textContent,/Stress puts. One risk ledger/);
+  h.response.eod.stress.active=false;await h.api.load();await h.api.mutate("eod-collect");
+  assert.equal(h.writes().length,0);assert.match(h.body.textContent,/Stress policy authority is incomplete/);
+ });
  process.stdout.write(JSON.stringify({passed:checks.length,failures:failures.length,checks,failed:failures}));if(failures.length)process.exitCode=1;
 }
 main().catch(error=>{process.stderr.write(error.stack+"\n");process.exitCode=1;});
