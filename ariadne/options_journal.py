@@ -374,6 +374,9 @@ def _review_options(owner, now=None):
         paused=_decode(paused_row[0],128) if paused_row else False
         if type(paused) is not bool:
             raise ValueError("Options journal retained autonomy pause is not a boolean; no metrics were produced.")
+        if account and account["state"].get("schema")==6:
+            from .options_bankroll_journal import review
+            return review(owner,db,account,now=clock,paused=paused,revision=revision)
         if account and account["state"].get("schema")==5:
             from .options_root_journal import review
             return review(owner,db,account,now=clock,paused=paused,revision=revision)

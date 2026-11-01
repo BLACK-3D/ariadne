@@ -64,7 +64,7 @@ def main():
             if (current["revision"] != args.options_revision or feed["revision"] != args.eod_revision
                     or internet["revision"] != args.internet_revision or brief["revision"] != args.brief_revision
                     or rowid != args.pause_rowid or not account or account["id"] != args.account_id
-                    or account["state"].get("schema") not in ((3,4) if args.profile == "F" else (5,))
+                    or account["state"].get("schema") not in ((3,4) if args.profile == "F" else (5,6))
                     or account["state"].get("symbol") != args.profile or account["policy"] != epoch):
                 raise ValueError("Ford account or source permission changed.")
             ready, expected, _ = workflow._window(datetime.now(timezone.utc))

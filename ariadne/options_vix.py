@@ -54,7 +54,8 @@ class VixResearchWorkflow:
             "paper_status": "waiting_for_qualified_quotes",
             "paper_fills_enabled": False, "paper_trades": 0, "funding_added": "0",
             "shared_account_id": (account or {}).get("id"),
-            "shared_monthly_limit": "500.00", "shared_monthly_remaining": summary.get("monthly_budget_remaining"),
+            "shared_monthly_limit": "25000.00" if summary.get("schema")==6 else "500.00", "shared_monthly_remaining": summary.get("monthly_budget_remaining"),
+            **({"shared_total_capital":"25000.00","funding_basis":"one_time_total_bankroll","automatic_topups":False} if summary.get("schema")==6 else {}),
             "shared_cap_qualified": summary.get("cap_qualified") is True,
             "readiness": [
                 "Public no-account quotes remain unqualified. Robinhood documents an authenticated options-data route; its live VIX response still needs verification.",

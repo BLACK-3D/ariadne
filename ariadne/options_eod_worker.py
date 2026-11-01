@@ -37,7 +37,7 @@ def _run_collector(workflow, cfg, source_cfg, internet, brief, request_id, requi
             raise HandoffConflict("Ford source authority changed before collection.")
         account = owner._account(db)
         epoch = owner._epoch(db, cfg, brief)
-        if (not account or account["state"].get("schema") not in ((3,4) if profile == "F" else (5,))
+        if (not account or account["state"].get("schema") not in ((3,4) if profile == "F" else (5,6))
                 or profile == "KO" and (account["state"].get("symbol") != "KO" or source_cfg.get("symbol") != "KO")
                 or account["policy"] != epoch):
             raise HandoffConflict("Ford account or permission epoch changed.")

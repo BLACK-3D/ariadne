@@ -226,6 +226,10 @@ def compact_summary(report, now=None):
                 configured_check_at=eod["configured_check_at"],
                 next_check_window=eod["next_check_window"],
                 note="Saved experimental EOD model; source dates are not quote-event times. Contributions are not returns; no verified market fills.")
+            if eod["schema"]==6:
+                result["options_paper"].update(schema=6, **{key:eod[key] for key in
+                    ("total_bankroll","entry_equity_fraction","automatic_topups","funding_basis",
+                     "funding_added_on_activation","bankroll_activated_at")})
             if eod.get("stress_policy_active") is True:
                 result["options_paper"].update({key:eod[key] for key in
                     ("stress_policy_active","stress_strategy","stress_activated_at","stress_gate_stage",
@@ -234,7 +238,7 @@ def compact_summary(report, now=None):
         readiness=options["paper_readiness"]
         roots=readiness.get("roots")
         result["options_paper"]["source_inventory"]={"declared_roots":len(roots[:16]) if type(roots) is list else 0,
-            "configured_paper_roots":["F"] if readiness.get("configured_active_paper_roots")==["F"] else [],
+            "configured_paper_roots":list(readiness["configured_active_paper_roots"]) if readiness.get("configured_active_paper_roots") in (["F"],["KO"]) else [],
             "additional_current_sources_qualified":False}
     if type(options) is dict and options.get("config", {}).get("enabled") is True and options.get("vix"):
         vix = options["vix"]

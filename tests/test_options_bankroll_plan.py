@@ -151,7 +151,7 @@ class CapitalProposalTests(unittest.TestCase):
         with redirect_stdout(output):
             self.assertEqual(main(["plan"]), 0)
         value = json.loads(output.getvalue())
-        self.assertEqual(value["policy"]["status"], "research_proposal_not_activated")
+        self.assertEqual(value["policy"]["status"], "registered_total_bankroll_research_plan")
 
     def test_cli_size_and_failure_have_honest_exit_status(self):
         output, error = io.StringIO(), io.StringIO()

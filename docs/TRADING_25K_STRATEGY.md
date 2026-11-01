@@ -1,6 +1,6 @@
 # $25,000 stress-put strategy proposal
 
-November 1, 2026. **Created, not activated.** This document and the offline planner do not change any owner account. The owner's latest direction requests larger monthly and entry limits using “the total 25k.” Confirmation of total bankroll versus recurring monthly loss allowance is pending. The implemented proposal below uses a **single $25,000 total bankroll**, not $25,000 of new funding every month. No real trading is authorized.
+November 1, 2026. The sample research profile uses a **single $25,000 total paper bankroll with no automatic top-ups**. The offline planner does not inspect or change an account. A separate schema6 engine/host implements the versioned paper transition; consult [implementation and measured historical evidence](OPTIONS_BANKROLL_0_33.md) and the current local delivery receipt for actual activation status. No real trading is authorized.
 
 ## Capital and sizing
 
@@ -41,7 +41,7 @@ Existing windows have already been examined and are **development evidence**, no
 | Same study, recovery calls | Incomplete / held | Missing mandatory exit quote; not a completed ranking |
 | KO July–December 2022, stress puts | +$24.80; 4 closed trades | Too few trades, provisional terms/clocks |
 
-These are not $25,000 backtest results or evidence of repeatable profitability. The larger strategy has not been backtested or activated by the planner. Review the entire path, drawdown, costs, coverage, open/held cases and number of independent trades. Use newly registered unseen chronological evidence and prospective paper observations before proposing adoption. No fixed profit target or guaranteed winning strategy is inferred.
+These are not $25,000 backtest results or evidence of repeatable profitability. The planner itself never backtests or activates an account. Newly completed $25,000 development comparisons are documented in [version 0.33 evidence](OPTIONS_BANKROLL_0_33.md); they do not establish profitability. Review the entire path, drawdown, costs, coverage, open/held cases and number of independent trades. Use newly registered unseen chronological evidence and prospective paper observations before proposing adoption. No fixed profit target or guaranteed winning strategy is inferred.
 
 ## Longer history lead
 
@@ -60,6 +60,6 @@ From the Ariadne project folder:
 
 The second command uses **hypothetical inputs** and returns three contracts with $858.90 all-in commitment. It is not a current INTC quote, approved entry or broker order. The tool prints JSON and performs no file writes, API/model calls, downloads, account mutations or background work. It uses Python's standard library. Recurring compute and energy have not been measured; no paid service is added.
 
-Legacy schemas 3/4/5 are unchanged. Their funding and one-contract invariants must not be repurposed by changing constants. Activation requires confirmed capital semantics and a separately reviewed versioned transition preserving account identity, existing balances/exposures, source receipts and holds. Never credit $25,000 on top of an existing balance or replay a historical trade.
+Legacy schemas 3/4/5 are unchanged. Their funding and one-contract invariants must not be repurposed by changing constants. Activation requires the confirmed total-capital contract and a separately reviewed versioned transition preserving account identity, existing balances/exposures, source receipts and holds. Never credit $25,000 on top of an existing balance or replay a historical trade.
 
 Primary payoff reference: [OIC long put](https://www.optionseducation.org/strategies/all-strategies/long-put). A long put can lose its entire premium; correct direction alone does not establish a profitable option trade because price, time and volatility matter.

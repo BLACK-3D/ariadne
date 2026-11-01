@@ -49,6 +49,9 @@ def _now(value=None):
 
 def _paper_engine(state):
     """Old accounts retain their frozen engine until an explicit safe upgrade."""
+    if type(state) is dict and type(state.get("schema")) is int and state["schema"] == 6:
+        from . import options_bankroll_eod
+        return options_bankroll_eod
     if type(state) is dict and type(state.get("schema")) is int and state["schema"] == 5:
         from . import options_root_eod
         return options_root_eod
@@ -78,6 +81,8 @@ class OptionsWorkflow(HandoffDesk):
         self.eod = OptionsEodWorkflow(self)
         from .options_root_workflow import OptionsRootWorkflow
         self.root_eod = OptionsRootWorkflow(self)
+        from .options_bankroll_workflow import OptionsBankrollWorkflow
+        self.bankroll = OptionsBankrollWorkflow(self)
         from .options_vix import VixResearchWorkflow
         self.vix = VixResearchWorkflow(self)
 
@@ -235,7 +240,9 @@ class OptionsWorkflow(HandoffDesk):
             if state["processed_count"] == 0 and state["trade_count"] == 0:
                 if any(state[key] != initial[key] for key in ("cash", "contributions", "month", "monthly_start_equity", "monthly_committed", "fees")):
                     raise ValueError("An untouched migrated portfolio cannot change its inherited cash or monthly allowance.")
-        if type(state.get("schema")) is int and state["schema"] == 5:
+        if type(state.get("schema")) is int and state["schema"] == 6:
+            self.bankroll.verify_account(db, row["id"], state)
+        elif type(state.get("schema")) is int and state["schema"] == 5:
             self.root_eod.verify_account(db, row["id"], state)
         elif type(state.get("schema")) is int and state["schema"] == 4:
             self.eod.stress.verify_account(db, row["id"], state)
@@ -278,8 +285,11 @@ class OptionsWorkflow(HandoffDesk):
                 self._verify_artifacts(receipt)
             return {**receipt, "replayed": True}
         active = db.execute("SELECT state FROM opt_accounts WHERE closed_at IS NULL ORDER BY rowid DESC LIMIT 1").fetchone()
-        if active and _load(active[0]).get("schema") == 5 and action not in {
-                "root_migrate", "root_collect", "root_config", "import", "register_archive", "compare", "research_compare", "backtest", "vix_signals", "vix_backtest"}:
+        active_schema = _load(active[0]).get("schema") if active else None
+        allowed = {"root_collect", "root_config", "import", "register_archive", "compare", "research_compare", "backtest", "vix_signals", "vix_backtest"}
+        if active_schema == 5:
+            allowed |= {"root_migrate", "bankroll_migrate"}
+        if active_schema in (5,6) and action not in allowed:
             raise HandoffConflict("The KO epoch owns the existing shared account; legacy actions cannot replace its source or reset its risk.")
         if db.execute("SELECT 1 FROM opt_runs WHERE status IN ('running','failed') LIMIT 1").fetchone():
             raise HandoffConflict("An uncertain options request requires explicit inspection and acknowledgement.")
@@ -309,6 +319,8 @@ class OptionsWorkflow(HandoffDesk):
                 self._finish(db, receipt)
 
     def _verify_artifacts(self, receipt):
+        if receipt["action"] == "bankroll_migrate":
+            return self.bankroll.verify(receipt)
         if receipt["action"] in {"root_migrate", "root_collect", "root_config"}:
             self.root_eod.verify(receipt)
             return
@@ -390,8 +402,13 @@ class OptionsWorkflow(HandoffDesk):
     def _paper_readiness(self, account, eod, clock, hold=None):
         """Optional local metadata cannot grant entries or hold financial exits."""
         from .options_paper_readiness import build_readiness, load_index
+        bankroll_mode = bool(account and account["state"].get("schema")==6)
         root_mode = bool(account and account["state"].get("schema")==5)
-        if root_mode:
+        if bankroll_mode:
+            from .options_bankroll_readiness import build_readiness as bankroll_readiness
+            def render(index=None):
+                return bankroll_readiness(index,account=account,source=eod["config"],checked_at=clock,workflow_hold=hold)
+        elif root_mode:
             from .options_root_readiness import build_readiness as root_readiness
             def render(index=None):
                 return root_readiness(index,account=account,source=eod["config"],checked_at=clock,workflow_hold=hold)
@@ -438,7 +455,7 @@ class OptionsWorkflow(HandoffDesk):
             forward = self._info(db, clock, forward=True)
             catalog = self._catalog(db)
             feed = self.feed.snapshot(db, clock)
-            eod = self.root_eod.snapshot(db, clock, account) if account and account["state"].get("schema") == 5 else self.eod.snapshot(db, clock, account)
+            eod = self.root_eod.snapshot(db, clock, account) if account and account["state"].get("schema") in (5,6) else self.eod.snapshot(db, clock, account)
             vix = self.vix.snapshot(db, clock, account)
             runs = [dict(row) for row in db.execute("SELECT request_id,action,day,status FROM opt_runs ORDER BY rowid DESC LIMIT 10")] if self._exists(db) else []
             held = db.execute("SELECT request_id,action,status,receipt FROM opt_runs WHERE status IN ('running','failed') ORDER BY rowid LIMIT 1").fetchone() if self._exists(db) else None
@@ -459,10 +476,12 @@ class OptionsWorkflow(HandoffDesk):
         quality = data["quality"] if data else None
         hold = {"request_id": held["request_id"], "action": held["action"], "status": held["status"], "reason": _load(held["receipt"]).get("reason", "Interrupted owner operation; inspect before acknowledgment.")} if held else None
         readiness = self._paper_readiness(account,eod,clock,hold)
+        with self.database() as db:
+            bankroll = self.bankroll.snapshot(db,clock,account,hold) if account and account["state"].get("schema") in (5,6) else None
         return {"schema": 1, "revision": revision, "config": cfg, "rule": RULE, "rule_sha256": RULE_SHA256,
                 "quality": quality, "data_sha256": data["sha256"] if data else None,
-                "forward_quality": eod.get("quality") if account and account["state"].get("schema") in (3,4,5) else forward["quality"] if forward else None,
-                "legacy_forward_quality": forward["quality"] if forward and account and account["state"].get("schema") in (3,4,5) else None,
+                "forward_quality": eod.get("quality") if account and account["state"].get("schema") in (3,4,5,6) else forward["quality"] if forward else None,
+                "legacy_forward_quality": forward["quality"] if forward and account and account["state"].get("schema") in (3,4,5,6) else None,
                 "forward_data_sha256": forward["sha256"] if forward else None, "paper": account,
                 "events": events, "hold": hold, "last_run": _load(last[0]) if last else None, "history": runs,
                 "backtest": historical, "inbox": INBOX, "model_calls": 0, "brokerage_connected": False,
@@ -470,10 +489,11 @@ class OptionsWorkflow(HandoffDesk):
                 "archive_catalog": catalog, "comparison": compared,
                 "feed": feed,
                 "eod": eod,
-                "paper_readiness": readiness,
+                "paper_readiness": readiness, "bankroll": bankroll,
                 "research": researched,
                 "vix": vix,
-                "scope": "Simulated options only. $500 monthly non-recycling premium/fee allowance; no cross-month positions. Missing exits hold the ledger and invalidate cap assurance. No real orders, auto-exercise or verified future profitability."}
+                "scope": ("Simulated options only. One $25000 total bankroll including retained capital; no automatic topups. Shared monthly gross commitment ceiling25000, all-in entry min(1000,4%equity,cash,unused commitment), actual integer-contract sizes. Entire bankroll can be lost; this ceiling is not a drawdown stop. Missing exits hold the ledger. No real orders or proven profitability."
+                    if account and account["state"].get("schema")==6 else "Simulated options only. $500 monthly non-recycling premium/fee allowance; no cross-month positions. Missing exits hold the ledger and invalidate cap assurance. No real orders, auto-exercise or verified future profitability.")}
 
     def configure(self, body, now=None):
         if type(body) is not dict or set(body) != {"enabled", "paused", "expected_revision"} or any(type(body[k]) is not bool for k in ("enabled", "paused")):
@@ -940,7 +960,7 @@ class OptionsWorkflow(HandoffDesk):
 
     def brief_snapshot(self, now=None):
         status = self.status(now)
-        return {key: status[key] for key in ("config", "quality", "forward_quality", "paper", "events", "hold", "last_run", "backtest", "rule_sha256", "portfolio_rule_sha256", "archive_catalog", "comparison", "feed", "eod", "research", "vix", "model_calls", "scope", "inbox")}
+        return {key: status[key] for key in ("config", "quality", "forward_quality", "paper", "events", "hold", "last_run", "backtest", "rule_sha256", "portfolio_rule_sha256", "archive_catalog", "comparison", "feed", "eod", "bankroll", "research", "vix", "model_calls", "scope", "inbox")}
 
     def collect_due(self, now=None):
         """One selected source on the same account; no parallel funded books."""

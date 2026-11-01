@@ -97,7 +97,7 @@ def options_eod_brief_view(options):
         return None
     account = options.get("paper") if type(options.get("paper")) is dict else {}
     summary = account.get("summary") if type(account.get("summary")) is dict else {}
-    if type(summary.get("schema")) is not int or summary["schema"] not in (3,4,5):
+    if type(summary.get("schema")) is not int or summary["schema"] not in (3,4,5,6):
         return None
     def mapping(value):
         return value if type(value) is dict else {}
@@ -141,9 +141,9 @@ def options_eod_brief_view(options):
         else "saved_current_session" if fresh else "saved_stale_or_unverified")
     position, pending = mapping(summary.get("position")), mapping(summary.get("pending"))
     result = {"schema":summary["schema"], "symbol":text(summary.get("symbol"), 8), "source_id":text(summary.get("source_id"), 40),
-        "profile":"experimental_stress_put_eod_paper" if summary["schema"] in (4,5) else "experimental_eod_date_only_paper", "execution_qualified":False,
+        "profile":"experimental_stress_put_eod_paper" if summary["schema"] in (4,5,6) else "experimental_eod_date_only_paper", "execution_qualified":False,
         **{key:money(summary.get(key)) for key in ("equity", "cash", "contributions", "trading_pnl", "monthly_pnl", "monthly_budget_used", "monthly_budget_remaining", "fees")},
-        "monthly_cap":"500.00", "entry_all_in_cap":"100.00", "shared_portfolio":True,
+        "monthly_cap":"25000.00" if summary["schema"]==6 else "500.00", "entry_all_in_cap":"1000.00" if summary["schema"]==6 else "100.00", "shared_portfolio":True,
         "trade_count":count(summary.get("trade_count")), "closed_trade_count":count(summary.get("closed_trade_count")),
         "cap_qualified":summary.get("cap_qualified") is True, "held":bool(hold),
         "hold_reason":text(hold.get("reason") or hold.get("message") or hold.get("code") or hold.get("request_id"),160),
@@ -161,9 +161,9 @@ def options_eod_brief_view(options):
         "next_check_window":"After09:35Eastern on a market session; publication time unknown; failed work is not retried.",
         "waiting_for_disposal_source":assurance.get("waiting_for_disposal_source") is True,
         "disposal_source_date":day(assurance.get("deadline_source_date")), "rule_sha256":text(summary.get("rule_sha256"),64)}
-    if summary["schema"] in (4,5):
+    if summary["schema"] in (4,5,6):
         gate=mapping(summary.get("last_entry_gate"))
-        benchmark=mapping(gate.get("benchmark_gate")) if summary["schema"]==5 else gate
+        benchmark=mapping(gate.get("benchmark_gate")) if summary["schema"] in (5,6) else gate
         witness=mapping(benchmark.get("witness"))
         context_status=mapping(eod.get("stress"))
         latest=mapping(context_status.get("last_context")) if not gate else {}
@@ -173,6 +173,13 @@ def options_eod_brief_view(options):
             stress_context_reason=text(gate.get("reason") or benchmark.get("reason") or context_status.get("context_status"),100),
             stress_context_label=text(gate.get("label") or benchmark.get("label") or latest.get("label"),32),
             stress_context_published_at=stamp(witness.get("published_at") or latest.get("published_at")))
+    if summary["schema"]==6:
+        result.update(total_bankroll=money(summary.get("bankroll_total")),
+            entry_equity_fraction=money(summary.get("entry_equity_fraction")),
+            automatic_topups=summary.get("automatic_topups") is True,
+            funding_basis=text(summary.get("funding_basis"),40),
+            funding_added_on_activation=money(summary.get("funding_added_on_activation")),
+            bankroll_activated_at=stamp(summary.get("bankroll_policy_activated_at")))
     return result
 
 
@@ -725,11 +732,12 @@ class BriefingService:
         options = report.get("options_paper", {})
         if options and options.get("config", {}).get("enabled"):
             eod_view = options_eod_brief_view(options)
-            lines += ["", "## Aggressive options: $500 monthly simulated loss budget", "",
-                      "SIMULATED ONLY. Fully paid long calls/puts share ONE $500 monthly allowance and one open position; no broker, exercise or real orders. Net loss from a flat month start is bounded in the model; this is not a trailing drawdown guarantee."]
+            bankroll_mode = bool(eod_view and eod_view["schema"]==6)
+            lines += ["", "## Aggressive options: $25,000 total simulated bankroll" if bankroll_mode else "## Aggressive options: $500 monthly simulated loss budget", "",
+                      "SIMULATED ONLY. One total $25,000 bankroll, no automatic top-ups. One shared position; no broker, exercise or real orders. The entire bankroll can be lost; the commitment ceiling is not a drawdown stop." if bankroll_mode else "SIMULATED ONLY. Fully paid long calls/puts share ONE $500 monthly allowance and one open position; no broker, exercise or real orders. Net loss from a flat month start is bounded in the model; this is not a trailing drawdown guarantee."]
             if eod_view:
                 lines += ["- Active "+_md(eod_view["symbol"] or "unavailable")+" source: "+_md(eod_view["source_id"] or "unavailable")+". EXPERIMENTAL DATE-ONLY EOD PAPER PRICE PROXIES; no execution qualification or live-price claim.",
-                          "- All-in entry ceiling: $100 including premium, entry fee and reserved exit fee. All strategies share the existing $500 monthly gross commitment allowance; profits do not replenish it and migration adds no funding.",
+                          "- Entry limit: min($1,000, 4% of current equity, available cash, remaining shared monthly gross commitment), including both fees per contract. The $25,000 monthly gross ceiling resets only when verified flat; it adds no cash. No within-month profit recycling." if bankroll_mode else "- All-in entry ceiling: $100 including premium, entry fee and reserved exit fee. All strategies share the existing $500 monthly gross commitment allowance; profits do not replenish it and migration adds no funding.",
                           "- Indicator baseline: "+_md(eod_view["baseline_count"] if eod_view["baseline_count"] is not None else "unavailable")+" saved stock references. Seeds are not trades or returns."]
             account = options.get("paper")
             if account:
@@ -747,13 +755,13 @@ class BriefingService:
                     lines.append("- Latest dated paper result: "+_md(json.dumps(daily, ensure_ascii=False)))
                 else:
                     lines.append("- No forward daily trading result yet; starting cash and indicator warmup are not returns.")
-                if summary.get("schema") in (4,5):
+                if summary.get("schema") in (4,5,6):
                     lines.append("- Active forward hypothesis: stress-filtered long puts only on the same "+_md(summary.get("symbol") or "unavailable")+" account; experimental, not a selected proven winner.")
                     lines.append("- New BUY decisions require fresh stress context; modeled fills require context published before the source session open. Missing context blocks entries, while position-management and disposal checks continue.")
                     lines.append("- Latest saved stress gate: "+_md(eod_view["stress_gate_stage"] or "not evaluated")+" / "+_md(eod_view["stress_context_reason"] or "waiting for forward observations")+". Context publication: "+_md(eod_view["stress_context_published_at"] or "unavailable")+".")
-                if summary.get("schema") in {2, 3, 4, 5}:
+                if summary.get("schema") in {2, 3, 4, 5, 6}:
                     lines.append("- Active portfolio rule SHA-256: "+_md(eod_view["rule_sha256"] if eod_view else options.get("portfolio_rule_sha256")))
-                    lines.append("- Next fixed selector priority: "+_md(summary.get("next_strategy"))+(". Owner-requested stress hypothesis; no outcome ranking." if summary.get("schema") in (4,5) else ". Priority rotates after fills, never by backtest profit."))
+                    lines.append("- Next fixed selector priority: "+_md(summary.get("next_strategy"))+(". Owner-requested stress hypothesis; no outcome ranking." if summary.get("schema") in (4,5,6) else ". Priority rotates after fills, never by backtest profit."))
                     for strategy, stats in summary.get("strategy_stats", {}).items():
                         lines.append("- Forward strategy attribution "+_md(strategy)+": "+_md(json.dumps(stats, ensure_ascii=False)))
             else:

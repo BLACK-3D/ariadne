@@ -81,7 +81,7 @@ class OptionsRootWorkflow:
         return cfg, source, internet, brief
 
     def _authority(self, db, account, cfg, brief):
-        if (not account or account["state"].get("schema") != 5 or account["state"].get("source_id") != SOURCE_ID
+        if (not account or account["state"].get("schema") not in (5,6) or account["state"].get("source_id") != SOURCE_ID
                 or account["policy"] != self.owner._epoch(db, cfg, brief)):
             raise HandoffConflict("The shared KO account or owner permission epoch changed.")
 
@@ -133,6 +133,8 @@ class OptionsRootWorkflow:
         return deepcopy(refs)
 
     def verify(self, receipt):
+        if receipt.get("action")=="root_collect" and receipt.get("paper_schema")==6:
+            return self.owner.bankroll.verify(receipt)
         from . import options_root_eod as engine
         from . import options_root_eod_data as source
         from .handoff import _identifier
@@ -434,9 +436,17 @@ class OptionsRootWorkflow:
                     account = owner._account(db)
                     self._authority(db,account,cfg,brief)
                     receipt["account_id"] = account["id"]
+                    from .options_workflow import _paper_engine
+                    engine=_paper_engine(account["state"])
+                    bankroll_mode=account["state"].get("schema")==6
+                    manager=owner.bankroll if bankroll_mode else self
+                    count_key="bankroll_processed_count" if bankroll_mode else "root_processed_count"
+                    data_table="opt_bankroll_data" if bankroll_mode else "opt_root_data"
+                    state_table="opt_bankroll_state" if bankroll_mode else "opt_root_state"
+                    receipt.update(rule_sha256=engine.RULE_SHA256,paper_schema=account["state"]["schema"])
                     if account["state"]["hold"]:
                         raise HandoffConflict("The shared account is held; fresh quotes cannot heal it.")
-                    self.verify_account(db,account["id"],account["state"],full=True)
+                    manager.verify_account(db,account["id"],account["state"],full=True)
                     runtime_check = held.enter_context(owner.eod.stress._runtime_lease())
                     contexts = owner.eod.stress.contexts(db,account["id"])
                     required = sorted({x["contract_id"] for x in (account["state"]["position"],account["state"]["pending"]) if x})
@@ -463,13 +473,13 @@ class OptionsRootWorkflow:
                 snapshot = normalized["snapshot"]
                 advancement = engine.advance_paper(snapshot,account["state"],decided_at=decision.isoformat(),contexts=contexts)
                 after = advancement["state"]
-                adopted = after["root_processed_count"] == account["state"]["root_processed_count"]+1
+                adopted = after[count_key] == account["state"][count_key]+1
                 creates_buy = any(e.get("type") in ("decision","fill") and e.get("action")=="BUY" for e in advancement["events"])
                 before_raw,snapshot_raw,provenance_raw,contexts_raw,paper_raw,state_raw = _raw(account["state"]),source.canonical(snapshot),source.canonical(normalized["provenance"]),_raw(contexts),_raw(advancement),_raw(after)
                 receipt.update(source_date=snapshot["source_date"],received_at=snapshot["received_at"],quote_observed_at=None,recorded_at=decision.isoformat(),
                     before_state_sha256=_digest(before_raw),bundle_sha256=_digest(bundle_raw),snapshot_sha256=_digest(snapshot_raw),provenance_sha256=_digest(provenance_raw),contexts_sha256=_digest(contexts_raw),
                     state_sha256=_digest(state_raw),paper_status=advancement["status"],paper_events=len(advancement["events"]),accepted_snapshot=adopted,
-                    required_contracts=required,research_only=True,execution_qualified=False,partial_chain=snapshot["partial_chain"],paper_schema=5)
+                    required_contracts=required,research_only=True,execution_qualified=False,partial_chain=snapshot["partial_chain"],paper_schema=account["state"]["schema"])
                 def final(db):
                     checkpoint()
                     current = owner._account(db)
@@ -477,18 +487,19 @@ class OptionsRootWorkflow:
                         raise HandoffConflict("The shared account changed before KO publication.")
                     if creates_buy and _digest(_raw(owner.eod.stress.contexts(db,account["id"])))!=receipt["contexts_sha256"]:
                         raise HandoffConflict("The benchmark input changed before entry publication.")
-                    self.verify_account(db,account["id"],account["state"],full=True)
-                    self.verify(receipt)
+                    manager.verify_account(db,account["id"],account["state"],full=True)
+                    manager.verify(receipt)
                     if db.execute("SELECT count(*) FROM opt_events").fetchone()[0]+len(advancement["events"])>MAX_EVENTS:
                         raise ValueError("The shared event quota is full; no extra allowance.")
                     if adopted:
-                        used = sum(db.execute("SELECT coalesce(sum(bytes),0) FROM "+table).fetchone()[0] for table in ("opt_eod_data","opt_root_data"))
-                        count = sum(db.execute("SELECT count(*) FROM "+table).fetchone()[0] for table in ("opt_eod_data","opt_root_data"))
+                        tables=("opt_eod_data","opt_root_data")+(("opt_bankroll_data",) if owner.bankroll._exists(db) else ())
+                        used = sum(db.execute("SELECT coalesce(sum(bytes),0) FROM "+table).fetchone()[0] for table in tables)
+                        count = sum(db.execute("SELECT count(*) FROM "+table).fetchone()[0] for table in tables)
                         if used+len(snapshot_raw)>MAX_DATA or count>=100:
                             raise ValueError("The shared source evidence quota is full.")
-                        db.execute("INSERT INTO opt_root_data VALUES(?,?,?,?,?)",(snapshot["source_date"],_digest(snapshot_raw),snapshot_raw,len(snapshot_raw),body["request_id"]))
+                        db.execute("INSERT INTO "+data_table+" VALUES(?,?,?,?,?)",(snapshot["source_date"],_digest(snapshot_raw),snapshot_raw,len(snapshot_raw),body["request_id"]))
                     db.execute("UPDATE opt_accounts SET state=? WHERE id=?",(state_raw.decode(),account["id"]))
-                    db.execute("UPDATE opt_root_state SET request_id=?,state_sha256=? WHERE account_id=?",(body["request_id"],_digest(state_raw),account["id"]))
+                    db.execute("UPDATE "+state_table+" SET request_id=?,state_sha256=? WHERE account_id=?",(body["request_id"],_digest(state_raw),account["id"]))
                     for event in advancement["events"]:
                         db.execute("INSERT INTO opt_events(account_id,run_id,value) VALUES(?,?,?)",(account["id"],body["request_id"],_json(event)))
                 owner._publish(cfg,brief,receipt,(("before-state.json",before_raw),("bundle.json",bundle_raw),("snapshot.json",snapshot_raw),("provenance.json",provenance_raw),("contexts.json",contexts_raw),("paper.json",paper_raw)),final=final,extra_check=checkpoint)
@@ -534,10 +545,15 @@ class OptionsRootWorkflow:
 
     def snapshot(self, db, now, account):
         from . import options_root_eod as engine
+        bankroll_mode=bool(account and account["state"].get("schema")==6)
+        if bankroll_mode:
+            from . import options_bankroll_eod as engine
         cfg = self.config(db)
         ready, expected, slot = self._window(now)
         last = db.execute("SELECT receipt FROM opt_runs WHERE action='root_collect' ORDER BY rowid DESC LIMIT 1").fetchone() if self.owner._exists(db) else None
-        row = db.execute("SELECT value,bytes,digest FROM opt_root_data ORDER BY source_date DESC LIMIT 1").fetchone() if self._exists(db) else None
+        row = db.execute("SELECT value,bytes,digest FROM opt_bankroll_data ORDER BY source_date DESC LIMIT 1").fetchone() if bankroll_mode else None
+        if row is None:
+            row = db.execute("SELECT value,bytes,digest FROM opt_root_data ORDER BY source_date DESC LIMIT 1").fetchone() if self._exists(db) else None
         quality = None
         if row:
             raw = bytes(row[0])

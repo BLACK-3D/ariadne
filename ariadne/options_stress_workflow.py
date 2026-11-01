@@ -310,8 +310,8 @@ class OptionsStressWorkflow:
             row=db.execute("SELECT id,state FROM opt_accounts WHERE closed_at IS NULL ORDER BY rowid DESC LIMIT 1").fetchone()
             if not row:return None
             active_schema=_load(row["state"]).get("schema")
-            if active_schema not in (4,5):return None
-            selected=self.owner.root_eod if active_schema==5 else self.eod
+            if active_schema not in (4,5,6):return None
+            selected=self.owner.root_eod if active_schema in (5,6) else self.eod
             if not selected.config(db)["enabled"]:return None
             account_id=row["id"]
             if db.execute("SELECT 1 FROM opt_stress_context_failures WHERE account_id=? LIMIT 1",(account_id,)).fetchone() or db.execute("SELECT 1 FROM opt_stress_contexts WHERE account_id=? AND status!='completed' LIMIT 1",(account_id,)).fetchone():return None
@@ -391,7 +391,7 @@ class OptionsStressWorkflow:
     def snapshot(self,db,now,account):
         benchmark_hold=self._benchmark_hold(db)
         schema=(account or {}).get("state",{}).get("schema")
-        if not account or schema not in (4,5):
+        if not account or schema not in (4,5,6):
             eligible=False
             if account and account["state"].get("schema")==3:
                 try:
@@ -402,10 +402,12 @@ class OptionsStressWorkflow:
             return {"active":False,"migration_eligible":eligible,"mode":"inactive","policy_id":engine.STRATEGY_ID,
                 "rule":engine.RULE,"rule_sha256":engine.RULE_SHA256,"entry_allowed":False,"last_context":None,
                 "context_hold":benchmark_hold,"context_count":0,"reason":"No schema4 stress policy is active."}
-        selected=self.owner.root_eod if schema==5 else self.eod
+        selected=self.owner.root_eod if schema in (5,6) else self.eod
         policy_engine=engine
         if schema==5:
             from . import options_root_eod as policy_engine
+        elif schema==6:
+            from . import options_bankroll_eod as policy_engine
         feed=selected.config(db)
         failure=db.execute("SELECT reason FROM opt_stress_context_failures WHERE account_id=? ORDER BY rowid DESC LIMIT 1",(account["id"],)).fetchone()
         uncertain=db.execute("SELECT 1 FROM opt_stress_contexts WHERE account_id=? AND status!='completed' LIMIT 1",(account["id"],)).fetchone()

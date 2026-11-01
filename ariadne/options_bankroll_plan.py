@@ -16,7 +16,7 @@ import re
 POLICY = {
     "schema": 1,
     "id": "total-bankroll-stress-put-proposal-v1",
-    "status": "research_proposal_not_activated",
+    "status": "registered_total_bankroll_research_plan",
     "currency": "USD",
     "funding_basis": "one_time_total_bankroll",
     "initial_bankroll": "25000.00",
@@ -41,7 +41,7 @@ POLICY = {
     "exits": "Existing bid>=5x entry ask or bid<=0.5x entry ask creates a delayed sell decision; forced deadline remains earliest tenth following regular session, preceding expiry session, penultimate entry-month session. Actual later bid and supplied bid size covering entire quantity required; otherwise hold. A 50% trigger is not a guaranteed 50% realized loss.",
     "evaluation": "Preregister the fixed rule and exact hashes before new outcomes. Re-run each candidate on the same sources, dates, clocks, costs and total capital. Preserve held/incomplete/zero-trade cases; no linear rescaling, annualizing tiny samples, portfolio sums or automatic winner adoption.",
     "validation": "Inspect completed net P&L, full path drawdown, trade count, coverage, source holds and costs. Require positive matched holdout evidence and prospective paper observations before proposing promotion; no proven winner or profit target.",
-    "scope": "Proposal/sizing only; current owner ledger, legacy500/100 rules and funding remain unchanged. Funding basis must be confirmed and a separately reviewed ledger version implemented before activation.",
+    "scope": "Plan/sizing only; this tool does not inspect or change an owner ledger. Separate versioned engine and host verification own any paper activation; historical results never grant adoption authority.",
     "research_only": True,
     "deployable": False,
     "automatic_adoption": False,
@@ -84,7 +84,8 @@ def plan():
     """Return a detached proposed rule, never a current-account description."""
     _verify()
     return {"policy": deepcopy(POLICY), "policy_sha256": POLICY_SHA256,
-            "confirmation_required": "Confirm 25000 total bankroll versus recurring monthly loss allowance; then implement/review a versioned ledger transition. This planner performs neither.",
+            "funding_basis_confirmed": True,
+            "activation_scope": "Owner confirmed 25000 total bankroll with no automatic top-ups. This planner never activates or migrates an account; inspect the separately verified host for actual status.",
             "sizing_is_hypothetical": True,
             "risk": "The entire 25000 bankroll can be lost over time. A larger limit does not establish positive expectancy; option premium and fees may be lost in full.",
             "recurring_cost": "No model/API calls, network, dependencies, subscription or background work in this planner; machine time/energy have not been measured."}
