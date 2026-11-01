@@ -230,6 +230,12 @@ def compact_summary(report, now=None):
                 result["options_paper"].update({key:eod[key] for key in
                     ("stress_policy_active","stress_strategy","stress_activated_at","stress_gate_stage",
                      "stress_gate_allowed","stress_context_reason","stress_context_label","stress_context_published_at")})
+    if type(options) is dict and "options_paper" in result and type(options.get("paper_readiness")) is dict:
+        readiness=options["paper_readiness"]
+        roots=readiness.get("roots")
+        result["options_paper"]["source_inventory"]={"declared_roots":len(roots[:16]) if type(roots) is list else 0,
+            "configured_paper_roots":["F"] if readiness.get("configured_active_paper_roots")==["F"] else [],
+            "additional_current_sources_qualified":False}
     if type(options) is dict and options.get("config", {}).get("enabled") is True and options.get("vix"):
         vix = options["vix"]
         result["options_paper"]["vix"] = {"paper_status":_short(vix.get("paper_status"),64)[0], "paper_fills_enabled":False,

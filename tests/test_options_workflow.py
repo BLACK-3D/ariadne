@@ -126,8 +126,9 @@ class OptionsWorkflowTests(unittest.TestCase):
     def test_paths_reject_absolute_traversal_and_links_before_external_read(self):
         self.enable()
         for invalid in ("E:/forbidden.json","C:/outside.json","../outside.json","/outside.json"):
+            body = self.body(path=invalid)
             with self.subTest(path=invalid),patch.object(self.service,"_read",side_effect=AssertionError("Must not read")),self.assertRaises(ValueError):
-                self.service.import_data(self.body(path=invalid),self.clock)
+                self.service.import_data(body,self.clock)
 
     def test_completed_replay_reads_no_source_and_does_not_advance_revision(self):
         self.enable();body=self.body(path=self.write())

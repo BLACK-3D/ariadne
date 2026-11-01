@@ -28,7 +28,7 @@ The accepted six-month KO source contains 127 sessions but is already examined d
 
 ## Forward paper account and daily results
 
-The current F date-only EOD account already rotates the registered recovery-call, breakout-call and breakdown-put hypotheses on one shared ledger. It is an experiment, not a selected proven winner. Its rule, activation lineage, fees and original funding cannot be replaced by editing a strategy list or adopting historical fills.
+The original schema3 F date-only EOD profile rotates the registered recovery-call, breakout-call and breakdown-put hypotheses on one shared ledger. Version0.30 also supports an explicit in-place schema4 stress-put policy; see [the forward policy](OPTIONS_STRESS_0_30.md) for its actual publication controls and [the stress evidence focus](OPTIONS_STRESS_REVIEW.md) for paired comparisons. Both remain experiments rather than proven winners. Their rule, activation lineage, fees and original funding cannot be replaced by editing a strategy list or adopting historical fills.
 
 The existing collector checks the previous completed source session after 9:35 AM Eastern on an eligible market day. It makes no collection on weekends; publication is not guaranteed. A later, actually received source session is required to fill a durable decision. Missing mandatory quotes or failed/uncertain collection receipts stop progress without invented exits or automatic retries. The daily brief reports saved results, freshness, fees, commitments and holds. Current chains are partial and date-only, so fills remain explicitly experimental price proxies with no brokerage or execution qualification.
 

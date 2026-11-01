@@ -193,6 +193,19 @@ async function main(){
   h.response.eod.stress.active=false;await h.api.load();await h.api.mutate("eod-collect");
   assert.equal(h.writes().length,0);assert.match(h.body.textContent,/Stress policy authority is incomplete/);
  });
+ await check("Research inventory cannot add paper roots or write on ordinary ticks",async()=>{
+  const value=eodBoard(true);value.paper_readiness={configured_active_paper_roots:["F"],shared_risk:{monthly_gross_commitment_cap:"500",all_in_entry_cap:"100",monthly_remaining:"500"},roots:[{symbol:"F",configured_active_paper_root:true,declared_windows:[],current_price_status:"current_price_unmeasured"},{symbol:"<img src=x onerror=alert(1)>",configured_active_paper_root:false,declared_windows:[{start:"2019-08-01",end:"2019-08-30",sessions:22}],current_price_status:"current_price_unmeasured"}]};
+  const h=harness(value);await h.api.load();for(let i=0;i<5;i++)h.api.status();
+  assert.equal(h.writes().length,0);assert.match(h.body.textContent,/One account. Explicit source coverage/);
+  assert.match(h.body.textContent,/Additional active paper root unavailable/);assert.match(h.body.textContent,/current_price_unmeasured/);
+  assert.equal(walk(h.body).filter(node=>node.tagName==="IMG").length,0);
+ });
+ await check("Optional inventory errors do not alter existing EOD action authority",async()=>{
+  const value=eodBoard(true);value.paper_readiness={diagnostic_status:"unavailable",input_error:"Invalid optional metadata",configured_active_paper_roots:["F"],shared_risk:{},roots:[]};
+  const h=harness(value);await h.api.load();assert.equal(h.writes().length,0);
+  assert.match(h.body.textContent,/Optional inventory unavailable/);await h.api.mutate("eod-collect");
+  assert.equal(h.writes().length,1);assert.equal(h.writes()[0].path,"/options/eod-collect");
+ });
  process.stdout.write(JSON.stringify({passed:checks.length,failures:failures.length,checks,failed:failures}));if(failures.length)process.exitCode=1;
 }
 main().catch(error=>{process.stderr.write(error.stack+"\n");process.exitCode=1;});

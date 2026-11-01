@@ -1,5 +1,7 @@
 # Ariadne — local AI in a box
 
+Version **0.31.0** adds fixed stress-put paired evidence review and a bounded offline source-readiness inventory in the Options panel and daily brief. The same F paper account and shared $500/$100 limits remain active; historical research roots do not create additional paper feeds or allowances. New free-source leads are reported with their coverage gaps and failures. See [stress evidence and source readiness](docs/OPTIONS_EXPANSION_0_31.md).
+
 Version **0.30.0** adds an explicitly activated stress-filtered put policy on the same paper account, with fresh QQQ/SPY entry gates, immutable context evidence, daily brief results and the unchanged shared $500 monthly/$100 all-in entry limits. Missing context blocks new exposure while existing positions retain their exit controls. Longer free repository history remains provisional research, with data provenance and missing exits made explicit. See [stress policy and historical evidence](docs/OPTIONS_STRESS_0_30.md).
 
 The [paired options evidence review](docs/OPTIONS_PAIRED_REVIEW.md) compares recovery calls with fixed peers on matching portfolios, windows and liquidity profiles. It keeps missing exits and incomplete context visible, separates traded cases from no-trade observations, and cannot activate a strategy or allocate money. The command runs offline from a hash-bound completed report, with no new model, service or dependency.

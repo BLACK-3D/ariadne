@@ -135,13 +135,14 @@ class VixWorkflowTests(unittest.TestCase):
         self.enable(); path, manifest = self.history()
         manifest["files"][1]["path"] = "../outside.csv"
         self.put(path, json.dumps(manifest).encode())
+        body = self.body(path=path)
         original = self.service._read
         opened = []
         def read(relative, *args):
             opened.append(relative)
             return original(relative, *args)
         with patch.object(self.service, "_read", side_effect=read), self.assertRaises(ValueError):
-            self.service.vix.signals(self.body(path=path), self.clock)
+            self.service.vix.signals(body, self.clock)
         self.assertEqual(opened, [path])
 
     def test_duplicate_manifest_keys_and_csv_hash_mismatch_stop_with_receipt(self):

@@ -758,6 +758,15 @@ class BriefingService:
             else:
                 lines.append("- Forward options experiment has not started.")
             quality = options.get("quality") or {}
+            readiness = options.get("paper_readiness")
+            if type(readiness) is dict:
+                roots = readiness.get("configured_active_paper_roots")
+                configured = [root for root in roots[:16] if type(root) is str and len(root)<=16] if type(roots) is list else []
+                rows = readiness.get("roots")
+                count = len(rows[:16]) if type(rows) is list else 0
+                lines.append("- Research/source inventory: "+str(count)+" declared roots; configured paper roots "+_md(", ".join(configured) or "none")+". Historical windows and saved spots do not establish current below-$100 eligibility or additional paper-feed support. The single shared allowance is unchanged.")
+                if readiness.get("diagnostic_status")=="unavailable":
+                    lines.append("- Optional source inventory unavailable; existing financial controls remain in force.")
             lines.append(("- Retained historical archive evidence: " if eod_view else "- Options data evidence: ")+_md(json.dumps(quality, ensure_ascii=False)))
             forward_quality = options.get("forward_quality") or {}
             if eod_view:

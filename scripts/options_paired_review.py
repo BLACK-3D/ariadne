@@ -36,6 +36,7 @@ SOURCE_FILES = (
     "ariadne/atomic.py", "ariadne/tools.py", "ariadne/config.py", "ariadne/backup.py",
     "ariadne/network_policy.py",
 )
+STRESS_SOURCE_FILES = SOURCE_FILES + ("ariadne/options_stress_review.py",)
 
 
 def parser():
@@ -47,6 +48,8 @@ def parser():
     value.add_argument("--output", required=True, help="New box-relative staging/... folder.")
     value.add_argument("--owner-data", default="data")
     value.add_argument("--detached-research", action="store_true", help="Isolated boxes without an owner database only.")
+    value.add_argument("--focus", choices=("recovery", "stress_put"), default="recovery",
+                       help="Fixed evidence reference; default recovery output is preserved.")
     return value
 
 
@@ -54,6 +57,8 @@ def render(report):
     """Escape the complete result as a readable standalone offline document."""
     payload = escape(json.dumps(report, indent=2, ensure_ascii=False, allow_nan=False))
     safe=lambda value: escape(str(value))
+    stress=report.get("kind")=="descriptive_stress_put_options_review"
+    reference="stress-filtered puts" if stress else "raw recovery"
     sections=[]
     for item in report.get("strata",[]):
         context=item["stratum"]
@@ -66,29 +71,31 @@ def render(report):
                 value["source_rows_below_registered_warmup"])
             rows.append("<tr>"+"".join("<td>"+safe(v if v is not None else "unavailable")+"</td>" for v in cells)+"</tr>")
         pairs=[]
-        for candidate,value in item["recovery_pairs"].items():
+        for candidate,value in item["stress_pairs" if stress else "recovery_pairs"].items():
             pairs.append("<tr>"+"".join("<td>"+safe(v)+"</td>" for v in (candidate,
                 value["eligibility_matrix"]["both_eligible"],value["all_eligible_pairs"]["competitor_higher"],
                 value["all_eligible_pairs"]["reference_higher"],value["all_eligible_pairs"]["equal"],
                 value["both_traded_pairs"]["competitor_minus_reference_net_pnl"]["count"]))+"</tr>")
-        pair_table=("<h3>Paired against raw recovery</h3><p>Higher/lower counts include complete no-trade zeros. "
+        pair_table=("<h3>Paired against "+reference+"</h3><p>Higher/lower counts include complete no-trade zeros. "
             "Both-traded counts show how little direct traded evidence can underlie those comparisons.</p>"
-            "<div class=scroll><table><tr><th>Peer</th><th>Both eligible</th><th>Peer higher</th><th>Recovery higher</th>"
+            "<div class=scroll><table><tr><th>Peer</th><th>Both eligible</th><th>Peer higher</th><th>"+
+            ("Stress put" if stress else "Recovery")+" higher</th>"
             "<th>Equal</th><th>Both traded</th></tr>"+"".join(pairs)+"</table></div>") if pairs else ""
         sections.append("<section><h2>"+safe(title)+"</h2><p>"+safe(item["cohorts"])+" matched portfolios; "+
             safe(context["start"])+" through "+safe(context["source_end"])+". "+safe(context["quote_time_basis"])+
-            " quote clocks.</p><div class=scroll><table><tr><th>Candidate</th><th>Gain</th><th>Loss</th><th>Held</th>"
+            " quote clocks.</p>"+("<p>Fixed reference: "+safe(item["reference_candidate"])+".</p>" if stress else "")+
+            "<div class=scroll><table><tr><th>Candidate</th><th>Gain</th><th>Loss</th><th>Held</th>"
             "<th>Incomplete</th><th>No trade</th><th>Median traded net $</th><th>Eligible traded cases</th>"
             "<th>Short warmup</th></tr>"+"".join(rows)+"</table></div>"+pair_table+"</section>")
     return ("<!doctype html><html lang=en><meta charset=utf-8>"
         "<meta name=viewport content='width=device-width,initial-scale=1'>"
-        "<title>Ariadne / recovery comparison</title><style>"
+        "<title>Ariadne / "+("stress put" if stress else "recovery")+" comparison</title><style>"
         "body{background:#101919;color:#e1e7dc;font:16px/1.6 system-ui;margin:0 auto;padding:36px;max-width:1100px}"
         "h1,h2,h3{font-weight:500;color:#c7dc9b}h2{font-size:19px}p{max-width:80ch}.scroll{overflow:auto}"
         "table{border-collapse:collapse;font-size:13px;width:100%}td,th{text-align:left;padding:9px;border-bottom:1px solid #354540}"
         "section{border-top:1px solid #536047;padding-top:18px;margin-top:36px}pre{white-space:pre-wrap;overflow-wrap:anywhere;"
         "font:13px/1.5 ui-monospace,monospace;border:1px solid #354540;padding:24px}"
-        "</style><h1>Recovery calls / paired evidence review</h1>"
+        "</style><h1>"+("Stress-filtered puts" if stress else "Recovery calls")+" / paired evidence review</h1>"
         "<p>Existing historical research, with incomplete exits retained as censored observations. "
         "Paired differences use the same portfolio, full window and liquidity profile. "
         "Status counts include context gaps and short warmups; medians exclude those cases. "
@@ -103,6 +110,11 @@ def render(report):
 def run(args, *, root=ROOT, now=None):
     from ariadne.atomic import publish_bytes
     from ariadne.options_paired_review import COLUMNS, compare_rows
+    focus=getattr(args,"focus","recovery")
+    if focus not in ("recovery","stress_put"):
+        raise ValueError("Choose the fixed recovery or stress_put evidence focus.")
+    if focus=="stress_put":
+        from ariadne.options_stress_review import compare_rows, RULE_SHA256 as stress_rule
     box = _root_guard(root)
     if any(type(item) is not str or not HASH.fullmatch(item)
            for item in (args.input_sha256, args.publication_sha256)):
@@ -147,7 +159,7 @@ def run(args, *, root=ROOT, now=None):
         check()
         lease=SourceLease(held,check)
         identities={}
-        for name in SOURCE_FILES:
+        for name in (STRESS_SOURCE_FILES if focus=="stress_put" else SOURCE_FILES):
             raw=read(box,name,2*1024**2);digest=hashlib.sha256(raw).hexdigest()
             lease.add(box,name,digest,len(raw));identities[name]=digest
         pub_raw=read(box,args.publication,256*1024)
@@ -169,10 +181,13 @@ def run(args, *, root=ROOT, now=None):
         lease.add(box,args.input,args.input_sha256,item["bytes"])
         raw=read(box,args.input,item["bytes"])
         if hashlib.sha256(raw).hexdigest()!=args.input_sha256: raise ValueError("Input CSV changed.")
-        publish("registration.json",_canonical({"schema":1,"kind":"derived_paired_review","registered_at":stamp.isoformat(),
+        registration={"schema":1,"kind":"derived_paired_review","registered_at":stamp.isoformat(),
             "input":{"path":args.input,**item},"publication":{"path":args.publication,"sha256":args.publication_sha256},
             "module_sha256":identities,"owner_authority":authority.scope(),
-            "not_a_new_backtest":True,"paper_operations":0,"automatic_adoption":False}))
+            "not_a_new_backtest":True,"paper_operations":0,"automatic_adoption":False}
+        if focus=="stress_put":
+            registration.update(kind="derived_stress_put_review",focus=focus,rule_sha256=stress_rule)
+        publish("registration.json",_canonical(registration))
         phase="paired_comparison"
         reader=csv.DictReader(io.StringIO(raw.decode("utf-8"),newline=""),strict=True)
         if tuple(reader.fieldnames or ())!=COLUMNS: raise ValueError("Use the exact completed research CSV header.")
@@ -194,6 +209,8 @@ def run(args, *, root=ROOT, now=None):
             "publication_sha256":args.publication_sha256,"module_sha256":identities,"input_rows":report["input_rows"],
             "owner_authority":authority.scope(),"backtests_run":0,"paper_operations":0,"network_calls":0,
             "model_calls":0,"automatic_adoption":False,"execution_qualified":False,"all_inputs_outputs_reverified":True}
+        if focus=="stress_put":
+            completed.update(focus=focus,rule_sha256=stress_rule,review_kind=report["kind"])
         publish("completed.json",_canonical(completed),verify=verify)
         return completed
     except BaseException as error:

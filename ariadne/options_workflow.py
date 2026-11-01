@@ -372,6 +372,39 @@ class OptionsWorkflow(HandoffDesk):
                 raise ValueError("Accepted options quote history changed or moved backwards.")
         return new
 
+    def _paper_readiness(self, account, eod, clock, hold=None):
+        """Optional local metadata cannot grant entries or hold financial exits."""
+        from .options_paper_readiness import build_readiness, load_index
+        projection = None
+        if account and account["state"].get("schema") == 4:
+            state = account["state"]
+            stress = eod.get("stress") or {}
+            latest = stress.get("last_context") or {}
+            projection = {"account_id":account["id"],"schema":4,"symbol":state["symbol"],
+                "source_id":state["source_id"],"source_enabled":eod["config"]["enabled"],
+                "policy_id":account["summary"]["strategy_id"],"cash":state["cash"],
+                "monthly_committed":state["monthly_committed"],
+                "position_present":state["position"] is not None,"pending_present":state["pending"] is not None,
+                "hold_present":state["hold"] is not None or hold is not None,
+                "context":{"status":stress.get("context_status","missing"),
+                    "source_session":latest.get("source_session"),"published_at":latest.get("published_at"),
+                    "label":latest.get("label")}}
+        try:
+            raw = self._read("market-data/options/paper-readiness.json", 64*1024)
+        except FileNotFoundError:
+            raw = None
+        except (ValueError,OSError) as error:
+            result = build_readiness(None,paper=projection,checked_at=clock)
+            result.update(diagnostic_status="unavailable",input_error=str(error)[:240])
+            return result
+        try:
+            index = load_index(raw,checked_at=clock) if raw is not None else None
+            return build_readiness(index,paper=projection,checked_at=clock)
+        except (ValueError,TypeError) as error:
+            result = build_readiness(None,paper=projection,checked_at=clock)
+            result.update(diagnostic_status="unavailable",input_error=str(error)[:240])
+            return result
+
     def status(self, now=None):
         from .options_recovery import RULE, RULE_SHA256
         from .options_portfolio import RULE as PORTFOLIO_RULE, RULE_SHA256 as PORTFOLIO_SHA256
@@ -402,6 +435,7 @@ class OptionsWorkflow(HandoffDesk):
             self._verify_artifacts(researched)
         quality = data["quality"] if data else None
         hold = {"request_id": held["request_id"], "action": held["action"], "status": held["status"], "reason": _load(held["receipt"]).get("reason", "Interrupted owner operation; inspect before acknowledgment.")} if held else None
+        readiness = self._paper_readiness(account,eod,clock,hold)
         return {"schema": 1, "revision": revision, "config": cfg, "rule": RULE, "rule_sha256": RULE_SHA256,
                 "quality": quality, "data_sha256": data["sha256"] if data else None,
                 "forward_quality": eod.get("quality") if account and account["state"].get("schema") in (3,4) else forward["quality"] if forward else None,
@@ -413,6 +447,7 @@ class OptionsWorkflow(HandoffDesk):
                 "archive_catalog": catalog, "comparison": compared,
                 "feed": feed,
                 "eod": eod,
+                "paper_readiness": readiness,
                 "research": researched,
                 "vix": vix,
                 "scope": "Simulated options only. $500 monthly non-recycling premium/fee allowance; no cross-month positions. Missing exits hold the ledger and invalidate cap assurance. No real orders, auto-exercise or verified future profitability."}

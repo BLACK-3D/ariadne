@@ -149,6 +149,23 @@
     }
     if(data.hold){const held=e("div","options-warning");p(held,`HELD · ${txt(data.hold.request_id)} · ${txt(data.hold.reason)}`);held.append(button("Acknowledge inspected operation",acknowledge,()=>identity.test(txt(data.hold.request_id)),true));root.append(held);}
     const grid=e("div","options-grid"),paper=e("section","options-card"),summary=data.paper?.summary;
+    if(data.paper_readiness){
+      const readiness=data.paper_readiness,risk=readiness.shared_risk||{},inventory=e("section","options-card options-full");
+      inventory.append(e("span","eyebrow","RESEARCH COVERAGE / FORWARD AVAILABILITY"),e("h3","","One account. Explicit source coverage."));
+      p(inventory,`Configured paper roots: ${(Array.isArray(readiness.configured_active_paper_roots)?readiness.configured_active_paper_roots:[]).slice(0,16).join(", ")||"none"}. One shared monthly commitment cap ${amount(risk.monthly_gross_commitment_cap)}, entry ceiling ${amount(risk.all_in_entry_cap)}; remaining ${amount(risk.monthly_remaining)}.`);
+      p(inventory,"Historical coverage and saved prices describe research inputs. Each additional paper root needs a qualified current quote source and a reviewed same-account workflow. Current prices and entry eligibility are not inferred from historical tests.");
+      if(readiness.diagnostic_status==="unavailable")p(inventory,`Optional inventory unavailable: ${txt(readiness.input_error)}. Existing financial controls remain in force.`,"options-warning");
+      const cards=e("div","options-comparison");
+      for(const row of (Array.isArray(readiness.roots)?readiness.roots:[]).slice(0,16)){
+        const card=e("div","options-strategy");card.append(e("strong","",txt(row.symbol)));
+        p(card,row.configured_active_paper_root===true?"Existing experimental F paper source; full runtime and causal entry checks required.":"Additional active paper root unavailable / no qualified current options source.");
+        for(const window of (Array.isArray(row.declared_windows)?row.declared_windows:[]).slice(0,4))p(card,`${txt(window.start)} to ${txt(window.end)} · ${Number.isSafeInteger(window.sessions)?window.sessions:"unknown"} declared sessions.`);
+        p(card,`${txt(row.current_price_status)||"current_price_unmeasured"}. Separate windows do not establish continuous history. Catalog pins record declared evidence identity.`);
+        if(row.dated_spot)p(card,`Saved spot ${amount(row.dated_spot.price)} on ${txt(row.dated_spot.source_date)}; this is not current eligibility.`);
+        cards.append(card);
+      }
+      inventory.append(cards);p(inventory,"This inventory cannot select, fund, activate or place a paper trade. Quote-event clocks, executable sizes, prices and contract terms still require evidence.","options-warning");grid.append(inventory);
+    }
     paper.append(e("span","eyebrow","FORWARD / SIMULATED CASH"),e("h3","","Options paper account"));
     if(summary?.symbol)p(paper,`Instrument: ${txt(summary.symbol)}. The research comparisons below do not change this account's strategy or cash.`);
     if(summary){const metrics=e("div","options-metrics");
