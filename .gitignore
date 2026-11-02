@@ -60,3 +60,6 @@ node_modules/
 .operations-workflows-test-*/
 .portable-update-test-*/
 .routine-review-*/
+
+# Installation-specific preview stays private.
+/docs/ariadne-settings-preview.jpg

@@ -1,5 +1,7 @@
 # Ariadne — local AI in a box
 
+Public source sharing: [what is included, private-data exclusions and safe source exports](docs/PUBLIC_SOURCE.md). GitHub source downloads do not include provisioned model weights or runtimes.
+
 The [project direction and daily innovation context](docs/PROJECT_DIRECTION.md) connects the broader offline-assistant goal with current business, trading, interaction and reliability priorities, plus future perception and delivery-simulation research.
 
 New trading studies now follow the owner's **rolling last-twelve-calendar-months** direction. The current offline options campaign records and enforces the date window before evaluation; older study reports remain historical reference. See [study-window policy and recent-data limitations](docs/TRADING_STUDY_WINDOW.md).
