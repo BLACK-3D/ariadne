@@ -7,3 +7,7 @@ if ($null -ne $headlessFlag -and $headlessFlag -notin @('0', '1')) {
 if ($headlessFlag -eq '1') { $NoBrowser = $true }
 Set-Location -LiteralPath $PSScriptRoot
 & (Join-Path $PSScriptRoot 'scripts\host_process.ps1') -Action start -NoBrowser:$NoBrowser
+
+$taskLauncherExit = $LASTEXITCODE
+if ($null -eq $taskLauncherExit) { $taskLauncherExit = 0 }
+exit $taskLauncherExit

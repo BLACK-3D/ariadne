@@ -73,6 +73,7 @@ Local inference, saved references and prepared tools can work after disconnectio
 - **Python is missing or unsupported:** install Python 3.13 x64, reopen the setup and use the same extracted folder. Other Python versions may run the core manually, but this guided dependency profile targets 3.13 x64.
 - **Existing private installation detected:** use **Start Ariadne.cmd** to reopen that installation, or extract a new clean copy elsewhere. Do not delete its database or pairing key to force setup through.
 - **Another model service is using port 11434:** setup refuses to adopt it. Close that service yourself if appropriate, or use the advanced operator-managed-server instructions below. Setup does not stop unrelated applications.
+- **Two launcher windows close / job-bound host error:** apply the [launcher-only repair](LAUNCHER_REPAIR.md) to keep your existing model and data. Do not repeat Setup.
 - **The site does not open:** read the launcher's error and inspect `data/host/status.json`. Another instance may already occupy port 8080. Do not assume a page at that address belongs to this new copy. [Multiple-copy instructions](PORTABLE_0_16.md#multiple-local-copies-without-sharing-services) describe explicit separate ports for provisioned copies.
 - **A capability is unavailable:** the optional pack may not be installed. Check **Capabilities**, then its pack's setup document. Do not enable microphones, device actions or recurring work just to test a missing dependency.
 

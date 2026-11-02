@@ -14,6 +14,8 @@ The Windows starter is a small **source-and-setup kit**, not a preloaded model a
 4. Try **Service desk → Fictional demo** for a working quote/invoice example, or send a short conversational message. See the [five-minute first run](docs/GET_STARTED.md#a-five-minute-first-tour).
 5. Use **Stop Ariadne.cmd** to shut down Ariadne and its owned services. Closing your browser or Codex leaves the Windows background host running. Starting automatically after reboot is a separate, optional setup.
 
+Earlier starter closes without a page? Apply the [launcher-only repair](docs/LAUNCHER_REPAIR.md) to keep your installed model and private files.
+
 Already using this installation? Use **Start**, not **Setup**. Setup refuses an existing owner's database/token and never enables the microphone, scheduling or external connectors.
 
 ### Before you download

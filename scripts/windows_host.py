@@ -324,12 +324,23 @@ def detach(command, cwd, environment):
     Both the host and launcher independently require native job-free status
     before services/readiness. A denied broker never uses an inherited fallback.
     """
-    # Fixed PowerShell source; command/path arrive as JSON stdin, never shell code.
-    script = "$ErrorActionPreference='Stop';$p=[Console]::In.ReadToEnd()|ConvertFrom-Json;$s=New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{ShowWindow=[uint16]0;CreateFlags=[uint32]0x01000208};$r=Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{CommandLine=[string]$p.command;CurrentDirectory=[string]$p.cwd;ProcessStartupInformation=$s};if($r.ReturnValue -ne 0){throw 'Independent host creation failed'};[Console]::Write([string]$r.ProcessId)"
+    if type(environment) is not dict or any(type(key) is not str or not key or "=" in key or "\x00" in key
+            or type(value) is not str or "\x00" in value for key, value in environment.items()):
+        raise ValueError("Invalid independent-host environment.")
+    child_environment = [key + "=" + value for key, value in sorted(environment.items(), key=lambda row: row[0].casefold())]
+    if len("\0".join(child_environment)) > 1024 * 1024:
+        raise ValueError("Independent-host environment exceeds its bound.")
+    # Only the new Python process receives the trusted venv startup hint.
+    # PowerShell itself and the long-lived host/services must not inherit it.
+    broker_environment = {key: value for key, value in environment.items() if key.upper() != "__PYVENV_LAUNCHER__"}
+    # Fixed PowerShell source; command/path/env arrive as JSON stdin, not code.
+    # WMI does not inherit this caller's environment automatically. Publish the
+    # explicit Unicode environment to the created process, not just its broker.
+    script = "$ErrorActionPreference='Stop';$p=[Console]::In.ReadToEnd()|ConvertFrom-Json;$s=New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{ShowWindow=[uint16]0;CreateFlags=[uint32]0x01000608;EnvironmentVariables=[string[]]$p.environment};$r=Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{CommandLine=[string]$p.command;CurrentDirectory=[string]$p.cwd;ProcessStartupInformation=$s};if($r.ReturnValue -ne 0){throw 'Independent host creation failed'};[Console]::Write([string]$r.ProcessId)"
     executable = str(Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe")
     result = subprocess.run([executable, "-NoProfile", "-NonInteractive", "-Command", script],
-                            input=json.dumps({"command": subprocess.list2cmdline(command), "cwd": str(cwd)}),
-                            capture_output=True, text=True, timeout=25, env=environment, creationflags=0x08000000)
+                            input=json.dumps({"command": subprocess.list2cmdline(command), "cwd": str(cwd), "environment": child_environment}),
+                            capture_output=True, text=True, timeout=25, env=broker_environment, creationflags=0x08000000)
     if result.returncode or not result.stdout.strip().isdigit():
         raise OSError("Independent host creation was denied; no inherited fallback was started.")
     return int(result.stdout.strip()), "wmi_same_user"

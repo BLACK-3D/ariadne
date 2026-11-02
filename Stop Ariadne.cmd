@@ -1,3 +1,10 @@
 @echo off
+setlocal
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\stop_host.ps1"
-if errorlevel 1 pause
+set "ariadneLauncherExit=%ERRORLEVEL%"
+if not "%ariadneLauncherExit%"=="0" (
+  echo Ariadne could not stop. Review the error above.
+  echo If available, share only data\host\launcher-*.json, not the private log.
+  pause
+)
+exit /b %ariadneLauncherExit%

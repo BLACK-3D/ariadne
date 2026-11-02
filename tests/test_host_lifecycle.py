@@ -23,8 +23,17 @@ class HostTests(unittest.TestCase):
         self.job_patch.start()
         self.process_patch = patch.object(host, "same_process", return_value=True)
         self.process_patch.start()
+        # These protocol tests use synthetic process identities, not a native
+        # Python installation inside the temporary box. Native interpreter
+        # mapping has its own real/pure regression suite.
+        self.interpreter_patch = patch.object(host, "host_interpreter", return_value={
+            "kind": "bundled", "virtual_executable": str(Path(host.sys.executable).resolve()),
+            "native_executable": str(Path(host.sys.executable).resolve()),
+            "prefix": str(Path(host.sys.prefix).resolve()), "base_prefix": str(Path(host.sys.base_prefix).resolve())})
+        self.interpreter_patch.start()
 
     def tearDown(self):
+        self.interpreter_patch.stop()
         self.process_patch.stop()
         self.job_patch.stop()
         self.root_patch.stop()
