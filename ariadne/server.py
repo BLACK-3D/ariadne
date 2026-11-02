@@ -24,6 +24,7 @@ from .routines import RoutineConflict
 from .venture_lab import VentureConflict
 from .handoff import HandoffConflict, HandoffDesk
 from .client_handoff import ClientHandoffDesk
+from .workroom import WorkroomConflict
 
 
 class HTTPError(Exception):
@@ -60,6 +61,7 @@ class Application:
         self.engine.tools.references.books.sources = self.sources
         self.procedures = self.engine.tools.procedures.service()
         self.routines = self.engine.routines
+        self.workroom = self.engine.workroom
         from .operations import OperationsDesk
         self.operations = OperationsDesk(self.engine.tools, self.store)
         from .internet import InternetService
@@ -295,6 +297,8 @@ class Application:
                           "/static/routines.js": ("routines.js", "text/javascript"),
                           "/static/operations.js": ("operations.js", "text/javascript"),
                           "/static/operations.css": ("operations.css", "text/css"),
+                          "/static/workroom.js": ("workroom.js", "text/javascript"),
+                          "/static/workroom.css": ("workroom.css", "text/css"),
                           "/static/venture.css": ("venture.css", "text/css"),
                           "/static/venture.js": ("venture.js", "text/javascript"),
                           "/static/handoff.js": ("handoff.js", "text/javascript"),
@@ -322,6 +326,8 @@ class Application:
         except VentureConflict as error:
             status, payload, mime = 409, {"error": str(error), "revision": error.revision}, "application/json"
         except HandoffConflict as error:
+            status, payload, mime = 409, {"error": str(error), "revision": error.revision}, "application/json"
+        except WorkroomConflict as error:
             status, payload, mime = 409, {"error": str(error), "revision": error.revision}, "application/json"
         except KeyError:
             status, payload, mime = 404, {"error": "Not found"}, "application/json"
@@ -443,6 +449,25 @@ class Application:
             from .network_policy import network_policy_status
             result["network_policy"] = network_policy_status()
             result["internet"] = self.internet.status()
+        elif parts == ["workroom"] and method == "GET":
+            result = self.workroom.status()
+        elif parts == ["workroom", "catalog"] and method == "GET":
+            result = self.workroom.catalog()
+        elif len(parts) == 3 and parts[:2] == ["workroom", "projects"] and method == "GET":
+            result = self.workroom.project(parts[2])
+        elif len(parts) == 3 and parts[:2] == ["workroom", "receipts"] and method == "GET":
+            result = self.workroom.receipt(parts[2])
+        elif parts and parts[0] == "workroom" and method == "POST":
+            handlers = {("projects",): self.workroom.save_project,
+                        ("cycles", "start"): self.workroom.start_cycle,
+                        ("cycles", "stop"): self.workroom.stop_cycle,
+                        ("reconcile",): self.workroom.reconcile,
+                        ("tasks", "review"): self.workroom.review_task}
+            action = handlers.get(tuple(parts[1:]))
+            if action is None:
+                raise HTTPError(404, "Unknown Workroom action")
+            result = action(self.client_handoff_body(env))
+            self.engine.wake.set()
         elif parts == ["runs"] and method == "GET":
             result = {"runs": self.store.runs()}
         elif parts == ["runs"] and method == "POST":

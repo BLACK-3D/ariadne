@@ -130,7 +130,7 @@ const state = {
 };
 const activeStatuses = new Set(["queued", "running", "waiting_approval", "awaiting_approval", "pending", "waiting", "verifying"]);
 const isActive = run => Boolean(run && activeStatuses.has(run.status));
-const viewTitles = {missions:"Command center", operations:"Operations", venture:"Venture Lab", handoff:"Service desk", agents:"Agents", briefing:"Daily brief", internet:"Internet", workflows:"Workflows", knowledge:"Knowledge", survival:"Survival", memory:"Memory", schedules:"Schedules", files:"Workspace", connectors:"Capabilities", settings:"Settings & setup"};
+const viewTitles = {missions:"Command center", operations:"Operations", workroom:"Project Workroom", venture:"Venture Lab", handoff:"Service desk", agents:"Agents", briefing:"Daily brief", internet:"Internet", workflows:"Workflows", knowledge:"Knowledge", survival:"Survival", memory:"Memory", schedules:"Schedules", files:"Workspace", connectors:"Capabilities", settings:"Settings & setup"};
 const executionLabel = run => run?.status === "completed" ? "Execution finished" : humanize(run?.status);
 
 function toast(message, error = false) {
@@ -247,6 +247,7 @@ async function refreshStatus({quiet = false} = {}) {
     const previousActive = state.status?.active_runs;
     state.status = status;
     renderStatus(status);
+    window.ariadneWorkroom?.status();
     if (status.active_runs || previousActive !== status.active_runs) await loadRuns();
   } catch (error) {
     if (state.authenticated && state.token === token) {
@@ -323,6 +324,7 @@ function lockSession(message = "") {
   window.ariadneCommand?.locked();
   window.ariadneRoutines?.locked();
   window.ariadneOperationWorkflows?.locked();
+  window.ariadneWorkroom?.locked();
   window.ariadneVenture?.locked();
   window.ariadneQQQ?.locked();
   window.ariadneOptions?.locked();
@@ -353,6 +355,7 @@ async function showView(view) {
   if (!viewTitles[view]) return;
   const changedView = state.view !== view;
   if (changedView && state.view === "handoff") window.ariadneClientHandoff?.leave();
+  if (changedView && state.view === "workroom") window.ariadneWorkroom?.leave();
   if (changedView && state.view === "venture") { window.ariadneRevenue?.detach(); window.ariadneOptionsReview?.detach(); }
   state.view = view;
   for (const item of $$(".view")) item.hidden = item.id !== `view-${view}`;
@@ -369,6 +372,7 @@ async function showView(view) {
 }
 async function loadView(view) {
   if (view === "operations") { await window.ariadneOperations?.load(); return; }
+  if (view === "workroom") { await window.ariadneWorkroom?.load(); return; }
   if (view === "venture") {
     await window.ariadneVenture?.load(); if (state.view !== view) return;
     await window.ariadneRevenue?.load(); if (state.view !== view) return;
@@ -3012,6 +3016,7 @@ window.addEventListener("pagehide", () => { if (state.recording) stopRecording(t
 window.ariadneCommand?.attach({state, api, node, button, icon, selectRun, newMission, showView, dateLabel, humanize, modelReady, refreshStatus, loadRuns});
 window.ariadneRoutines?.attach({state, api, node, button, icon, openArtifact, downloadArtifact, confirmAction, toast, dateLabel, bytes, humanize});
 window.ariadneOperations?.attach({state, api, node, button, openArtifact, newMission, showView, resizeComposer});
+window.ariadneWorkroom?.attach({state, api, node, button, openArtifact, selectRun, showView, toast});
 window.ariadneOperationWorkflows?.attach({state, api, node, button, showView, setWorkflowTab, confirmAction, toast});
 window.ariadneVenture?.attach({state, api, node, button, openArtifact, showView, confirmAction, toast});
 window.ariadneQQQ?.attach({state, api, node, button, openArtifact, confirmAction, toast});
@@ -3043,4 +3048,5 @@ async function selectServiceDesk(mode) {
 $("#handoff-real-mode").addEventListener("click", () => selectServiceDesk("real").catch(error => toast(error.message, true)));
 $("#handoff-demo-mode").addEventListener("click", () => selectServiceDesk("demo").catch(error => toast(error.message, true)));
 if (typeof location !== "undefined" && new URLSearchParams(location.search).get("view") === "handoff") showView("handoff");
+if (typeof location !== "undefined" && new URLSearchParams(location.search).get("view") === "workroom") showView("workroom");
 if (state.token) connect(); else $("#access-token").focus();

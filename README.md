@@ -37,6 +37,7 @@ Already using an installation? Use **Start**, not **Setup**. Keep its data and m
 |---|---|
 | Local conversation and agent missions | Local model, workspace files, memory, tool approvals and run history. Quality and latency depend on your PC and task. |
 | Service desk | Fictional demo plus real-client intake, versioned quotes, approvals and invoice handoff. Core deterministic features work without a model or network. |
+| Project Workroom | Projects with dependencies, reviewed execution budgets, existing agent workflows, zero-model procedures and checked evidence handoffs. Completion and owner attestations remain distinct. |
 | Venture Lab | Business ideas, evidence, tasks and print-on-demand/service comparisons. Hypothetical scenarios remain distinct from actual customer/cash evidence. |
 | Trading research | Local-file research and paper-account tools. New data needs a qualified feed; no broker or real trading is enabled by setup. |
 | Daily brief | Saved activity and source reports; fresh weather/news needs Internet and regional configuration. Scheduling is opt-in. |
@@ -62,7 +63,13 @@ The [Threadline interface](docs/INTERFACE.md) brings observed system state, a di
 - [Architecture](docs/ARCHITECTURE.md) · [Project direction](docs/PROJECT_DIRECTION.md)
 - [MIT license for original source](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
-Current application source: **0.35.0**. Starter packaging prepares the core; it does not include every optional pack. Historical full-appliance version **0.16.1** is a separate local artifact and is not the current downloadable starter.
+Current application source: **0.36.0**. Starter packaging prepares the core; it does not include every optional pack. Historical full-appliance version **0.16.1** is a separate local artifact and is not the current downloadable starter.
+
+### Execute a project locally
+
+Open **Project Workroom** from the command center or system directory. Choose an editable starting plan for offline continuity, a Service desk pilot, print-on-demand validation or a research dossier. Set the objective and acceptance criteria, then add manual review gates, fixed procedures or existing saved AI workflows. AI tasks require isolated outputs and nonempty file checks.
+
+Inspect the frozen task instructions, specialist scope and checks before starting a bounded cycle. Each cycle permits **one to three child invocations**; each AI child is limited to **one to eight model steps**, further bounded by the installation's existing limit. Fixed procedures use no model. Dependencies advance only after checked artifacts or clearly labeled owner attestations. Stop-after-current, pause, failure and interrupted work retain review holds; the hub cannot approve its own external actions or automatically renew its budget. See the [Workroom guide](docs/WORKROOM.md) for the complete walkthrough, evidence rules and limits.
 
 <details>
 <summary>Development history, advanced operations and historical qualification notes</summary>

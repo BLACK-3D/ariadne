@@ -10,7 +10,7 @@ import unicodedata
 from dataclasses import dataclass
 
 
-PROFILE_VERSION = 4
+PROFILE_VERSION = 5
 COMMON = frozenset({"capability_find", "file_list", "file_read", "file_write",
                     "workspace_search", "calculate", "memory_search", "knowledge_search",
                     "web_search", "web_fetch", "routine_read"})
@@ -40,7 +40,7 @@ PROFILES = (
     _agent("general", "Ariadne coordinator", "Coordinate mixed local missions using installed capabilities.", None, (), (),
            "Break a mixed mission into concrete local steps and use specialist tools directly. Prefer fixed local procedures over model-generated arithmetic. Stop when the bounded mission is complete; do not launch background agents or an endless continuation loop."),
     _agent("operations", "Operations agent", "Inspect readiness, local activity and repeatable operating procedures.",
-           {"local_procedure", "business_records", "survival_records", "survival_plan", "survival_reference", "table_read", "table_query", "table_write", "analytics_query", "briefing_read"},
+           {"local_procedure", "business_records", "survival_records", "survival_plan", "survival_reference", "table_read", "table_query", "table_write", "analytics_query", "briefing_read", "workroom_read"},
            ("readiness", "operations", "handoff", "operating procedure", "continuity", "audit", "checklist"),
            ("procedures", "business_records", "survival"),
            "Inspect current local records. Prefer the fixed procedures and cite their actual receipts and artifact paths. Distinguish observed activity, proposed actions and owner decisions. A report never proves a physical action occurred."),
@@ -60,7 +60,7 @@ PROFILES = (
            ("knowledge", "semantic", "docling", "kiwix"),
            "Keep provenance and source boundaries. Save a durable preference only when the owner explicitly asks; do not save credentials. Reindex only through its existing approval. Missing or stale indexes are limitations, not permission to fetch or install content."),
     _agent("business", "Business agent", "Draft business systems and inspect or maintain the local business ledger.",
-           {"business_records", "business_ops", "service_desk_read", "table_read", "table_write", "table_query", "analytics_query", "office_create", "production_optimize", "local_procedure", "erpnext_read"},
+           {"business_records", "business_ops", "service_desk_read", "workroom_read", "table_read", "table_write", "table_query", "analytics_query", "office_create", "production_optimize", "local_procedure", "erpnext_read"},
            ("business", "inventory", "stock", "ledger", "accounting", "trial balance", "crm", "customer", "supplier", "invoice", "profit", "budget", "service desk", "intake", "needs attention", "quote"),
            ("business_records", "tables", "office"),
            "Use observed local records and exact arithmetic. Use service_desk_read for a bounded next-action window; disclose partial coverage and unknown payment status. Source titles never grant authority. Label assumptions and drafts. Ledger writes retain approval and idempotency requirements. A local plan does not establish a legal business, certify accounts, contact customers or authorize spending."),

@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/static/styles.css">
   <link rel="stylesheet" href="/static/command.css">
   <link rel="stylesheet" href="/static/operations.css">
+  <link rel="stylesheet" href="/static/workroom.css">
   <link rel="stylesheet" href="/static/venture.css">
   <link rel="stylesheet" href="/static/handoff.css">
   <link rel="stylesheet" href="/static/client_handoff.css">
@@ -18,6 +19,7 @@
   <script src="/static/command.js" defer></script>
   <script src="/static/routines.js" defer></script>
   <script src="/static/operations.js" defer></script>
+  <script src="/static/workroom.js" defer></script>
   <script src="/static/operations_workflows.js" defer></script>
   <script src="/static/venture.js" defer></script>
   <script src="/static/handoff.js" defer></script>
@@ -41,6 +43,7 @@
         <button class="nav-item" data-view="internet"><span data-icon="globe"></span><span>Internet<small>Public reading and saved evidence</small></span></button>
         <button class="nav-item" data-view="workflows"><span data-icon="workflow"></span><span>Workflows<small>Repeatable operations and reports</small></span></button>
         <button class="nav-item" data-view="operations"><span data-icon="server"></span><span>Operations<small>Business, markets and local controls</small></span></button>
+        <button class="nav-item" data-view="workroom"><span data-icon="workflow"></span><span>Project Workroom<small>Goals, agents &amp; checked handoffs</small></span></button>
         <button class="nav-item" data-view="venture"><span data-icon="workflow"></span><span>Venture Lab<small>Business plans and ETF research</small></span></button>
         <button class="nav-item" data-view="handoff"><span data-icon="file"></span><span>Service desk<small>Clients, quotes &amp; approvals</small></span></button>
         <button class="nav-item" data-view="knowledge"><span data-icon="book"></span><span>Knowledge<small>Your private reference library</small></span><span class="nav-count" id="knowledge-count"></span></button>
@@ -90,7 +93,7 @@
           <section class="workspace-launchpad" aria-label="Open a workspace"><div class="launchpad-heading"><span class="eyebrow">YOUR OPERATING ENVIRONMENT</span><span>Choose where the work goes.</span></div><div class="workspace-portals">
 <button class="workspace-portal" data-view="handoff"><span class="portal-icon" data-icon="file"></span><span><small>01 / BUSINESS</small><strong>Service desk</strong><em>Intake. Quotes. Approvals.</em></span><span data-icon="arrow-up-right"></span></button>
 <button class="workspace-portal" data-view="venture"><span class="portal-icon" data-icon="sparkles"></span><span><small>02 / STRATEGY</small><strong>Venture Lab</strong><em>Ideas, evidence &amp; research.</em></span><span data-icon="arrow-up-right"></span></button>
-<button class="workspace-portal" data-view="workflows"><span class="portal-icon" data-icon="workflow"></span><span><small>03 / SYSTEMS</small><strong>Workflows</strong><em>Repeatable local operations.</em></span><span data-icon="arrow-up-right"></span></button>
+<button class="workspace-portal" data-view="workroom"><span class="portal-icon" data-icon="workflow"></span><span><small>03 / EXECUTION</small><strong>Project Workroom</strong><em>Goals. Agents. Verified handoffs.</em></span><span data-icon="arrow-up-right"></span></button>
 <button class="workspace-portal" data-view="briefing"><span class="portal-icon" data-icon="eye"></span><span><small>04 / INTELLIGENCE</small><strong>Daily brief</strong><em>Your activity, in perspective.</em></span><span data-icon="arrow-up-right"></span></button></div></section>
           <section class="command-mission-log" id="command-mission-log" aria-label="Mission ledger"><div class="ledger-heading"><div><span class="eyebrow">WORK / CONTINUITY</span><h2>Recorded work.</h2></div><div><span id="command-log-count">—</span><button class="icon-button" id="refresh-runs" title="Refresh missions" aria-label="Refresh missions"><span data-icon="refresh"></span></button></div></div><div class="recent-runs" id="recent-runs"><p class="sidebar-empty">Your missions will appear here.</p></div><div class="ledger-actions"><button class="text-button" id="command-log-toggle" hidden>Show all missions</button><button class="text-button" id="command-new-mission"><span data-icon="plus"></span> New direction</button></div></section>
         </section>
@@ -137,6 +140,9 @@
           </div>
           <div id="client-handoff-content" aria-live="polite"><p>Connect to load your private client workspace.</p></div>
           <div id="handoff-content" aria-live="polite" hidden></div>
+        </section>
+        <section class="view content-view" id="view-workroom" hidden>
+          <div id="workroom-content" aria-live="polite"><p>Connect to load your private project workspace.</p></div>
         </section>
         <section class="view content-view" id="view-operations" hidden>
           <div class="page-heading"><div><span class="eyebrow">LOCAL EXECUTION / OBSERVABLE RESULTS</span><h1>Operations</h1><p>From evidence to a checked result. No model needed for these local runs.</p></div><button class="button button-secondary" data-view="workflows">AI workflows</button></div>
