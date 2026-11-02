@@ -8,6 +8,11 @@
   let client = null, intake = null, document = null, buttons = [], inputs = [], localButtons = [];
   let drafts = new Map(), profileOpen = false, intakeOpen = false;
   let pages = {client_offset:0, intake_offset:0, document_offset:0};
+  let selectedPacket = null, packet = null, uploadFile = null, inboxDraft = null, inboxDraftHash = null;
+  let inboxReview = {confirmed:false}, inboxReviewControl = null, inboxOpen = false, pendingMutation = null;
+  let nextActions = null, nextActionsError = "", queueLoading = false;
+  const inboxLimit = 1_000_000;
+  const packetPattern = /^P-[a-f0-9]{24}$/;
   const $ = id => window.document.getElementById(id);
   const string = value => typeof value === "string" ? value : "";
   const trim = value => string(value).trim();
@@ -100,21 +105,21 @@
     const labels = {tax:"Tax instruction",permission:"Permission to handle records",provider:"Service client details","provider.name":"Service client business name","provider.address":"Service client business address",work:"Completed-work evidence",acceptance:"Customer acceptance",customer:"Customer details","customer.name":"Customer name","customer.address":"Customer billing address",document_date:"Document date",service_date:"Service date",due_date:"Due or valid-until date",source_notes:"Source notes"};
     return labels[value] || "Owner input required";
   }
-  function canWrite() { return Boolean(app?.state.authenticated && data?.demo_only === false && !busy && !loading && !stale && !uncertain && !app.state.status?.paused); }
+  function canWrite() { return Boolean(app?.state.authenticated && data?.demo_only === false && !busy && !loading && !queueLoading && !stale && !uncertain && !app.state.status?.paused); }
   function canReview(row,decision) {
     if(!row||row.voided||row.invoice_id||!idPattern.test(row.id||"")||!shaPattern.test(row.content_sha256||""))return false;
     return decision==="approve"?(!row.exceptions?.length&&["ready_for_review","rejected"].includes(row.status)):decision==="reject"&&row.status!=="rejected";
   }
   function controls() {
-    const refresh = $("refresh-client-handoff"); if (refresh) refresh.disabled = busy || loading || !app?.state.authenticated;
+    const refresh = $("refresh-client-handoff"); if (refresh) refresh.disabled = busy || loading || queueLoading || !app?.state.authenticated;
     for (const item of buttons) item.button.disabled = !canWrite() || !item.allowed();
-    for (const item of inputs) item.disabled = busy || loading || !app?.state.authenticated;
-    if(busy||loading||!app?.state.authenticated)for(const button of localButtons)button.disabled=true;
+    for (const item of inputs) item.disabled = busy || loading || queueLoading || !app?.state.authenticated;
+    if(busy||loading||queueLoading||!app?.state.authenticated)for(const button of localButtons)button.disabled=true;
   }
   function action(label, callback, allowed = () => true, cls = "button-secondary") {
     const button = app.button(label,cls,async()=>{if(!canWrite()||!allowed())return;await callback();}); buttons.push({button,allowed}); return button;
   }
-  function localAction(label, callback, cls = "button-secondary") { const button = app.button(label,cls,async()=>{if(!app?.state.authenticated||busy||loading)return;await callback();}); button.type="button"; localButtons.push(button); return button; }
+  function localAction(label, callback, cls = "button-secondary") { const button = app.button(label,cls,async()=>{if(!app?.state.authenticated||busy||loading||queueLoading)return;await callback();}); button.type="button"; localButtons.push(button); return button; }
   function badge(parent, text, state="") { parent.append(e("span",`ch-badge ch-badge-${state}`,text)); }
   function draft(key, initial) { if (!drafts.has(key)) drafts.set(key,initial); return drafts.get(key); }
   function field(parent, label, object, name, {kind="text",wide=false,max=4000,choices=null} = {}) {
@@ -123,8 +128,9 @@
     if (choices) for (const [value,label] of choices) { const option=e("option","",label);option.value=value;input.append(option); }
     else if (kind!=="textarea") input.type=kind;
     input.maxLength=max; if (kind==="checkbox") input.checked=object[name] === true; else input.value=object[name] ?? "";
-    input.addEventListener("input",()=>{object[name]=kind==="checkbox"?input.checked:input.value;});
-    input.addEventListener("change",()=>{object[name]=kind==="checkbox"?input.checked:input.value;});
+    const edited=()=>{object[name]=kind==="checkbox"?input.checked:input.value;if(object===inboxDraft||inboxDraft?.lines?.includes(object))resetInboxReview();if(object===inboxReview)controls();};
+    input.addEventListener("input",edited);
+    input.addEventListener("change",edited);
     wrapper.append(input);parent.append(wrapper);inputs.push(input);return input;
   }
   function submit(form,label,callback,allowed=()=>true) {
@@ -170,7 +176,7 @@
       const identifier=value.id||newId("client-");await mutate("client profile","/service-desk/clients",clientPayload(value,data.revision,newId("client-save-"),identifier),result=>{selectedClient=result.entity_id||identifier;selectedIntake=null;selectedDocument=null;drafts.delete(key);profileOpen=false;},client?"PUT":"POST");
     },()=>!client||value.base_revision===client.revision);details.append(form);parent.append(details);
   }
-  function recordForm(parent, value, key, {invoice=false,refreshClient=false}={}) {
+  function recordForm(parent, value, key, {invoice=false,refreshClient=false,inbox=false}={}) {
     const fields=e("div","ch-fields");parent.append(fields);
     field(fields,"Job title",value,"title",{max:300});field(fields,"Document date",value,"document_date",{kind:"date"});
     field(fields,"Service date",value,"service_date",{kind:"date"});field(fields,invoice?"Invoice due date":"Quote valid-until date",value,"due_date",{kind:"date"});
@@ -179,17 +185,17 @@
     if(invoice){field(fields,"Completed-work evidence reference",value,"work_source",{wide:true,max:1000});field(fields,"Completion was supplied",value,"completed",{kind:"checkbox"});field(fields,"Completion evidence was checked",value,"work_approved",{kind:"checkbox"});return;}
     for(const [index,line]of value.lines.entries()){
       const section=e("section","ch-line-editor"),heading=e("div","ch-line-heading");heading.append(e("h4","",`Line ${index+1}`));
-      const remove=localAction("Remove line "+(index+1),()=>{if(value.lines.length<=1)return;value.lines.splice(index,1);render();});remove.disabled=value.lines.length<=1||busy||loading;heading.append(remove);section.append(heading);
+      const remove=localAction("Remove line "+(index+1),()=>{if(value.lines.length<=1)return;value.lines.splice(index,1);if(inbox)resetInboxReview();render();});remove.disabled=value.lines.length<=1||busy||loading;heading.append(remove);section.append(heading);
       const row=e("div","ch-fields");section.append(row);field(row,"Service description",line,"description",{wide:true,max:500});
       field(row,"Quantity, including hours such as 2.5",line,"quantity",{max:16}).inputMode="decimal";field(row,"Unit",line,"unit",{max:40});
       field(row,"Supplied unit price (USD, blank = unknown)",line,"unit_price",{max:16}).inputMode="decimal";field(row,"Approved price source reference",line,"source_ref",{max:1000});
-      field(row,"Client approved this rate",line,"price_approved",{kind:"checkbox",wide:true});parent.append(section);
+      if(!inbox)field(row,"Client approved this rate",line,"price_approved",{kind:"checkbox",wide:true});parent.append(section);
     }
-    const add=localAction("Add service line",()=>{if(value.lines.length>=50)return;value.lines.push({description:"",quantity:"1",unit:"unit",unit_price:"",price_approved:false,source_ref:""});render();});add.disabled=value.lines.length>=50||busy||loading;parent.append(add);
+    const add=localAction("Add service line",()=>{if(value.lines.length>=50)return;value.lines.push({description:"",quantity:"1",unit:"unit",unit_price:"",price_approved:false,source_ref:""});if(inbox)resetInboxReview();render();});add.disabled=value.lines.length>=50||busy||loading;parent.append(add);
     const evidence=e("div","ch-fields ch-line-editor");parent.append(evidence);
     field(evidence,"Supplied tax percentage (blank = unknown)",value,"tax",{max:8}).inputMode="decimal";field(evidence,"Tax instruction source reference",value,"tax_source",{max:1000});
-    field(evidence,"Client supplied the tax instruction",value,"tax_approved",{kind:"checkbox",wide:true});
-    field(evidence,"Permission or engagement reference",value,"permission_source",{wide:true,max:1000});field(evidence,"Permission to handle these customer records is recorded",value,"permission_confirmed",{kind:"checkbox",wide:true});
+    if(!inbox)field(evidence,"Client supplied the tax instruction",value,"tax_approved",{kind:"checkbox",wide:true});
+    field(evidence,"Permission or engagement reference",value,"permission_source",{wide:true,max:1000});if(!inbox)field(evidence,"Permission to handle these customer records is recorded",value,"permission_confirmed",{kind:"checkbox",wide:true});
     if(refreshClient)field(evidence,"Refresh issuer details from the current client profile; a new review will be required",value,"refresh_client",{kind:"checkbox",wide:true});
     p(parent,"Only supplied facts are used. Missing prices, permission, dates or tax instructions stay unresolved. Quantities and prices use exact decimal text.","ch-form-help ch-small");
   }
@@ -200,6 +206,103 @@
       tax:Number.isInteger(row?.tax?.bps)?(row.tax.bps/100).toFixed(2):"",tax_source:row?.tax?.source_ref||"",tax_approved:row?.tax?.approved===true,
       permission_source:row?.permission?.source_ref||"",permission_confirmed:row?.permission?.confirmed===true,
       work_source:row?.work?.source_ref||"",completed:row?.work?.completed===true,work_approved:row?.work?.approved===true,refresh_client:false};
+  }
+  function resetInboxReview() {
+    inboxReview.confirmed=false;
+    if(inboxReviewControl)inboxReviewControl.checked=false;
+    controls();
+  }
+  function clearInbox() {
+    selectedPacket=null;packet=null;uploadFile=null;inboxDraft=null;inboxDraftHash=null;
+    inboxReview={confirmed:false};inboxReviewControl=null;inboxOpen=false;
+  }
+  function validPacket(row) {
+    return Boolean(row&&packetPattern.test(row.id||"")&&idPattern.test(row.client_id||"")&&shaPattern.test(row.content_sha256||"")&&shaPattern.test(row.raw_sha256||"")&&shaPattern.test(row.text_sha256||"")&&typeof row.text==="string"&&row.text.length<=20000&&Array.isArray(row.candidates)&&row.candidates.length<=100&&Array.isArray(row.warnings));
+  }
+  function inboxAcceptPayload(row,fields,revision,requestId,confirmed) {
+    if(!validPacket(row)||row.consumed_intake_id||row.client_changed||confirmed!==true)throw new Error("Review the current unconsumed source packet before saving an intake.");
+    const facts=recordFields(fields);
+    for(const line of facts.lines)line.price_approved=false;
+    facts.tax.approved=false;facts.permission.confirmed=false;
+    return {...meta(revision,requestId),packet_id:row.id,content_sha256:row.content_sha256,review_confirmed:true,intake:facts};
+  }
+  async function openPacket(identifier) {
+    if(!packetPattern.test(identifier)||busy||loading||queueLoading)return;
+    clearInbox();selectedPacket=identifier;inboxOpen=true;await load();
+  }
+  async function prepareInbox() {
+    if(!canWrite()||!client||client.archived||!data.inbox)return;
+    const file=uploadFile,marker=generation,token=app.state.token,clientId=client.id,revision=data.revision;
+    if(!file||!Number.isInteger(file.size)||file.size<1||file.size>inboxLimit)throw new Error("Choose a nonempty document no larger than 1 MB (1,000,000 bytes).");
+    if(!/\.(?:txt|md|csv|tsv|pdf|docx|xlsx|eml)$/i.test(file.name)||file.name.length>200||/[\\/:]/.test(file.name))throw new Error("Choose a PDF, text, Markdown, CSV, TSV, DOCX, XLSX or EML file with a simple filename.");
+    busy=true;controls();let content;
+    try{content=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.addEventListener("load",()=>resolve(string(reader.result).split(",",2)[1]||""),{once:true});reader.addEventListener("error",()=>reject(new Error("The selected document could not be read.")),{once:true});reader.readAsDataURL(file);});}
+    finally{if(current(marker,token)){busy=false;controls();}}
+    if(!current(marker,token)||client?.id!==clientId||data.revision!==revision||uploadFile!==file)return;
+    await mutate("document inbox import","/service-desk/inbox",{...meta(revision,newId("inbox-prepare-")),client_id:clientId,filename:file.name,content_base64:content},result=>{
+      if(!packetPattern.test(result.entity_id||""))throw Object.assign(new Error("The saved packet identifier could not be verified. Inspect the activity trail before continuing."),{status:409});
+      clearInbox();selectedPacket=result.entity_id;inboxOpen=true;
+    });
+  }
+  function candidateLabel(value) {
+    const labels={title:"Job title","customer.name":"Customer name","customer.email":"Customer email","customer.address":"Customer billing address",service_date:"Service date",document_date:"Document date",due_date:"Quote valid-until date","lines.0.description":"Service description","lines.0.quantity":"Quantity","lines.0.unit":"Unit","lines.0.unit_price":"Supplied unit price"};
+    return labels[value]||"Source suggestion";
+  }
+  function packetReview(parent) {
+    if(!packet)return;
+    const header=e("div","ch-inbox-heading");header.append(e("h3","",packet.filename),e("span","ch-badge","IMMUTABLE SOURCE SNAPSHOT"));parent.append(header);
+    p(parent,`Packet ${packet.id} · ${packet.raw_bytes} source bytes · ${packet.format}. The snapshot is limited to 10,000 characters / 24,000 UTF-8 bytes.`,"ch-small ch-muted");
+    for(const warning of packet.warnings)p(parent,string(warning)||"The extractor reported a format warning.","ch-inbox-warning");
+    if(packet.truncated)p(parent,"PARTIAL EXTRACTION — review the original file for omitted information. Suggestions cover only the retained text.","ch-inbox-warning");
+    const fingerprint=e("details","ch-inbox-provenance");fingerprint.append(e("summary","","Source and extraction fingerprints"));
+    for(const [label,value]of [["Original file SHA-256",packet.raw_sha256],["Extracted text SHA-256",packet.text_sha256],["Packet SHA-256",packet.content_sha256]])p(fingerprint,`${label}: ${value}`,"ch-hash");parent.append(fingerprint);
+    const columns=e("div","ch-inbox-columns"),evidence=e("section","ch-inbox-evidence"),suggestions=e("section","ch-inbox-candidates");
+    evidence.append(e("h4","","Retained source text"));p(evidence,"Line numbers refer to this extracted snapshot, not positions on the original PDF page.","ch-small ch-muted");
+    const sourceText=e("pre","ch-inbox-text",packet.text.split("\n").map((line,index)=>`${index+1}  ${line}`).join("\n"));sourceText.setAttribute("tabindex","0");sourceText.setAttribute("aria-label","Retained extracted source text with line numbers");evidence.append(sourceText);suggestions.setAttribute("tabindex","0");suggestions.setAttribute("aria-label","Source-cited field suggestions");
+    suggestions.append(e("h4","","Label-based suggestions"));p(suggestions,"Deterministic label matching, not universal AI understanding. A matching label is evidence to review, not proof that a value or instruction is correct.","ch-small ch-muted");
+    for(const candidate of packet.candidates){
+      if(!candidate||typeof candidate.field!=="string"||typeof candidate.quote!=="string")continue;
+      const card=e("article","ch-inbox-candidate");card.append(e("strong","",candidateLabel(candidate.field)),e("span","ch-inbox-value",typeof candidate.value==="string"?candidate.value:JSON.stringify(candidate.value)));
+      p(card,`Line ${candidate.line_number} · characters ${candidate.start}–${candidate.end}`,"ch-small ch-muted");card.append(e("blockquote","",candidate.quote));p(card,`Quote SHA-256: ${candidate.quote_sha256||"not supplied"}`,"ch-hash");suggestions.append(card);
+    }
+    if(!packet.candidates.length)p(suggestions,"No recognized labels were found. You can enter the retained source facts manually.","ch-muted");columns.append(evidence,suggestions);parent.append(columns);
+    if(packet.consumed_intake_id){p(parent,`This packet already created intake ${packet.consumed_intake_id}. It cannot create a second intake.`,"ch-inbox-warning");parent.append(localAction("Open saved packet intake",async()=>{const id=packet.consumed_intake_id;if(!idPattern.test(id))return;clearInbox();selectedIntake=id;selectedDocument=null;await load();}));return;}
+    if(packet.client_changed){p(parent,"The service client changed or was archived after this snapshot. Import a new packet against the current client profile; this one remains historical evidence.","ch-inbox-warning");return;}
+    if(!inboxDraft){parent.append(localAction("Review suggested intake",()=>{inboxDraft=fromRecord(packet.proposed_intake);inboxDraftHash=packet.content_sha256;inboxDraft.lines.forEach(line=>line.price_approved=false);inboxDraft.tax_approved=false;inboxDraft.permission_confirmed=false;resetInboxReview();render();},"button-primary"));return;}
+    if(inboxDraftHash!==packet.content_sha256){p(parent,"The selected source fingerprint changed. Close this review and inspect the source again.","ch-inbox-warning");return;}
+    const form=e("form","ch-inbox-review");form.append(e("h3","","Review the intake draft"));p(form,"Edit the suggested facts against their source. Saving records no price, tax or permission approval. Complete those gates in the normal quote review.","ch-muted");recordForm(form,inboxDraft,"inbox-draft",{inbox:true});
+    inboxReviewControl=field(form,"I checked this intake against the retained source text and its extraction warnings",inboxReview,"confirmed",{kind:"checkbox",wide:true});
+    submit(form,"Save reviewed intake draft",async()=>{const body=inboxAcceptPayload(packet,inboxDraft,data.revision,newId("inbox-accept-"),inboxReview.confirmed);await mutate("reviewed document intake","/service-desk/inbox/accept",body,result=>{selectedIntake=result.entity_id;selectedDocument=null;inboxDraft=null;inboxDraftHash=null;resetInboxReview();});},()=>Boolean(packet&&!packet.consumed_intake_id&&!packet.client_changed&&inboxReview.confirmed&&inboxDraftHash===packet.content_sha256));parent.append(form);
+  }
+  function documentInbox(parent) {
+    if(!client||!data.inbox)return;
+    const panel=e("details","ch-card ch-inbox");panel.open=inboxOpen||Boolean(packet);panel.append(e("summary","","Document inbox · turn a source into a reviewed intake"));
+    panel.addEventListener("toggle",()=>{inboxOpen=panel.open;});
+    p(panel,"Read one local document, check its cited suggestions, then explicitly save an intake draft. No model, cloud account or external requests are used. Imported words never approve a price, tax instruction, permission or completed job.","ch-muted");
+    if(!client.archived){const form=e("form","ch-inbox-upload"),label=e("label","ch-field","Source document · up to 1 MB"),input=e("input");input.type="file";input.name="inbox_file";input.accept=".pdf,.txt,.md,.csv,.tsv,.docx,.xlsx,.eml";inputs.push(input);
+      input.addEventListener("change",()=>{uploadFile=input.files?.[0]||null;inboxOpen=true;render();});label.append(input);form.append(label);if(uploadFile)p(form,`Selected: ${uploadFile.name} (${uploadFile.size} bytes)`,"ch-small ch-muted");
+      submit(form,"Read selected document",prepareInbox,()=>Boolean(uploadFile));panel.append(form);
+    }else p(panel,"This service client is archived. Saved packets remain readable.","ch-muted");
+    const saved=data.inbox;if(Array.isArray(saved?.packets)&&saved.packets.length){const list=e("div","ch-inbox-saved");list.append(e("h4","","Saved source packets"));for(const row of saved.packets){if(!packetPattern.test(row.id||"")||row.client_id!==client.id)continue;const button=localAction(`${row.filename} · ${row.consumed_intake_id?"intake saved":"awaiting review"}`,()=>openPacket(row.id),"ch-inbox-packet");button.setAttribute("aria-pressed",String(row.id===selectedPacket));list.append(button);}p(list,`Showing the latest ${saved.packets.length} of ${saved.total??saved.packets.length} packets for this client. Older packet IDs remain in recorded activity.`,"ch-small ch-muted");panel.append(list);}
+    const lookup=draft("inbox-lookup",{id:""}),openForm=e("form","ch-inbox-lookup");field(openForm,"Open an older packet by its saved P- identifier",lookup,"id",{max:26});const open=localAction("Open source packet",async()=>{if(!packetPattern.test(lookup.id)){notice="Use a saved P- identifier followed by 24 lowercase hexadecimal characters.";render();return;}await openPacket(lookup.id);});openForm.append(open);openForm.addEventListener("submit",event=>event.preventDefault());panel.append(openForm);
+    packetReview(panel);parent.append(panel);
+  }
+  function attentionQueue(parent) {
+    if(!data.inbox){p(parent,"Document inbox and cross-client actions require the updated local server. Manual intake remains available in this running version.","ch-small ch-muted");return;}
+    const section=e("section","ch-card ch-attention"),heading=e("div","ch-inbox-heading");heading.append(e("div","",null));heading.childNodes[0].append(e("span","eyebrow","CROSS-CLIENT REVIEW"),e("h3","","Needs attention"));const refresh=localAction(queueLoading?"Reading queue…":"Review all-client queue",()=>loadNextActions(0));heading.append(refresh);section.append(heading);
+    p(section,"An explicit, read-only scan of a bounded record window across service clients. No reminders are sent, no payments are inferred and nothing advances in the background.","ch-small ch-muted");
+    if(nextActionsError)p(section,nextActionsError,"ch-inbox-warning");
+    if(nextActions){p(section,`Checked ${stamp(nextActions.as_of)} · ${nextActions.pagination?.scanned??0} records in this window. ${nextActions.truncated?"More records need a separate page.":"This record window is complete."}`,"ch-small ch-muted");
+      if(nextActions.revision!==data.revision)p(section,"Saved records changed after this queue was read. Refresh the queue before relying on its action labels.","ch-inbox-warning");
+      const list=e("div","ch-attention-list");for(const row of nextActions.items){const card=e("article","ch-attention-item");badge(card,pretty(row.kind));card.append(e("h4","",row.title));p(card,row.message,"ch-small ch-muted");p(card,`Client ${row.client_id||"workspace"} · ${row.entity_id||row.id}`,"ch-hash");if(["intake","document","intake_packet","client"].includes(row.entity_type)&&idPattern.test(row.client_id||"")&&idPattern.test(row.entity_id||""))card.append(localAction("Inspect saved record",async()=>{clearInbox();selectedClient=row.client_id;selectedIntake=row.entity_type==="intake"?row.entity_id:null;selectedDocument=row.entity_type==="document"?row.entity_id:null;if(row.entity_type==="intake_packet"&&packetPattern.test(row.entity_id)){selectedPacket=row.entity_id;inboxOpen=true;}pages.intake_offset=0;pages.document_offset=0;await load();}));list.append(card);}section.append(list);if(!nextActions.items.length)p(section,"No suggested actions in this scanned record window. This does not verify customer payment or business outcomes.","ch-muted");
+      const page=nextActions.pagination;if(page){const controls=e("div","ch-actions");if(page.offset>0)controls.append(localAction("Previous action window",()=>loadNextActions(Math.max(0,page.offset-page.limit))));if(page.has_more&&Number.isInteger(page.next_offset))controls.append(localAction("Next action window",()=>loadNextActions(page.next_offset)));section.append(controls);}
+    }parent.append(section);
+  }
+  async function loadNextActions(offset=0) {
+    if(!app?.state.authenticated||!data?.inbox||busy||loading||queueLoading)return;queueLoading=true;nextActionsError="";const marker=generation,token=app.state.token;render();
+    try{const result=await app.api(`/service-desk/next-actions?limit=50&offset=${offset}`);if(!current(marker,token))return;if(result?.schema!==1||!Number.isInteger(result.revision)||!Array.isArray(result.items)||result.items.length>250||result.coverage!=="bounded_record_window")throw new Error("The action queue response could not be verified.");nextActions=result;}
+    catch(error){if(current(marker,token)){nextActions=null;nextActionsError=error.message;}}
+    finally{if(current(marker,token)){queueLoading=false;render();}}
   }
   function intakeForm(parent) {
     if(!client)return;
@@ -216,10 +319,10 @@
     const clients=[...data.clients];if(client&&!clients.some(row=>row.id===client.id))clients.unshift(client);
     if(!clients.length){const option=e("option","","No clients saved yet");option.value="";select.append(option);}
     for(const item of clients){const option=e("option","",item.name+(item.archived?" · archived":""));option.value=item.id;select.append(option);}select.value=selectedClient||"";inputs.push(select);
-    select.addEventListener("change",async()=>{if(busy||loading)return;selectedClient=select.value||null;selectedIntake=null;selectedDocument=null;pages.intake_offset=0;pages.document_offset=0;profileOpen=false;await load();});label.append(select);toolbar.append(label);
-    toolbar.append(localAction("Add another service client",async()=>{selectedClient=null;selectedIntake=null;selectedDocument=null;client=null;intake=null;document=null;profileOpen=true;pages.intake_offset=0;pages.document_offset=0;render();await load();}));
+    select.addEventListener("change",async()=>{if(busy||loading)return;selectedClient=select.value||null;selectedIntake=null;selectedDocument=null;pages.intake_offset=0;pages.document_offset=0;profileOpen=false;clearInbox();await load();});label.append(select);toolbar.append(label);
+    toolbar.append(localAction("Add another service client",async()=>{selectedClient=null;selectedIntake=null;selectedDocument=null;client=null;intake=null;document=null;clearInbox();profileOpen=true;pages.intake_offset=0;pages.document_offset=0;render();await load();}));
     if(client)toolbar.append(localAction("New customer job",()=>{intakeOpen=true;render();}));parent.append(toolbar);pager(parent,"clients","client_offset");
-    profileForm(parent);intakeForm(parent);
+    profileForm(parent);documentInbox(parent);intakeForm(parent);
   }
   function queues(parent) {
     const section=e("section","ch-queue");section.append(e("span","eyebrow","WORK QUEUE"),e("h3","","Saved job intakes"));p(section,selectedClient?`Jobs and documents for ${client?.name||"the selected service client"}.`:"Jobs and documents across all saved service clients.","ch-small ch-muted");
@@ -229,12 +332,20 @@
     for(const row of data.documents){const button=localAction("",async()=>{if(busy||loading)return;selectedDocument=row.id;selectedIntake=row.intake_id;selectedClient=row.client_id;await load();},"ch-queue-item");button.setAttribute("aria-label",`Open ${row.reference||row.kind} ${row.title}`);button.setAttribute("aria-pressed",String(row.id===selectedDocument));button.append(e("span","",`${row.reference||row.id} · ${row.kind}`),e("strong","",row.title),e("span","",row.provider_name||row.client_id));badge(button,row.voided?"Voided":pretty(row.status),row.status);section.append(button);}
     if(!data.documents.length)p(section,"No document drafts yet. Select a saved intake to generate its quote.","ch-muted");pager(section,"documents","document_offset");parent.append(section);
   }
+  function sourceReference(parent,row) {
+    const source=row.intake_packet;if(!source||!packetPattern.test(source.packet_id||""))return;
+    const box=e("section","ch-line-editor");box.append(e("h4","","Reviewed source packet"));
+    p(box,"Retained imported claims and the reviewed intake facts have separate fingerprints. This link does not authenticate the sender or approve commercial terms.","ch-small ch-muted");
+    for(const [label,key]of [["Packet","packet_content_sha256"],["Original file","raw_sha256"],["Extracted text","text_sha256"],["Reviewed intake facts","facts_sha256"]])if(shaPattern.test(source[key]||""))p(box,`${label}: ${source[key]}`,"ch-hash");
+    box.append(localAction("Inspect linked source packet",()=>openPacket(source.packet_id)));parent.append(box);
+  }
   function intakePreview(parent) {
     if(!intake){const box=e("section","ch-empty");box.append(e("h3","","Your client work starts here."));p(box,"Save a real service client's issuer details, then capture a job using records you are permitted to handle. The fictional demonstration stays in its own workspace.","ch-muted");parent.append(box);return;}
     const box=e("section","ch-card");box.append(e("span","eyebrow","SAVED INTAKE"),e("h3","",intake.title));
     p(box,`For ${intake.customer?.name||"customer details awaiting input"} · Issuer ${intake.provider?.name||client?.name||"not supplied"}.`,"ch-muted");p(box,intake.source_notes,"ch-source-note");
     const list=e("ul","ch-small ch-muted");for(const line of intake.lines||[])list.append(e("li","",`${line.description}: ${line.quantity} ${line.unit||"unit"} at ${line.unit_price===null?"unknown rate":"$"+line.unit_price}; ${line.price_approved?"rate approval supplied":"rate approval missing"}.`));box.append(list);
     p(box,"An intake is an immutable record of supplied information. Corrections are made to its generated quote and require a new review.","ch-small ch-muted");
+    sourceReference(box,intake);
     box.append(action("Generate quote draft",async()=>{await mutate("quote generation","/service-desk/quotes",{...meta(data.revision,newId("quote-generate-")),intake_id:intake.id,content_sha256:intake.content_sha256},result=>{selectedDocument=result.entity_id;});},()=>intake.can_generate_quote!==false&&!intake.quote_id,"button-primary"));parent.append(box);
   }
   function documentPreview(parent,row) {
@@ -252,6 +363,7 @@
     const card=e("section","ch-card");card.append(e("span","eyebrow","SUPPLIED EVIDENCE"),e("h3","","Source notes and unresolved inputs"));p(card,row.source_notes,"ch-source-note ch-muted");
     if(row.exceptions?.length)for(const item of row.exceptions){const gap=e("div","ch-exception");gap.append(e("strong","",fieldLabel(item.field)),e("p","",item.message||"Owner input required."));card.append(gap);}
     else p(card,"Required supplied fields and arithmetic pass local checks. This does not independently verify customer consent, tax treatment or completed work.","ch-muted");
+    sourceReference(card,row);
     const refs=e("ul","ch-small ch-muted");for(const line of row.lines||[])refs.append(e("li","",`${line.description}: ${line.source_ref||"price source missing"}`));refs.append(e("li","",`Tax: ${row.tax?.source_ref||"instruction source missing"}`),e("li","",`Permission: ${row.permission?.source_ref||"reference missing"}`));if(row.kind==="invoice")refs.append(e("li","",`Completion: ${row.work?.source_ref||"reference missing"}`));card.append(refs);parent.append(card);
   }
   function editDocument(parent,row) {
@@ -324,38 +436,39 @@
   function render() {
     const root=$("client-handoff-content");if(!root||!app?.state.authenticated)return;root.replaceChildren();buttons=[];inputs=[];localButtons=[];
     if(!data){p(root,loading?"Reading the private client workspace…":notice||"Open this workspace to read saved client records.","ch-muted");controls();return;}
-    overview(root);notePanel(root);workspaceTools(root);
+    overview(root);notePanel(root);attentionQueue(root);workspaceTools(root);
     const layout=e("div","ch-layout"),queue=e("div"),work=e("div");queues(queue);layout.append(queue,work);
     if(document){documentPreview(work,document);checks(work,document);lineage(work,document);editDocument(work,document);const stages=e("div","ch-workflow");reviewForm(stages,document);acceptanceForm(stages,document);invoiceForm(stages,document);exportAndVoid(stages,document);work.append(stages);}
     else intakePreview(work);root.append(layout);activity(root);controls();
   }
   function statusPath() {const values=Object.entries(pages).filter(([,value])=>value>0).map(([name,value])=>`${name}=${value}`);if(selectedClient)values.push("client_id="+encodeURIComponent(selectedClient));return "/service-desk"+(values.length?"?"+values.join("&"):"");}
   async function load() {
-    if(!app?.state.authenticated||loading||busy)return;loading=true;const marker=generation,token=app.state.token;controls();
+    if(!app?.state.authenticated||loading||busy||queueLoading)return;loading=true;const marker=generation,token=app.state.token;controls();
     try{
       let next=await app.api(statusPath());if(!current(marker,token))return;
       if(next?.demo_only!==false||!Number.isInteger(next.revision)||!Array.isArray(next.clients)||!Array.isArray(next.intakes)||!Array.isArray(next.documents))throw new Error("The private workspace response could not be verified.");
       if(!selectedClient&&next.clients.length&&!profileOpen){selectedClient=next.clients[0].id;next=await app.api(statusPath());if(!current(marker,token))return;if(next?.demo_only!==false||!Number.isInteger(next.revision)||!Array.isArray(next.clients)||!Array.isArray(next.intakes)||!Array.isArray(next.documents))throw new Error("The selected client workspace response could not be verified.");}
-      data=next;client=null;intake=null;document=null;
+      data=next;client=null;intake=null;document=null;packet=null;
       const reads=[];if(selectedClient)reads.push(["client","clients",selectedClient]);if(selectedIntake)reads.push(["intake","intakes",selectedIntake]);if(selectedDocument)reads.push(["document","documents",selectedDocument]);
       const details=await Promise.all(reads.map(async([kind,path,id])=>({kind,value:await app.api(`/service-desk/${path}/${encodeURIComponent(id)}`)})));
       if(!current(marker,token))return;
       for(const item of details){if(item.value.revision!==data.revision)throw new Error("The workspace changed while loading document details. Refresh before acting.");if(item.kind==="client")client=item.value.client;if(item.kind==="intake")intake=item.value.intake;if(item.kind==="document")document=item.value.document;}
       if(client&&client.id!==selectedClient||document&&document.client_id!==selectedClient||intake&&intake.client_id!==selectedClient)throw new Error("Selected records belong to a different service client. Refresh and choose them again.");
       if(selectedClient&&(data.intakes.some(row=>row.client_id!==selectedClient)||data.documents.some(row=>row.client_id!==selectedClient)))throw new Error("The selected client list could not be verified. Refresh before another action.");
+      if(selectedPacket){const saved=await app.api(`/service-desk/inbox/${encodeURIComponent(selectedPacket)}`);if(!current(marker,token))return;if(saved.revision!==data.revision||!validPacket(saved.packet)||saved.packet.id!==selectedPacket||saved.packet.client_id!==selectedClient)throw new Error("The saved source packet could not be verified for this client revision.");packet=saved.packet;}
       stale=false;notice="";if(uncertain)inspected=true;
     }catch(error){if(current(marker,token)){notice=error.message;stale=true;}}
     finally{if(current(marker,token)){loading=false;render();}}
   }
   async function mutate(kind,path,body,onSuccess,method="POST") {
-    if(!canWrite())return;busy=true;notice="";const marker=generation,token=app.state.token;controls();
+    if(!canWrite())return;busy=true;pendingMutation={kind,id:body.request_id};notice="";const marker=generation,token=app.state.token;controls();
     try{
       const result=await app.api(path,{method,body});if(!current(marker,token))return;
       const successStatus=path==="/service-desk/export/acknowledge"?"acknowledged":"completed";
       if(result?.status!==successStatus)throw Object.assign(new Error(result?.error||result?.reason||"The local change did not complete. Inspect saved state before continuing."),{status:409});
       if(onSuccess)onSuccess(result);app.toast("Saved locally. Nothing sent, posted or paid.");
     }catch(error){if(!current(marker,token))return;notice=error.message;if(error.status===409)stale=true;else if(!error.status||error.status>=500)uncertain={kind,id:body.request_id};}
-    finally{if(current(marker,token)){busy=false;render();if(!stale&&!uncertain)await load();}}
+    finally{if(current(marker,token)){busy=false;pendingMutation=null;render();if(!stale&&!uncertain)await load();}}
   }
   async function review(row,decision,note) {
     if(!canWrite()||!canReview(row,decision))return;
@@ -368,7 +481,9 @@
     await mutate("export acknowledgement","/service-desk/export/acknowledge",{request_id:hold.request_id,expected_revision:revision});
   }
   function status(){controls();}
-  function locked(){generation++;data=null;client=null;intake=null;document=null;selectedClient=null;selectedIntake=null;selectedDocument=null;loading=false;busy=false;stale=false;uncertain=null;inspected=false;notice="";drafts=new Map();profileOpen=false;intakeOpen=false;pages={client_offset:0,intake_offset:0,document_offset:0};buttons=[];inputs=[];localButtons=[];$("client-handoff-content")?.replaceChildren();controls();}
+  function leave(){const hold=pendingMutation||uncertain;locked();uncertain=hold;}
+
+  function locked(){generation++;clearInbox();nextActions=null;nextActionsError="";queueLoading=false;pendingMutation=null;data=null;client=null;intake=null;document=null;selectedClient=null;selectedIntake=null;selectedDocument=null;loading=false;busy=false;stale=false;uncertain=null;inspected=false;notice="";drafts=new Map();profileOpen=false;intakeOpen=false;pages={client_offset:0,intake_offset:0,document_offset:0};buttons=[];inputs=[];localButtons=[];$("client-handoff-content")?.replaceChildren();controls();}
   function attach(value){app=value;const root=$("client-handoff-content");if(!root||root===attached)return;attached=root;$("refresh-client-handoff")?.addEventListener("click",load);controls();}
-  window.ariadneClientHandoff={attach,load,status,locked,money,relativePath,taxBps,linePayload,recordFields,clientPayload,intakePayload,acceptancePayload,invoicePayload,documentMeta,fieldLabel,canReview,review,acknowledgeExport};
+  window.ariadneClientHandoff={attach,load,status,locked,leave,loadNextActions,inboxAcceptPayload,validPacket,money,relativePath,taxBps,linePayload,recordFields,clientPayload,intakePayload,acceptancePayload,invoicePayload,documentMeta,fieldLabel,canReview,review,acknowledgeExport};
 })();

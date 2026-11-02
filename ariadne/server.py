@@ -73,6 +73,9 @@ class Application:
         self.venture = self.briefing.venture
         self.handoff = HandoffDesk(self.engine.tools, self.store)
         self.client_handoff = ClientHandoffDesk(self.engine.tools, self.store)
+        service_desk_reader = getattr(self.engine.tools, "service_desk", None)
+        if service_desk_reader is not None:
+            service_desk_reader.bind(self.client_handoff.next_actions)
         self.engine.briefing_provider = self.briefing_read
         self.wake_voice = WakeService(settings, self.submit_voice, blocked=self.voice_blocked,
                                       get_run=self.store.run, speak=self.speak_on_pc,
@@ -362,12 +365,12 @@ class Application:
     def public_run(run):
         return {k: v for k, v in run.items() if k not in {"context", "pending", "prompt", "verification"}}
 
-    def client_handoff_body(self, env):
+    def client_handoff_body(self, env, *, limit=128 * 1024):
         """Keep strict financial input parsing scoped to the real client desk."""
         from .handoff import _load
         if env.get("CONTENT_TYPE", "").split(";")[0] != "application/json":
             raise HTTPError(415, "Use application/json")
-        payload = self.body(env, raw=True, limit=128 * 1024)
+        payload = self.body(env, raw=True, limit=limit)
         try:
             value = _load((payload or b"{}").decode("utf-8-sig"))
         except (ValueError, UnicodeError):
@@ -446,6 +449,28 @@ class Application:
                 else:
                     arguments[key] = int(values[0])
             result = self.client_handoff.status(**arguments)
+        elif parts == ["service-desk", "next-actions"] and method == "GET":
+            fields = parse_qs(env.get("QUERY_STRING", ""), keep_blank_values=True)
+            if set(fields) - {"limit", "offset"} or any(len(values) != 1 or not values[0] for values in fields.values()):
+                raise ValueError("Use one nonempty limit/offset for the bounded next-action queue.")
+            arguments = {}
+            for key, values in fields.items():
+                if not values[0].isascii() or not values[0].isdecimal() or len(values[0]) > 8:
+                    raise ValueError("Next-action pagination needs bounded nonnegative whole numbers.")
+                arguments[key] = int(values[0])
+            result = self.client_handoff.next_actions(**arguments)
+        elif parts == ["service-desk", "inbox"] and method == "POST":
+            if env.get("QUERY_STRING"):
+                raise ValueError("Document inbox mutations do not accept query fields.")
+            result = self.client_handoff.prepare_intake_packet(self.client_handoff_body(env, limit=2 * 1024 * 1024))
+        elif len(parts) == 3 and parts[:2] == ["service-desk", "inbox"] and method == "GET":
+            if env.get("QUERY_STRING"):
+                raise ValueError("Document inbox reads do not accept query fields.")
+            result = self.client_handoff.get_intake_packet(parts[2])
+        elif parts == ["service-desk", "inbox", "accept"] and method == "POST":
+            if env.get("QUERY_STRING"):
+                raise ValueError("Document inbox mutations do not accept query fields.")
+            result = self.client_handoff.accept_intake_packet(self.client_handoff_body(env))
         elif parts == ["options"] and method == "GET":
             result = self.briefing.options.status()
         elif parts == ["options", "review"] and method == "GET":

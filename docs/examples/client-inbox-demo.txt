@@ -1,0 +1,12 @@
+FICTIONAL DEMO ONLY — no actual customer, work, authorization or sale.
+Title: Fictional repair visit
+Customer: Example Customer
+Customer email: customer@example.test
+Customer address: 2 Fictional Example Road
+Scope: Fictional repair labour for inbox validation
+Quantity: 2.5
+Unit: hours
+Unit price: 40.00
+
+Dates are intentionally omitted. Review and supply actual dates yourself.
+No price, tax, permission, acceptance, completion or payment approval is supplied.

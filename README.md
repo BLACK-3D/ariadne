@@ -57,11 +57,12 @@ The [Threadline interface](docs/INTERFACE.md) brings observed system state, a di
 - [Existing-installation launcher repair](docs/LAUNCHER_REPAIR.md)
 - [Advanced manual setup and optional packs](docs/BUILD_FROM_SOURCE.md)
 - [Service desk workflow](docs/SERVICE_DESK_0_20.md)
+- [Document inbox, cited intake review and cross-client next actions](docs/CLIENT_INBOX.md)
 - [Voice controls](docs/VOICE_CONVERSATION.md)
 - [Architecture](docs/ARCHITECTURE.md) · [Project direction](docs/PROJECT_DIRECTION.md)
 - [MIT license for original source](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
-Current application source: **0.33.0**. Starter packaging prepares the core; it does not include every optional pack. Historical full-appliance version **0.16.1** is a separate local artifact and is not the current downloadable starter.
+Current application source: **0.34.0**. Starter packaging prepares the core; it does not include every optional pack. Historical full-appliance version **0.16.1** is a separate local artifact and is not the current downloadable starter.
 
 <details>
 <summary>Development history, advanced operations and historical qualification notes</summary>

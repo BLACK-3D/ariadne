@@ -155,6 +155,18 @@ def catalog(app):
         group("workflows", "Checked workflows", "Run reusable local missions with explicit file expectations and bounded repair.", "Automation", set(), details="Checks verify selected file content, structure and exact numeric expectations. They do not certify overall business quality or deployment. A model's completion claim alone does not pass them."),
         group("python_runner", "Isolated Python runner", "Run workspace scripts in a restricted, networkless Docker snapshot.", "Execution", {"run_python"}, ready=bool(settings.enable_docker and shutil.which("docker")), details="Disabled by default. Requires a separately configured Docker daemon and pre-pulled image; no host shell tool is available."),
     ]
+    desk = getattr(app, "client_handoff", None)
+    inbox_ready = all(callable(getattr(desk, name, None)) for name in
+                      ("prepare_intake_packet", "get_intake_packet", "accept_intake_packet"))
+    actions_ready = callable(getattr(desk, "next_actions", None))
+    capabilities.extend([
+        group("client_evidence_inbox", "Evidence-backed client intake", "Prepare local documents or email as source-cited, reviewable Service desk intake drafts.",
+              "Business", set(), ready=inbox_ready,
+              details="Operator-only in Service desk → Real clients. Immutable source text and hashes; bounded labeled-field suggestions. No model or network call. Missing or unreviewed facts stay held; document text never approves pricing, tax, permission or completed work."),
+        group("client_next_actions", "Service desk attention queue", "See bounded next actions across clients: missing facts, owner review, customer response, completion evidence and export holds.",
+              "Business", {"service_desk_read"}, ready=actions_ready,
+              details="Read-only, refreshed on demand; coverage and pagination are explicit. Due dates are not payment evidence. No automatic outreach, payment posting, model call or background watcher."),
+    ])
     def extension(identifier, name, description, category, names, ready, details, setup):
         entry = group(identifier, name, description, category, set(names), ready=ready, details=details)
         if setup.startswith("python ") and os.name == "nt" and (Path(__file__).resolve().parents[1] / "runtime/python/python.exe").is_file():

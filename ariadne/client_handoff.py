@@ -13,6 +13,7 @@ import os
 import re
 
 from .atomic import publish_bytes
+from .client_inbox import ClientInboxMixin, initialize as initialize_inbox, TABLES as INBOX_TABLES
 from .business_ops import _cents, _money, _round_ratio
 from .handoff import HandoffConflict, HandoffDesk, _bytes, _digest, _fields, _identifier, _json, _load, _text
 
@@ -200,7 +201,7 @@ def _assess(document, review=None, acceptance=None, *, invoice_id=None):
     return result
 
 
-class ClientHandoffDesk(HandoffDesk):
+class ClientHandoffDesk(ClientInboxMixin, HandoffDesk):
     """Owner-only shared workspace. Clients are records, not authenticated tenants."""
     @staticmethod
     def _exists(db):
@@ -222,6 +223,7 @@ class ClientHandoffDesk(HandoffDesk):
             "CREATE INDEX IF NOT EXISTS client_handoff_request_entity ON client_handoff_requests(entity_id,revision)",
         ): db.execute(statement)
         db.execute("INSERT OR IGNORE INTO client_handoff_meta VALUES(1,0,1)")
+        initialize_inbox(db)
 
     @staticmethod
     def _meta(db):
@@ -309,6 +311,9 @@ class ClientHandoffDesk(HandoffDesk):
     @staticmethod
     def _entity_quota(db, additional):
         total = sum(db.execute("SELECT coalesce(sum(bytes),0) FROM "+name).fetchone()[0] for name in ("client_handoff_clients","client_handoff_intakes","client_handoff_versions"))
+        for name in INBOX_TABLES:
+            if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)).fetchone():
+                total += db.execute("SELECT coalesce(sum(bytes),0) FROM " + name).fetchone()[0]
         if total+additional > MAX_ENTITY_BYTES: raise ValueError("The private client-workflow storage quota is full; review retained history.")
 
     @staticmethod
@@ -522,10 +527,12 @@ class ClientHandoffDesk(HandoffDesk):
             "totals":{"clients":0,"intakes":0,"documents":0},"audit":[],"latest_export":None,"export_hold":None,
             "workflow_timezone":WORKFLOW_TIMEZONE,"client_id":client_id,"model_calls":0,"network_calls":0,
             "summary_scope":"current_document_page",
+            "inbox":{"packets":[],"total":0,"offset":0,"limit":limit,"has_more":False},
             "scope":"Private owner workspace. Client profiles are not authenticated tenants. Documents remain unsent drafts; no ledger posting or payment is recorded."}
         with self.database() as db:
             if self._exists(db):
                 result.update(initialized=True,revision=self._meta(db)["revision"])
+                result["inbox"]=self._inbox_status(db,limit,client_id)
                 where=" WHERE client_id=?" if client_id is not None else ""
                 params=(client_id,) if client_id is not None else ()
                 for name in ("clients","intakes","documents"):
@@ -563,7 +570,7 @@ class ClientHandoffDesk(HandoffDesk):
         with self.database() as db:
             if not self._exists(db):raise ValueError("No job intakes have been saved.")
             value=self._intake(db,identifier)
-            return {"revision":self._meta(db)["revision"],"intake":{**value,**self._intake_summary(db,value)}}
+            return {"revision":self._meta(db)["revision"],"intake":{**value,**self._intake_summary(db,value),"intake_packet":self._intake_packet_reference(db,identifier)}}
 
     def get_document(self, identifier):
         with self.database() as db:
@@ -572,7 +579,7 @@ class ClientHandoffDesk(HandoffDesk):
             history=[{"revision":row["revision"],"content_sha256":row["sha256"],"bytes":row["bytes"],"current":row["revision"]==value["revision"]}
                 for row in db.execute("SELECT revision,sha256,bytes FROM client_handoff_versions WHERE document_id=? ORDER BY revision DESC LIMIT 20",(identifier,))]
             events=[self._receipt(row) for row in db.execute("SELECT request_id,status,substr(receipt,1,?) receipt,receipt_bytes FROM client_handoff_requests WHERE entity_id=? ORDER BY rowid DESC LIMIT 20",(MAX_ENTITY+1,identifier))]
-            value.update(history=history,history_retained=db.execute("SELECT count(*) FROM client_handoff_versions WHERE document_id=?",(identifier,)).fetchone()[0],events=events,
+            value.update(intake_packet=self._intake_packet_reference(db,value["intake_id"]),history=history,history_retained=db.execute("SELECT count(*) FROM client_handoff_versions WHERE document_id=?",(identifier,)).fetchone()[0],events=events,
                 evidence_scope="Customer acceptance and completed-work evidence are reported by the owner. No customer account, signature verification, external delivery or payment is established.")
             return {"revision":self._meta(db)["revision"],"document":value}
 

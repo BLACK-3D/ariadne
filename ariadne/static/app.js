@@ -352,6 +352,7 @@ function setMenu(open) {
 async function showView(view) {
   if (!viewTitles[view]) return;
   const changedView = state.view !== view;
+  if (changedView && state.view === "handoff") window.ariadneClientHandoff?.leave();
   if (changedView && state.view === "venture") { window.ariadneRevenue?.detach(); window.ariadneOptionsReview?.detach(); }
   state.view = view;
   for (const item of $$(".view")) item.hidden = item.id !== `view-${view}`;
@@ -3025,6 +3026,7 @@ async function loadServiceDesk() {
   else await window.ariadneClientHandoff?.load();
 }
 async function selectServiceDesk(mode) {
+  if (mode === "demo") window.ariadneClientHandoff?.leave();
   serviceDeskMode = mode;
   const real = mode === "real";
   $("#client-handoff-content").hidden = !real;
