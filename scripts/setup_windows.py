@@ -1,6 +1,6 @@
 """Prepare one fresh Windows box; leave no provisioner model service running.
 
-The PowerShell wrapper prepares the virtual environment and pinned core wheels.
+The PowerShell wrapper bootstraps a private portable Python and pinned core wheels.
 This helper provisions only the factory model and stops only processes created
 by its own provisioner callback. It never starts the application or microphone.
 """
@@ -25,7 +25,7 @@ from scripts import provision
 MODEL = "qwen3.5:9b"
 MODEL_PORT = 11434
 OWNER_MARKERS = ("data/server.token", "data/ariadne.sqlite3", "data/host/status.json")
-ASSETS = (".venv/Scripts/python.exe", "runtime/ollama/ollama.exe",
+ASSETS = (".venv/Scripts/python.exe", "runtime/python/python.exe", "runtime/ollama/ollama.exe",
           "data/models/manifests/registry.ollama.ai/library/qwen3.5/9b")
 
 
@@ -48,14 +48,17 @@ def inventory():
     present = {name: _allowed_path(root / name).is_file() for name in ASSETS}
     markers = [name for name in OWNER_MARKERS if _allowed_path(root / name).exists()]
     missing_packages = [name for name in ("waitress", "pypdf") if not _module_available(name)]
-    prerequisites = ([] if present[ASSETS[0]] else [ASSETS[0]]) + missing_packages
+    selected = "runtime/python/python.exe" if present["runtime/python/python.exe"] else ".venv/Scripts/python.exe" if present[".venv/Scripts/python.exe"] else None
+    mode = "bundled" if selected == "runtime/python/python.exe" else "venv" if selected else "missing"
+    prerequisites = ([] if selected else ["runtime/python/python.exe"]) + missing_packages
     supported = _platform_ok() and _python_ok()
     return {"schema": 1, "mode": "check", "platform_supported": _platform_ok(),
             "python_supported": _python_ok(), "path_allowed": True,
             "status": "unsupported_platform_or_python" if not supported else
                       "existing_installation" if markers else
-                      "prerequisites_missing" if prerequisites else "ready_for_setup",
-            "model": MODEL, "model_port": MODEL_PORT,
+                      "prerequisites_missing" if prerequisites else
+                      "ready_to_start" if present["runtime/ollama/ollama.exe"] and present[ASSETS[-1]] else "ready_for_setup",
+            "model": MODEL, "model_port": MODEL_PORT, "python_mode": mode, "python_path": selected,
             "missing": [name for name, exists in present.items() if not exists],
             "existing": [name for name, exists in present.items() if exists] + markers,
             "prerequisites_missing": prerequisites,
@@ -105,9 +108,72 @@ def _cleanup(created):
     return errors
 
 
+
+def seal_runtime(root=None):
+    from scripts.core_runtime import seal
+    selected = ROOT if root is None else root
+    result = seal(selected)
+    prepare_factory(selected)
+    return result
+
+
+def prepare_factory(root=None):
+    """Apply core defaults only inside a fresh copy; never an owned install."""
+    from ariadne.atomic import publish_bytes
+    from ariadne.box_profiles import regular
+    from scripts.core_runtime import factory_profile
+    selected = _allowed_path(ROOT if root is None else root)
+    if any(_allowed_path(selected / name).exists() for name in OWNER_MARKERS):
+        raise ValueError("Existing private installation; factory settings were not changed.")
+    path = _allowed_path(selected / "config/box-profiles.json")
+    payload = factory_profile()
+    if path.exists():
+        if regular(path,262144).read_bytes() == payload:
+            return
+    path.parent.mkdir(parents=True,exist_ok=True)
+    from ariadne.tools import ToolRegistry
+    import secrets
+    with object.__new__(ToolRegistry)._directory(path.parent):
+        previous = regular(path,262144).read_bytes() if path.exists() else None
+        temporary = _allowed_path(path.with_name(".core-factory-" + secrets.token_hex(12) + ".tmp"))
+        try:
+            with temporary.open("xb") as stream:
+                stream.write(payload); stream.flush(); os.fsync(stream.fileno())
+            if any(_allowed_path(selected/name).exists() for name in OWNER_MARKERS):
+                raise ValueError("An owner appeared during fresh setup; factory defaults were not replaced.")
+            current = regular(path,262144).read_bytes() if path.exists() else None
+            if current != previous:
+                raise ValueError("Factory source changed during setup; review before retrying.")
+            os.replace(temporary,path)
+        finally:
+            if temporary.exists():
+                regular(temporary,262144).unlink()
+
+
+def publish_ready(state):
+    """Publish local, relative setup evidence only after provisioner cleanup."""
+    from ariadne.atomic import publish_bytes
+    from ariadne.box_profiles import regular
+    value = {"schema": 1, "status": "ready", "model": MODEL,
+             "model_digest": provision.MODEL_PINS[MODEL], "python_mode": state["python_mode"],
+             "python": state["python_path"], "microphone_enabled": False,
+             "schedules_enabled": False, "services_left_running": False}
+    path = _allowed_path(ROOT / "runtime/SETUP-READY.json")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = (json.dumps(value, sort_keys=True, indent=2) + "\n").encode()
+    if path.exists():
+        if regular(path,32768).read_bytes() != payload:
+            raise ValueError("Different setup receipt exists; inspect it before continuing.")
+    else:
+        publish_bytes(path,payload)
+    return value
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true", help="Read-only inventory; no installs, network probes or processes.")
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--check", action="store_true", help="Read-only inventory; no installs, network probes or processes.")
+    modes.add_argument("--seal-runtime", action="store_true", help="Seal upstream-only private runtime after pinned core packages are installed.")
     args = parser.parse_args(argv)
     try:
         state = inventory()
@@ -119,7 +185,10 @@ def main(argv=None):
         if state["private_installation_present"]:
             raise ValueError("Existing private installation detected; setup changed nothing. Use Start Ariadne.cmd or a fresh folder.")
         if state["prerequisites_missing"]:
-            raise ValueError("Prepare the project .venv and pinned server/document packages with Setup Ariadne.cmd first.")
+            raise ValueError("Prepare private Python and pinned server/document packages with Setup Ariadne.cmd first.")
+        if args.seal_runtime:
+            print(json.dumps(seal_runtime(), indent=2))
+            return 0
         _validate_environment()
         if _listener_present():
             raise ValueError("Model port 11434 is already in use. Stop its owner yourself or use a fresh setup after it exits; no process was changed.")
@@ -144,6 +213,7 @@ def main(argv=None):
             detail = " ".join(str(failed).split())[:500]
             raise ValueError("Model provisioning failed (" + type(failed).__name__ + "): " + detail +
                              ". Its newly created process was stopped; inspect data/model-pull.log and data/ollama.log.") from failed
+        publish_ready(state)
         print("Factory qwen3.5:9b model verified. The provisioner model process has stopped.")
         print("Next: double-click Start Ariadne.cmd; pair using your private local data/server.token.")
         print("No microphone, scheduled task or operating-system startup entry was enabled.")

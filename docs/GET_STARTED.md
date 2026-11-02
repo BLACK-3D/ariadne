@@ -1,82 +1,132 @@
-# Get started with Ariadne
+# Get started with Ariadne on a fresh Windows PC
 
 Ariadne is a local AI assistant with a private browser interface, local conversations, business tools, saved knowledge and checked workflows. It runs on your PC; Codex and ChatGPT do not need to stay open. You choose which optional tools and connections it can use.
 
-The Windows starter prepares the core assistant. It needs **Internet for the initial setup** to download the runtime, dependencies and local model. After that, local conversations and prepared offline tools can work without Internet. No AI account, paid API or subscription is required for local inference.
+The guided route prepares its own Python runtime and model inside the Ariadne folder. **You do not need to install Python, Git, Docker or Node, create an AI account, buy an API subscription or run setup as administrator.** It needs Internet for its initial downloads. Installed local capabilities can then run without public Internet.
 
-## What to download
+## Download and extract the whole starter
 
-- **Guided Windows starter:** [Download ariadne-windows-starter.zip](https://github.com/BLACK-3D/ariadne/releases/latest/download/ariadne-windows-starter.zip) and its [SHA-256 checksum](https://github.com/BLACK-3D/ariadne/releases/latest/download/ariadne-windows-starter.zip.sha256). The starter contains reviewed source and setup scripts, not preinstalled model weights or a complete offline runtime.
-- **Source for developers:** [Download the source ZIP](https://github.com/BLACK-3D/ariadne/archive/refs/heads/main.zip), or clone [BLACK-3D/ariadne](https://github.com/BLACK-3D/ariadne). The same setup files are in the repository. See [Build from source](BUILD_FROM_SOURCE.md) for manual setup and optional packs.
+Download [ariadne-windows-starter.zip](https://github.com/BLACK-3D/ariadne/releases/latest/download/ariadne-windows-starter.zip) and its [matching SHA-256 checksum](https://github.com/BLACK-3D/ariadne/releases/latest/download/ariadne-windows-starter.zip.sha256) from this repository's release. The starter contains reviewed source and setup scripts; its first setup downloads the runtime, dependencies and model. It is different from a preloaded offline appliance.
 
-Use the checksum supplied beside the same starter download. In PowerShell, `Get-FileHash .\ariadne-windows-starter.zip -Algorithm SHA256` shows the ZIP's hash for comparison. A starter release is different from a fully provisioned offline appliance.
+In Explorer, right-click the ZIP and choose **Extract all**. Open the extracted folder rather than running files inside the compressed-folder view. Choose a new writable ordinary local folder, such as a new `Ariadne` folder inside Downloads. This build excludes E:, network shares and linked/reparse paths.
+
+GitHub's source ZIP is also available from [Code → Download ZIP](https://github.com/BLACK-3D/ariadne/archive/refs/heads/main.zip). It may add an outer folder. Open the inner folder containing these files:
+
+```text
+Ariadne/
+  Setup Ariadne.cmd
+  Start Ariadne.cmd
+  Stop Ariadne.cmd
+  Check Ariadne.cmd
+  Prepare Offline Copy.cmd
+  START_HERE.html
+  README.md
+  requirements-bootstrap.txt
+  requirements-server.txt
+  requirements-documents.txt
+  scripts/
+  ariadne/
+```
+
+Keep the files together. The setup script selects its own folder; you do not need to open a terminal or change its working directory.
+
+Both downloads support Setup and Start without manually installing Python. **Clean offline export requires `SOURCE-MANIFEST.json`, supplied by the released Windows starter.** The plain GitHub Code source ZIP does not contain that reviewed export inventory.
+
+To compare the downloaded ZIP with its supplied checksum, open Windows PowerShell in the download folder and run `Get-FileHash .\ariadne-windows-starter.zip -Algorithm SHA256`. Use the checksum from the same release. Windows security warnings deserve inspection: verify the repository, file and checksum before proceeding. If Windows or an organization policy blocks a script or runtime, inspect that warning or ask your normal IT support. Keep security protections enabled.
 
 ## Before you start
 
-The guided setup targets **Windows 10/11 x64 with Python 3.13 x64 already installed**. Install a current supported Python 3.13 maintenance release from [python.org](https://www.python.org/downloads/windows/) if needed. The setup does not install Python or change Windows startup tasks.
+The guided setup targets **Windows 10/11 x64** with its built-in Windows PowerShell. It keeps a checksum-pinned Python 3.13 runtime in `runtime/python`; it does not register system Python or change PATH. ARM64, Linux and macOS need a separately supported deployment path; the Windows starter is not a one-click installer for every operating system.
 
-As a planning estimate, start with **16 GB RAM and about 30 GB free disk space for the core setup**. These are estimates, not measured minimum requirements or a speed guarantee. The selected 9B model weights alone are about 6.1 GiB; downloads, the Python environment and temporary extraction need additional space. A GPU is optional, but CPU-only replies can be substantially slower. Response speed also depends on available memory, model load and other applications. Optional media and engineering packs can add tens of gigabytes.
+Plan for **16 GB RAM and about 30 GB free disk for the core**, plus your own data. These are estimates, not measured minimum requirements or a speed guarantee. The default 9B model weights alone are about **6.1 GiB**; the Ollama download is about **1.5 GB**, with Python, dependencies, caches and extraction needing additional room. A GPU is optional. CPU-only replies can be substantially slower, and other applications, memory pressure and long prompts also affect speed. Optional specialist packs can add tens of gigabytes.
 
-Extract the whole ZIP into a **new ordinary local folder**, such as `C:\Ariadne`. Keep its files together. This build rejects E: and linked/reparse paths. Do not extract over somebody else's installation or put their private data into your new copy.
+Use a fresh folder for a new instance. An existing installation should use **Start Ariadne.cmd** and, if needed, the [launcher repair guide](LAUNCHER_REPAIR.md). Keep its models, pairing key and databases.
 
 ## Set up once, then start
 
-1. While connected to the Internet, double-click **Setup Ariadne.cmd** in the extracted folder. It creates this folder's `.venv`, installs checksum-pinned core dependencies and downloads the qualified local `qwen3.5:9b` model and its Ollama runtime. Keep the window open until it reports completion; download time depends on your connection. It does not start the assistant automatically.
-2. Double-click **Start Ariadne.cmd**. The launcher starts this copy's owned background host and model service, then opens your browser. If necessary, open [http://127.0.0.1:8080/](http://127.0.0.1:8080/).
-3. Open **`data/server.token` inside your own extracted folder** with a text editor and paste that pairing key into Ariadne. The file is created locally; the background launcher does not print the key into its logs. Keep it private. **Lock** clears the paired browser session.
-4. Open **All systems → Capabilities** to see which tools are actually ready. The core starter does not include every optional engine shown in the catalog.
+1. Keep Internet connected and double-click **Setup Ariadne.cmd**. It prepares private Python, checksum-pinned core packages, the local Ollama runtime and the qualified `qwen3.5:9b` model. Wait for the completion message; initial downloads can take a while. Setup leaves the assistant stopped.
+2. Optionally run **Check Ariadne.cmd** first. It reports requirements and readiness without installing, downloading or starting the assistant. Then double-click **Start Ariadne.cmd**. It starts this copy's owned background host and model service, then opens your browser. If needed, open [http://127.0.0.1:8080/](http://127.0.0.1:8080/). Check that you launched this copy; another local instance can already own that address.
+3. Open **`data/server.token` in your own extracted folder** with a text editor. Paste that locally generated key into the pairing screen. Keep it private. **Lock** clears the paired browser session.
+4. Open **All systems → Capabilities** to inspect actual readiness. Optional engines shown in the catalog are not all installed by the core starter.
 
-Internet access, PC wake-word listening and daily briefing collection start disabled. Your region, devices, clients, accounts and recurring work are yours to configure. An imported backup or reused installation can have existing owner settings; setup intentionally refuses an existing private installation rather than resetting it.
+The new route uses the bundled `runtime/python`, rather than a virtual environment tied to a separately installed Python. Legacy installations that use `.venv` retain their existing dependencies; use their repair instructions instead of replacing or deleting them.
 
-For later use, double-click **Start Ariadne.cmd**. Closing the browser, launcher or Codex leaves the background host running. **Stop Ariadne.cmd** stops Ariadne and its owned services. After a reboot, start it again; this setup does not register a Windows service, login task or wake task.
+Internet access in the assistant, wake-word listening and daily briefing collection begin disabled. Downloading setup assets is a separate explicit online operation. Configure your own region, devices, clients and recurring work afterward. The starter does not register a Windows service, login task or wake task, and does not enable a microphone or camera.
+
+For later use and after a reboot, double-click **Start Ariadne.cmd**. Closing Codex, the browser or the launcher leaves the background host running. **Stop Ariadne.cmd** stops Ariadne and its owned services.
 
 ## A five-minute first tour
 
-Start with a tool that needs no model:
+Start with a deterministic tool:
 
 1. Open **All systems → Service desk → Fictional demo**.
-2. Choose **Load fictional examples** if the demonstration is empty. Inspect the supplied notes, draft amounts and missing-information checks. The sample is fictional; the separate **Real clients** workspace starts empty.
-3. Follow the demo's review controls, then use **Export reviewed handoff** when the draft passes its checks. Inspect the local HTML/JSON packet. Review is bound to the current draft; editing it clears that review. Nothing is sent to a customer, posted to an account or collected as payment.
+2. Choose **Load fictional examples** if it is empty. Inspect the notes, amounts and missing-information checks. The separate **Real clients** workspace begins empty.
+3. Follow the demo's review controls, then choose **Export reviewed handoff** when the draft passes its checks. Open the local HTML/JSON packet. Editing a draft invalidates its review. This demonstration sends nothing to a customer, posts nothing to an account and collects no payment.
 
 Then try a short local conversation:
 
 > In three short sentences, tell me what you can do offline.
 
-The first reply may include model-loading time. Try a second question after the model has loaded. Service desk arithmetic and fixed local reports do not wait for a language model; open-ended conversations do.
+The first reply can include model-loading time. Try another question after the model loads. Service desk arithmetic and fixed local reports do not wait for a language model; open-ended conversations do.
 
-You can next add a reference under **Knowledge**, save a note under **Memory**, or inspect **Workflows**. Review a workflow's inputs, output checks and approvals before enabling recurrence. These are available tools, not a promise that a model will perform every task correctly.
+Next, add a reference under **Knowledge**, save a note under **Memory**, or inspect **Workflows**. Review a workflow's inputs, expected outputs and approvals before enabling recurrence. A model's completion claim is distinct from a verified output or a correct business result.
+
+## Check it without Internet
+
+1. Finish setup, start Ariadne and complete a short local conversation and fictional Service desk export.
+2. Stop Ariadne cleanly with **Stop Ariadne.cmd**.
+3. Disconnect the test PC from public Internet yourself, while keeping any local network you need powered.
+4. Start Ariadne again and repeat the same local tasks. Confirm the page opens, the prepared model answers and the local handoff export is readable.
+5. Reconnect when you want fresh external data.
+
+A package inventory or source test is different from this check on your own PC. Fresh weather, headlines, repository updates, quotes and connected cloud services cannot refresh offline; saved evidence keeps its dates and stale/missing labels. A powered-off PC cannot run software, so backup power must also cover the PC and any required local devices.
 
 ## Add only the capabilities you need
 
-| Capability | Core starter | Next step |
+| Capability | Core setup | Next step |
 |---|---|---|
-| Typed local conversations | Included after setup | Use the installed model; larger prompts and tasks take more compute. |
+| Typed local conversations | Prepared local model | Use the installed model; large prompts and tasks need more compute. |
 | Service desk and deterministic local workflows | Included | Supply your own inputs and review controls. |
 | PDF text reading | Core dependency installed | Scanned-page OCR and layout analysis are separate packs. |
-| Microphone / wake word | Off; speech assets not provisioned by setup | Follow [voice setup](WAKE_VOICE.md) and the [optional media pack](MEDIA_0_4.md). Enable listening explicitly. |
-| Natural British Cori speech output | Optional | Follow [fast local voice setup](FAST_VOICE_0_11.md); its engine and assets have separate licenses. |
+| Microphone / wake word | Off; speech assets separate | Follow [voice setup](WAKE_VOICE.md) and the [optional media pack](MEDIA_0_4.md); enable listening explicitly. |
+| Natural British Cori speech | Optional | Follow [fast voice setup](FAST_VOICE_0_11.md); engine and assets have their own terms. |
 | OCR, semantic knowledge, image generation, engineering and browser engines | Optional | Choose packs in [Build from source](BUILD_FROM_SOURCE.md#optional-capability-packs), prepare them online and check readiness. |
-| Fresh weather, news, repository updates and market data | Requires external sources | Configure your region/source and explicitly allow the relevant connection. Saved reports remain dated offline. |
+| Fresh weather, news, repository checks and market data | External sources required | Configure the source/region and deliberately allow the relevant connection. |
 
-No brokerage connection, real order, business account, device authority or Windows wake task is created by core setup. Local model inference does not require a recurring service fee; electricity, hardware and any optional external service still have costs.
+No broker, real order, business account or device authority is created. Local model inference needs no recurring API fee; electricity, hardware and optional external services still have costs.
 
 ## Keep an offline copy private
 
-Keep this installation's `.venv`, `runtime`, model storage under `data/models` and any prepared speech assets together. The guided starter uses a local virtual environment; it is not a prebuilt, machine-independent offline appliance. To move to another PC, use a separately prepared and tested factory appliance or perform source setup there. Do not copy a Windows virtual environment to another operating system.
+Keep the complete application, `runtime`, prepared model storage under `data/models`, notices and any installed optional assets together. The fresh-PC runtime is inside the folder; it does not depend on a separately installed system Python. Keep backups of your private records separately.
 
-A fresh installation generates its own pairing key and data. **Share the public repository or reviewed starter ZIP, rather than ZIP your working folder.** Your working `data`, backups, conversations, business records, generated reports, tokens and connector settings are private. See [public-source boundaries](PUBLIC_SOURCE.md). Keep the MIT license with original Ariadne code and retain [third-party notices](../THIRD_PARTY_NOTICES.md); optional runtimes, models and voice assets have their own terms.
+### Prepare a clean offline core for another PC
 
-Local inference, saved references and prepared tools can work after disconnection. New weather, headlines, repository checks and market prices cannot refresh while offline. A powered-off PC cannot run Ariadne; a power backup must also power the PC and any required local devices.
+Use a fully set-up copy of the **released Windows starter**, including its **`SOURCE-MANIFEST.json`**. The exporter refuses a missing source manifest instead of scanning arbitrary files that could contain private material. A plain GitHub source ZIP can run Setup and Start, but does not supply this export inventory.
+
+1. Finish Setup and the first local checks. Keep the source and installed runtime/model files intact.
+2. Double-click **Prepare Offline Copy.cmd**. It creates `dist/ariadne-offline-core-<UTC>.zip`, a matching `.sha256` checksum and `.receipt.json`. The command packages prepared assets; it does not fetch missing models or turn an incomplete setup into a ready appliance.
+3. Keep the ZIP, checksum and receipt together. The export contains source bound to its source manifest, sealed core Python/dependencies, verified Ollama binaries, the pinned 9B model and notices. It uses empty factory profiles and excludes your chats, pairing key, databases, clients, logs, backups, connector credentials and imported documents. Optional voice, OCR, media, engineering and other specialist packs are outside this **core** export.
+4. Transfer it using storage that supports large files, such as **NTFS or exFAT**. The ZIP is many gigabytes; FAT32 cannot hold a single file larger than 4 GB. Allow additional disk room for both the ZIP and its extracted copy, beyond the installed-core planning estimate. No public fully preloaded GitHub download is promised by the starter link.
+5. On the receiving Windows x64 PC, compare the ZIP's SHA-256 with the supplied checksum and use **Extract all** into a new allowed ordinary local folder. Keep every file. Double-click **Start Ariadne.cmd** directly: this prepared factory copy needs neither Setup nor Internet. Pair using that copy's newly created `data/server.token`.
+6. Repeat the local conversation and Service desk checks on that PC. Hardware and optional drivers still affect capability and speed; a package manifest does not establish performance on every machine.
+
+A never-connected PC needs this prepared package. The small source/starter ZIP still needs Internet for its initial downloads. The core exporter requires its verified source/runtime inventory; if assets or seals differ, preserve the error and use a clean current starter rather than editing manifests to force acceptance. A legacy `.venv` installation is a different setup path; keep using it or prepare a separate fresh starter for a factory export.
+
+**Share the public starter or this verified clean factory export, rather than ZIP your working folder.** A prepared core package and the historical full optional-tools appliance are separate builds. Keep the MIT license and [third-party notices](../THIRD_PARTY_NOTICES.md); bundled engines, models and reference material retain their own terms. See [public-source boundaries](PUBLIC_SOURCE.md).
 
 ## If something stops setup
 
-- **Python is missing or unsupported:** install Python 3.13 x64, reopen the setup and use the same extracted folder. Other Python versions may run the core manually, but this guided dependency profile targets 3.13 x64.
-- **Existing private installation detected:** use **Start Ariadne.cmd** to reopen that installation, or extract a new clean copy elsewhere. Do not delete its database or pairing key to force setup through.
-- **Another model service is using port 11434:** setup refuses to adopt it. Close that service yourself if appropriate, or use the advanced operator-managed-server instructions below. Setup does not stop unrelated applications.
-- **Two launcher windows close / job-bound host error:** apply the [launcher-only repair](LAUNCHER_REPAIR.md) to keep your existing model and data. Do not repeat Setup.
-- **The site does not open:** read the launcher's error and inspect `data/host/status.json`. Another instance may already occupy port 8080. Do not assume a page at that address belongs to this new copy. [Multiple-copy instructions](PORTABLE_0_16.md#multiple-local-copies-without-sharing-services) describe explicit separate ports for provisioned copies.
-- **A capability is unavailable:** the optional pack may not be installed. Check **Capabilities**, then its pack's setup document. Do not enable microphones, device actions or recurring work just to test a missing dependency.
+- **Missing requirements file / incomplete folder:** use **Extract all**, then open the folder containing Setup, README, requirements files and `scripts`. Run **Setup Ariadne.cmd** from Explorer. Old manual commands pasted into Git Bash or run from its home directory do not select the project folder.
+- **Python was not found:** the current starter prepares its own Python. Check that you have the current complete starter and read the bootstrap error; no separate Python installation is part of this route. Earlier versions that required system Python are a different setup path.
+- **Interrupted Python download or extraction:** bootstrap preserves a partial download or staging folder as a hold rather than silently retrying or overwriting it. Keep the error and inspect the named files. Avoid repeated setup attempts or deleting state to force progress.
+- **Checksum or model-digest mismatch:** retain the error and stop using that download. The setup refuses changed bytes rather than silently accepting them; use a reviewed updated starter or support instructions.
+- **Existing private installation detected:** use **Start Ariadne.cmd**, the existing-installation repair guide, or a new extracted folder. Preserve its database and pairing key.
+- **Port 11434 already in use:** setup refuses to adopt that model service. Close it yourself if appropriate, or use the advanced operator-managed-server route below. Setup does not stop unrelated applications.
+- **A launcher closes without a page / a job-bound host error:** follow the [launcher repair guide](LAUNCHER_REPAIR.md) for an earlier installed copy; avoid repeating Setup.
+- **Start reports a failure:** read the retained error window. The newest `data/host/launcher-<attempt>.json` gives a static stage, failure type and exit code. Its matching `.log` is private and can contain local paths or arbitrary exception details. Share only the safe stage/type/exit summary, never your token or whole data folder. If safe diagnostics cannot be saved, the console still shows failure.
+- **The site does not open:** inspect the launcher error and `data/host/status.json`. Another copy can own port 8080. [Multiple-copy instructions](PORTABLE_0_16.md#multiple-local-copies-without-sharing-services) describe explicit ports for prepared copies.
+- **A capability is unavailable:** inspect **Capabilities**, then its pack guide. Enable only the devices or recurrence you intend to use.
 
-For an advanced source installation, `ARIADNE_OLLAMA_URL` selects an explicitly operator-managed model server; it bypasses Ariadne's owned-model startup. The operator must verify that server's model availability, storage, privacy and access policy. This is a separate manual path, not permission for Setup to adopt a listener.
+For an advanced manual source installation, `ARIADNE_OLLAMA_URL` selects an operator-managed model server. The operator verifies that server's model availability, storage and access policy. This bypasses owned-model startup; it is a separate route from fresh setup.
 
-Linux/macOS can run the core with a compatible Python and separately provisioned Ollama service; see [Build from source](BUILD_FROM_SOURCE.md) and `start.sh`. The Windows setup and optional native packs are not a certified one-click Linux/macOS installer.
+Linux/macOS can run the core with compatible Python and a separately prepared Ollama service; see [Build from source](BUILD_FROM_SOURCE.md) and `start.sh`. The Windows starter and its optional native packs are not a certified installer for other operating systems.

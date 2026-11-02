@@ -24,7 +24,7 @@ from ariadne import __version__
 
 SOURCE_DIRS = ("ariadne", "scripts", "tests")
 SOURCE_FILES = {"LICENSE", "README.md", "THIRD_PARTY_NOTICES.md", "pyproject.toml", "Dockerfile", "compose.yaml",
-    "compose.provision.yaml", "Start Ariadne.cmd", "Stop Ariadne.cmd", "Backup Ariadne.cmd", "Setup Ariadne.cmd", "START_HERE.html", "start.ps1", "start.sh", ".gitignore", ".dockerignore"}
+    "compose.provision.yaml", "Start Ariadne.cmd", "Stop Ariadne.cmd", "Backup Ariadne.cmd", "Setup Ariadne.cmd", "Check Ariadne.cmd", "Prepare Offline Copy.cmd", "START_HERE.html", "start.ps1", "start.sh", ".gitignore", ".dockerignore"}
 CONFIG_FILES = {"engineering-assets.json", "knowledge-model-assets.json", "knowledge-wheels-manifest.json", "ocr-wheels-manifest.json",
     "production-assets.json", "production-blender-assets.json", "mcp.example.json", "connectors.example.json", "box-profiles.json", "public-models.json", "speech-assets.json", "repository-watchlist.json"}
 DOCS = {"ARCHITECTURE.md", "ANALYTICS_0_3.md", "OCR_0_3.md", "MCP_0_3.md", "KNOWLEDGE_0_4.md", "MEDIA_0_4.md", "PRODUCTION_0_4.md", "PORTABLE_0_4.md", "DELIVERY_0_4.md",
