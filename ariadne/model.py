@@ -32,11 +32,12 @@ class Ollama:
         self.timeout = timeout
         self.client = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirects())
 
-    def request(self, path, payload=None, timeout=None):
+    def request(self, path, payload=None, timeout=None, *, _target=None):
         data = json.dumps(payload).encode() if payload is not None else None
-        request = urllib.request.Request(self.url + path, data=data, headers={"Content-Type": "application/json"})
+        base, client = (self.url, self.client) if _target is None else _target
+        request = urllib.request.Request(base + path, data=data, headers={"Content-Type": "application/json"})
         try:
-            with self.client.open(request, timeout=timeout or self.timeout) as response:
+            with client.open(request, timeout=timeout or self.timeout) as response:
                 raw = response.read(2_000_001)
                 if len(raw) > 2_000_000:
                     raise ModelError("Model response exceeded the 2 MB limit")
@@ -138,3 +139,119 @@ class Ollama:
                 raise ModelError("Model returned invalid tool arguments")
             clean.append({"function": {"name": function["name"], "arguments": function["arguments"]}})
         return {"role": "assistant", "content": content, **({"tool_calls": clean} if clean else {})}, usage
+
+    def structured_identity(self, model):
+        """Describe configured local extraction without a request or model load."""
+        import re
+        from urllib.parse import urlsplit
+        try:
+            endpoint = urlsplit(self.url)
+            port = endpoint.port
+        except ValueError:
+            raise ModelError("Structured extraction needs a numeric-loopback Ollama endpoint.") from None
+        if (endpoint.scheme != "http" or endpoint.hostname not in {"127.0.0.1", "::1"}
+                or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment
+                or endpoint.path or port is None or not 1 <= port <= 65535):
+            raise ModelError("Structured extraction needs a numeric-loopback HTTP Ollama endpoint with no URL path or credentials.")
+        if (type(model) is not str or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}", model)
+                or re.search(r"(?:^|[:._/-])cloud(?:$|[:._/-])", model, re.IGNORECASE)):
+            raise ModelError("Select a downloaded local model for structured extraction; cloud selectors are unsupported.")
+        return {"model": model, "provider": self.url, "implementation": "ollama-structured-intake-v1"}
+
+    def structured_extract(self, model, messages, schema):
+        """One local, tool-free schema request; domain validation remains separate.
+
+        Metadata is checked before document text is sent. This trusts the owner's
+        local Ollama service; it is not an OS sandbox for a malicious service.
+        """
+        import hashlib
+        import re
+        import time
+        identity = self.structured_identity(model)
+        target = (identity["provider"], self.client)
+        if (type(messages) is not list or len(messages) != 2
+                or any(type(row) is not dict or set(row) != {"role", "content"}
+                       or type(row["content"]) is not str or not row["content"].strip() for row in messages)
+                or [row["role"] for row in messages] != ["system", "user"]
+                or sum(len(row["content"].encode("utf-8")) for row in messages) > 48000):
+            raise ModelError("Structured extraction requires one bounded text source and fixed system instructions.")
+        try:
+            schema_raw = json.dumps(schema, sort_keys=True, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode("utf-8")
+        except (ValueError, TypeError, RecursionError):
+            raise ModelError("Structured extraction schema is invalid.") from None
+        if type(schema) is not dict or schema.get("type") != "object" or len(schema_raw) > 8192:
+            raise ModelError("Structured extraction needs a bounded object schema.")
+        if not GPU_LOCK.acquire(blocking=False):
+            raise ModelError("The local model is busy. No extraction was queued; inspect the held request before trying new work.")
+        try:
+            deadline = time.monotonic() + min(self.timeout, 300)
+            def request(path, payload=None):
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise ModelError("Structured extraction exceeded its request deadline; no retry was attempted.")
+                return self.request(path, payload, timeout=min(remaining, 300 if path == "/api/chat" else 10), _target=target)
+            def installed():
+                result = request("/api/tags")
+                rows = result.get("models")
+                if type(rows) is not list or len(rows) > 1000:
+                    raise ModelError("Installed local model metadata is invalid.")
+                tag = model if ":" in model.rsplit("/", 1)[-1] else model + ":latest"
+                matches = [row for row in rows if type(row) is dict and row.get("name", row.get("model")) == tag]
+                if len(matches) != 1:
+                    raise ModelError("The selected model is not uniquely installed locally. No download was requested.")
+                row = matches[0]
+                digest = row.get("digest", "")
+                if type(digest) is str:
+                    digest = digest.removeprefix("sha256:")
+                if (type(digest) is not str or not re.fullmatch(r"[a-f0-9]{64}", digest)
+                        or type(row.get("size")) is not int or row["size"] <= 0
+                        or any(row.get(key) not in (None, "") for key in ("remote_model", "remote_host"))):
+                    raise ModelError("The selected model is remote or lacks a valid downloaded-model identity.")
+                return digest
+            digest = installed()
+            details = request("/api/show", {"model": model})
+            if (any(details.get(key) not in (None, "") for key in ("remote_model", "remote_host"))
+                    or type(details.get("details")) is not dict or details["details"].get("format") != "gguf"
+                    or type(details.get("model_info")) is not dict or not details["model_info"]
+                    or type(details.get("capabilities")) is not list or "completion" not in details["capabilities"]):
+                raise ModelError("Structured extraction requires verified local GGUF completion metadata.")
+            payload = {"model": model, "messages": messages, "format": schema, "stream": False,
+                       "think": False, "tools": [], "truncate": False, "shift": False,
+                       "options": {"temperature": 0, "num_ctx": CONTEXT_TOKENS, "num_predict": 1024},
+                       "keep_alive": KEEP_ALIVE}
+            payload_raw = json.dumps(payload, sort_keys=True, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode("utf-8")
+            result = request("/api/chat", payload)
+            message = result.get("message")
+            if (result.get("done") is not True or result.get("done_reason") != "stop" or result.get("error")
+                    or any(result.get(key) not in (None, "") for key in ("remote_model", "remote_host"))
+                    or type(message) is not dict or message.get("role") != "assistant"
+                    or message.get("tool_calls") not in (None, []) or message.get("thinking") not in (None, "")
+                    or message.get("refusal") not in (None, "") or type(message.get("content")) is not str
+                    or not message["content"].strip() or len(message["content"]) > 24000
+                    or len(message["content"].encode("utf-8")) > 32000):
+                raise ModelError("Structured extraction did not return a complete, bounded, tool-free local response. No partial output was adopted.")
+            if installed() != digest:
+                raise ModelError("The installed model changed during extraction. Its output is held and cannot be adopted.")
+            def count(key, maximum):
+                value = result.get(key, 0)
+                if type(value) is not int or not 0 <= value <= maximum:
+                    raise ModelError("Structured extraction usage metadata is invalid.")
+                return value
+            def milliseconds(key):
+                value = result.get(key)
+                if value is None:
+                    return None
+                if type(value) is not int or not 0 <= value <= 10**15:
+                    raise ModelError("Structured extraction duration metadata is invalid.")
+                return value // 1_000_000
+            usage = {"profile": "structured_intake", "model": model, "model_digest": digest,
+                     "schema_sha256": hashlib.sha256(schema_raw).hexdigest(),
+                     "request_sha256": hashlib.sha256(payload_raw).hexdigest(),
+                     "prompt_tokens": count("prompt_eval_count", CONTEXT_TOKENS),
+                     "output_tokens": count("eval_count", 1024),
+                     **{target: milliseconds(source) for target, source in (("duration_ms", "total_duration"),
+                         ("load_ms", "load_duration"), ("prefill_ms", "prompt_eval_duration"), ("decode_ms", "eval_duration"))},
+                     "metadata_requests": 3, "generation_requests": 1}
+            return message["content"], usage
+        finally:
+            GPU_LOCK.release()

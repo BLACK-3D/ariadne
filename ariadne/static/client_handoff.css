@@ -61,3 +61,11 @@
 @media(max-width:750px){.ch-inbox-columns{grid-template-columns:1fr}.ch-inbox-candidates{max-height:none;overflow:visible;padding-right:0}.ch-inbox-saved{grid-template-columns:1fr}.ch-inbox-heading>button{min-height:44px}.ch-inbox-upload>.ch-actions,.ch-inbox-upload button{width:100%}.ch-inbox-lookup>.ch-field{max-width:none}}
 @media(max-width:480px){.ch-attention-list{grid-template-columns:1fr}.ch-inbox-heading>button,.ch-inbox-lookup>button{width:100%}.ch-inbox-text{max-height:320px;padding:10px;font-size:11px}.ch-inbox-packet{min-height:44px}}
 @media print{.ch-inbox,.ch-attention{display:none!important}}
+
+/* Optional local-model proposals remain within the source review boundary. */
+.ch-structured{margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--ch-line)}
+.ch-structured-saved{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:16px 0}
+.ch-structured-saved>h4{grid-column:1/-1}.ch-structured>button{white-space:normal;min-height:44px}.ch-structured>.ch-field-check{margin:12px 0;padding:12px;border:1px solid var(--ch-line);border-radius:5px}
+.ch-structured-candidates{max-height:530px;overflow:auto;padding-right:4px}
+@media(max-width:750px){.ch-structured-saved{grid-template-columns:1fr}.ch-structured-candidates{max-height:none;overflow:visible}.ch-structured>button{width:100%}}
+.ch-structured-progress:empty{display:none}

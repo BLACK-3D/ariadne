@@ -11,8 +11,11 @@
   let selectedPacket = null, packet = null, uploadFile = null, inboxDraft = null, inboxDraftHash = null;
   let inboxReview = {confirmed:false}, inboxReviewControl = null, inboxOpen = false, pendingMutation = null;
   let nextActions = null, nextActionsError = "", queueLoading = false;
+  let extraction = null, selectedProposal = null, proposal = null, inboxDraftProposal = null;
+  let extractionReview = {request_id:null,receipt_sha256:null,confirmed:false}, extractionButton = null, extractionProgress = null;
   const inboxLimit = 1_000_000;
   const packetPattern = /^P-[a-f0-9]{24}$/;
+  const proposalPattern = /^X-[a-f0-9]{24}$/;
   const $ = id => window.document.getElementById(id);
   const string = value => typeof value === "string" ? value : "";
   const trim = value => string(value).trim();
@@ -111,6 +114,9 @@
     return decision==="approve"?(!row.exceptions?.length&&["ready_for_review","rejected"].includes(row.status)):decision==="reject"&&row.status!=="rejected";
   }
   function controls() {
+    const extracting=busy&&pendingMutation?.kind==="local structured extraction";
+    if(extractionButton){extractionButton.textContent=extracting?"Reading with local model…":"Ask local model for suggestions";extractionButton.setAttribute("aria-busy",String(extracting));}
+    if(extractionProgress)extractionProgress.textContent=extracting?"Reading the retained source with the local model. One request is in progress; leaving holds any uncertain result. No automatic retry.":"";
     const refresh = $("refresh-client-handoff"); if (refresh) refresh.disabled = busy || loading || queueLoading || !app?.state.authenticated;
     for (const item of buttons) item.button.disabled = !canWrite() || !item.allowed();
     for (const item of inputs) item.disabled = busy || loading || queueLoading || !app?.state.authenticated;
@@ -128,7 +134,7 @@
     if (choices) for (const [value,label] of choices) { const option=e("option","",label);option.value=value;input.append(option); }
     else if (kind!=="textarea") input.type=kind;
     input.maxLength=max; if (kind==="checkbox") input.checked=object[name] === true; else input.value=object[name] ?? "";
-    const edited=()=>{object[name]=kind==="checkbox"?input.checked:input.value;if(object===inboxDraft||inboxDraft?.lines?.includes(object))resetInboxReview();if(object===inboxReview)controls();};
+    const edited=()=>{object[name]=kind==="checkbox"?input.checked:input.value;if(object===inboxDraft||inboxDraft?.lines?.includes(object))resetInboxReview();if(object===inboxReview||object===extractionReview)controls();};
     input.addEventListener("input",edited);
     input.addEventListener("change",edited);
     wrapper.append(input);parent.append(wrapper);inputs.push(input);return input;
@@ -215,6 +221,7 @@
   function clearInbox() {
     selectedPacket=null;packet=null;uploadFile=null;inboxDraft=null;inboxDraftHash=null;
     inboxReview={confirmed:false};inboxReviewControl=null;inboxOpen=false;
+    extraction=null;selectedProposal=null;proposal=null;inboxDraftProposal=null;extractionReview={request_id:null,receipt_sha256:null,confirmed:false};extractionButton=null;extractionProgress=null;
   }
   function validPacket(row) {
     return Boolean(row&&packetPattern.test(row.id||"")&&idPattern.test(row.client_id||"")&&shaPattern.test(row.content_sha256||"")&&shaPattern.test(row.raw_sha256||"")&&shaPattern.test(row.text_sha256||"")&&typeof row.text==="string"&&row.text.length<=20000&&Array.isArray(row.candidates)&&row.candidates.length<=100&&Array.isArray(row.warnings));
@@ -225,6 +232,34 @@
     for(const line of facts.lines)line.price_approved=false;
     facts.tax.approved=false;facts.permission.confirmed=false;
     return {...meta(revision,requestId),packet_id:row.id,content_sha256:row.content_sha256,review_confirmed:true,intake:facts};
+  }
+  function structuredSupported() { return data?.structured_extraction?.schema===1; }
+  function structuredAvailable() { return structuredSupported() && data.structured_extraction.available===true; }
+  function validProposal(row, source) {
+    if(!row||row.schema!==1||!validPacket(source)||!proposalPattern.test(row.id||"")||!shaPattern.test(row.content_sha256||"")||row.packet_id!==source.id||row.packet_content_sha256!==source.content_sha256||row.text_sha256!==source.text_sha256||row.client_id!==source.client_id||!shaPattern.test(row.client_content_sha256||"")||row.client_content_sha256!==source.client_content_sha256||!shaPattern.test(row.schema_sha256||"")||!shaPattern.test(row.response_sha256||"")||typeof row.model!=="string"||!row.model||row.model.length>200||!Array.isArray(row.candidates)||row.candidates.length>16||!Array.isArray(row.warnings)||row.warnings.length>24||row.warnings.some(w=>typeof w!=="string"||w.length>1000)||!row.proposed_intake||typeof row.proposed_intake!=="object")return false;
+    const characters=Array.from(source.text),fields=new Set(["title","customer.name","customer.email","customer.address","service_date","document_date","due_date","lines.0.description","lines.0.quantity","lines.0.unit","lines.0.unit_price"]);
+    return row.candidates.every(candidate=>candidate&&fields.has(candidate.field)&&typeof candidate.value==="string"&&typeof candidate.quote==="string"&&Number.isInteger(candidate.start)&&Number.isInteger(candidate.end)&&candidate.start>=0&&candidate.end>candidate.start&&candidate.end<=characters.length&&characters.slice(candidate.start,candidate.end).join("")===candidate.quote&&shaPattern.test(candidate.quote_sha256||""));
+  }
+  function proposalAcceptPayload(source,row,fields,revision,requestId,confirmed) {
+    if(!validProposal(row,source)||row.client_changed||row.consumed_intake_id)throw new Error("Inspect a current unconsumed model proposal before saving its reviewed intake.");
+    return {...inboxAcceptPayload(source,fields,revision,requestId,confirmed),proposal_id:row.id,proposal_sha256:row.content_sha256};
+  }
+  function beginInboxReview(record, selected=null) {
+    inboxDraft=fromRecord(record);inboxDraftHash=packet.content_sha256;
+    inboxDraftProposal=selected?{id:selected.id,content_sha256:selected.content_sha256}:null;
+    inboxDraft.lines.forEach(line=>line.price_approved=false);inboxDraft.tax_approved=false;inboxDraft.permission_confirmed=false;resetInboxReview();render();
+  }
+  async function openProposal(identifier) {
+    if(!structuredSupported()||!packet||!proposalPattern.test(identifier)||busy||loading||queueLoading)return;
+    selectedProposal=identifier;proposal=null;inboxDraft=null;inboxDraftHash=null;inboxDraftProposal=null;resetInboxReview();await load();
+  }
+  async function generateProposal() {
+    if(!canWrite()||!structuredAvailable()||!packet||packet.consumed_intake_id||packet.client_changed||extraction?.hold||data.structured_extraction.hold)return;
+    const body={...meta(data.revision,newId("intake-model-")),packet_id:packet.id,content_sha256:packet.content_sha256};
+    await mutate("local structured extraction","/service-desk/inbox/proposals",body,result=>{
+      if(!proposalPattern.test(result.entity_id||""))throw Object.assign(new Error("The saved model proposal identifier could not be verified. Inspect the extraction receipt before continuing."),{status:409});
+      selectedProposal=result.entity_id;proposal=null;inboxDraft=null;inboxDraftHash=null;inboxDraftProposal=null;resetInboxReview();
+    });
   }
   async function openPacket(identifier) {
     if(!packetPattern.test(identifier)||busy||loading||queueLoading)return;
@@ -266,19 +301,59 @@
       p(card,`Line ${candidate.line_number} · characters ${candidate.start}–${candidate.end}`,"ch-small ch-muted");card.append(e("blockquote","",candidate.quote));p(card,`Quote SHA-256: ${candidate.quote_sha256||"not supplied"}`,"ch-hash");suggestions.append(card);
     }
     if(!packet.candidates.length)p(suggestions,"No recognized labels were found. You can enter the retained source facts manually.","ch-muted");columns.append(evidence,suggestions);parent.append(columns);
+    structuredPanel(parent);
     if(packet.consumed_intake_id){p(parent,`This packet already created intake ${packet.consumed_intake_id}. It cannot create a second intake.`,"ch-inbox-warning");parent.append(localAction("Open saved packet intake",async()=>{const id=packet.consumed_intake_id;if(!idPattern.test(id))return;clearInbox();selectedIntake=id;selectedDocument=null;await load();}));return;}
     if(packet.client_changed){p(parent,"The service client changed or was archived after this snapshot. Import a new packet against the current client profile; this one remains historical evidence.","ch-inbox-warning");return;}
-    if(!inboxDraft){parent.append(localAction("Review suggested intake",()=>{inboxDraft=fromRecord(packet.proposed_intake);inboxDraftHash=packet.content_sha256;inboxDraft.lines.forEach(line=>line.price_approved=false);inboxDraft.tax_approved=false;inboxDraft.permission_confirmed=false;resetInboxReview();render();},"button-primary"));return;}
+    if(!inboxDraft){parent.append(localAction("Review suggested intake",()=>beginInboxReview(packet.proposed_intake),"button-primary"));return;}
     if(inboxDraftHash!==packet.content_sha256){p(parent,"The selected source fingerprint changed. Close this review and inspect the source again.","ch-inbox-warning");return;}
-    const form=e("form","ch-inbox-review");form.append(e("h3","","Review the intake draft"));p(form,"Edit the suggested facts against their source. Saving records no price, tax or permission approval. Complete those gates in the normal quote review.","ch-muted");recordForm(form,inboxDraft,"inbox-draft",{inbox:true});
+    if(inboxDraftProposal&&(!proposal||inboxDraftProposal.id!==proposal.id||inboxDraftProposal.content_sha256!==proposal.content_sha256)){p(parent,"The reviewed model proposal changed or could not be verified. Inspect it again before saving.","ch-inbox-warning");return;}
+    const form=e("form","ch-inbox-review");form.append(e("h3","",inboxDraftProposal?"Review the model-assisted intake draft":"Review the intake draft"));p(form,"Edit the suggested facts against their source. Saving records no price, tax or permission approval. Complete those gates in the normal quote review.","ch-muted");
+    if(inboxDraftProposal)p(form,`Model proposal ${inboxDraftProposal.id}. A schema and matching quote do not establish that the model interpreted a fact correctly.`,"ch-inbox-warning");
+    recordForm(form,inboxDraft,"inbox-draft",{inbox:true});
     inboxReviewControl=field(form,"I checked this intake against the retained source text and its extraction warnings",inboxReview,"confirmed",{kind:"checkbox",wide:true});
-    submit(form,"Save reviewed intake draft",async()=>{const body=inboxAcceptPayload(packet,inboxDraft,data.revision,newId("inbox-accept-"),inboxReview.confirmed);await mutate("reviewed document intake","/service-desk/inbox/accept",body,result=>{selectedIntake=result.entity_id;selectedDocument=null;inboxDraft=null;inboxDraftHash=null;resetInboxReview();});},()=>Boolean(packet&&!packet.consumed_intake_id&&!packet.client_changed&&inboxReview.confirmed&&inboxDraftHash===packet.content_sha256));parent.append(form);
+    submit(form,"Save reviewed intake draft",async()=>{const requestId=newId("inbox-accept-"),body=inboxDraftProposal?proposalAcceptPayload(packet,proposal,inboxDraft,data.revision,requestId,inboxReview.confirmed):inboxAcceptPayload(packet,inboxDraft,data.revision,requestId,inboxReview.confirmed);await mutate("reviewed document intake","/service-desk/inbox/accept",body,result=>{selectedIntake=result.entity_id;selectedDocument=null;inboxDraft=null;inboxDraftHash=null;inboxDraftProposal=null;resetInboxReview();});},()=>Boolean(packet&&!packet.consumed_intake_id&&!packet.client_changed&&inboxReview.confirmed&&inboxDraftHash===packet.content_sha256&&(!inboxDraftProposal||proposal&&!proposal.client_changed&&!proposal.consumed_intake_id)));parent.append(form);
+  }
+  function structuredPanel(parent) {
+    const status=data.structured_extraction;if(status?.schema!==1)return;
+    const section=e("section","ch-structured ch-line-editor"),heading=e("div","ch-inbox-heading");heading.append(e("h3","","Local model suggestions"),e("span","ch-badge","OPTIONAL / OWNER REQUESTED"));section.append(heading);
+    p(section,"For less structured paperwork, ask the configured local model to suggest fields from this retained text. This makes one bounded local request. No tools, cloud account, website, attachment or image is used.","ch-small ch-muted");
+    p(section,"Model proposes → source evidence is checked → you review. Valid JSON and an exact source quote do not prove the interpretation. Missing, unsupported and conflicting facts stay unresolved; no commercial terms are approved.","ch-small ch-muted");
+    if(!status.available)p(section,status.reason||"Local structured extraction is unavailable in this server.","ch-inbox-warning");
+    const hold=extraction?.hold||status.hold;
+    if(hold){
+      p(section,`Extraction held · ${pretty(hold.status)} · request ${hold.request_id}. ${hold.reason||"Inspect the saved result; nothing is repeated automatically."}`,"ch-inbox-warning");
+      p(section,"This holds another model request, not manual intake. Review the source, saved proposals and recorded local changes. A running receipt is incomplete or possibly active; the server refuses acknowledgement while work is active. Acknowledging never retries, adopts or resumes it.","ch-small ch-muted");
+      if(["running","failed","interrupted"].includes(hold.status)&&shaPattern.test(hold.receipt_sha256||"")&&idPattern.test(hold.request_id||"")){
+        p(section,`Held receipt SHA-256: ${hold.receipt_sha256}`,"ch-hash");
+        if(extractionReview.request_id!==hold.request_id||extractionReview.receipt_sha256!==hold.receipt_sha256)extractionReview={request_id:hold.request_id,receipt_sha256:hold.receipt_sha256,confirmed:false};
+        field(section,"I inspected the extraction hold, saved proposals and recorded local changes",extractionReview,"confirmed",{kind:"checkbox",wide:true});
+        section.append(action("Acknowledge inspected extraction hold",async()=>{
+          if(!extractionReview.confirmed)return;
+          await mutate("extraction hold acknowledgement","/service-desk/inbox/proposals/acknowledge",{...meta(data.revision,hold.request_id),receipt_sha256:hold.receipt_sha256,inspection_confirmed:true},()=>{extractionReview.confirmed=false;});
+        },()=>extractionReview.confirmed&&extractionReview.request_id===hold.request_id&&extractionReview.receipt_sha256===hold.receipt_sha256));
+      }
+    }
+    const generate=action("Ask local model for suggestions",generateProposal,()=>structuredAvailable()&&!hold&&!packet.consumed_intake_id&&!packet.client_changed);extractionButton=generate;section.append(generate);
+    extractionProgress=e("p","ch-structured-progress ch-small ch-muted");extractionProgress.setAttribute("role","status");extractionProgress.setAttribute("aria-live","polite");section.append(extractionProgress);
+    const rows=Array.isArray(extraction?.proposals)?extraction.proposals:[];
+    if(rows.length){const list=e("div","ch-structured-saved");list.append(e("h4","","Saved model proposals"));for(const row of rows){if(!proposalPattern.test(row.id||"")||!shaPattern.test(row.content_sha256||""))continue;const button=localAction(`${row.model||"Local model"} · ${stamp(row.created_at)} · ${row.id}`,()=>openProposal(row.id),"ch-inbox-packet");button.setAttribute("aria-pressed",String(row.id===selectedProposal));list.append(button);}section.append(list);}
+    if(proposal){
+      p(section,`Proposal ${proposal.id} · model ${proposal.model} · ${stamp(proposal.created_at)}`,"ch-small ch-muted");
+      for(const [label,value]of [["Proposal SHA-256",proposal.content_sha256],["Schema SHA-256",proposal.schema_sha256],["Response SHA-256",proposal.response_sha256]])if(shaPattern.test(value||""))p(section,`${label}: ${value}`,"ch-hash");
+      for(const warning of proposal.warnings)p(section,string(warning)||"The model suggestion needs source review.","ch-inbox-warning");
+      const cards=e("div","ch-structured-candidates");for(const candidate of proposal.candidates){const card=e("article","ch-inbox-candidate");card.append(e("strong","",candidateLabel(candidate.field)),e("span","ch-inbox-value",candidate.value));p(card,`Line ${candidate.line_number} · characters ${candidate.start}–${candidate.end}`,"ch-small ch-muted");card.append(e("blockquote","",candidate.quote));p(card,`Quote SHA-256: ${candidate.quote_sha256}`,"ch-hash");cards.append(card);}section.append(cards);
+      if(!proposal.candidates.length)p(section,"No model suggestions passed the evidence checks. Continue with the retained source and manual review.","ch-muted");
+      if(proposal.client_changed)p(section,"This proposal belongs to an older or archived client profile. Inspect it as historical evidence; it cannot supply a new intake.","ch-inbox-warning");
+      else if(proposal.consumed_intake_id)p(section,`This source already created intake ${proposal.consumed_intake_id}. A model proposal cannot create a second intake.`,"ch-inbox-warning");
+      else if(proposal.candidates.length)section.append(localAction("Review model-assisted intake",()=>beginInboxReview(proposal.proposed_intake,proposal),"button-primary"));
+    }
+    parent.append(section);
   }
   function documentInbox(parent) {
     if(!client||!data.inbox)return;
     const panel=e("details","ch-card ch-inbox");panel.open=inboxOpen||Boolean(packet);panel.append(e("summary","","Document inbox · turn a source into a reviewed intake"));
     panel.addEventListener("toggle",()=>{inboxOpen=panel.open;});
-    p(panel,"Read one local document, check its cited suggestions, then explicitly save an intake draft. No model, cloud account or external requests are used. Imported words never approve a price, tax instruction, permission or completed job.","ch-muted");
+    p(panel,"Read one local document, check its cited suggestions, then explicitly save an intake draft. Source import and label matching use no model. Optional local-model suggestions require a separate explicit request. Imported words never approve a price, tax instruction, permission or completed job.","ch-muted");
     if(!client.archived){const form=e("form","ch-inbox-upload"),label=e("label","ch-field","Source document · up to 1 MB"),input=e("input");input.type="file";input.name="inbox_file";input.accept=".pdf,.txt,.md,.csv,.tsv,.docx,.xlsx,.eml";inputs.push(input);
       input.addEventListener("change",()=>{uploadFile=input.files?.[0]||null;inboxOpen=true;render();});label.append(input);form.append(label);if(uploadFile)p(form,`Selected: ${uploadFile.name} (${uploadFile.size} bytes)`,"ch-small ch-muted");
       submit(form,"Read selected document",prepareInbox,()=>Boolean(uploadFile));panel.append(form);
@@ -337,6 +412,12 @@
     const box=e("section","ch-line-editor");box.append(e("h4","","Reviewed source packet"));
     p(box,"Retained imported claims and the reviewed intake facts have separate fingerprints. This link does not authenticate the sender or approve commercial terms.","ch-small ch-muted");
     for(const [label,key]of [["Packet","packet_content_sha256"],["Original file","raw_sha256"],["Extracted text","text_sha256"],["Reviewed intake facts","facts_sha256"]])if(shaPattern.test(source[key]||""))p(box,`${label}: ${source[key]}`,"ch-hash");
+    const structured=row.structured_proposal;
+    if(structured&&proposalPattern.test(structured.proposal_id||"")&&shaPattern.test(structured.proposal_content_sha256||"")&&structured.packet_id===source.packet_id){
+      p(box,`Reviewed local-model proposal ${structured.proposal_id} · ${structured.model||"configured model"}. This is separate from the retained source and commercial approvals.`,"ch-small ch-muted");
+      p(box,`Model proposal: ${structured.proposal_content_sha256}`,"ch-hash");
+      box.append(localAction("Inspect reviewed model proposal",async()=>{await openPacket(source.packet_id);if(packet?.id===source.packet_id)await openProposal(structured.proposal_id);}));
+    }
     box.append(localAction("Inspect linked source packet",()=>openPacket(source.packet_id)));parent.append(box);
   }
   function intakePreview(parent) {
@@ -434,7 +515,7 @@
     for(const row of data.audit.slice(0,8)){const li=e("li");li.append(e("strong","",pretty(row.action||"Local action")),e("span","",`${stamp(row.created_at)} · ${pretty(row.status||"saved")} · ${row.entity_id||row.request_id||"receipt saved"}`));list.append(li);}section.append(list);parent.append(section);
   }
   function render() {
-    const root=$("client-handoff-content");if(!root||!app?.state.authenticated)return;root.replaceChildren();buttons=[];inputs=[];localButtons=[];
+    const root=$("client-handoff-content");if(!root||!app?.state.authenticated)return;root.replaceChildren();buttons=[];inputs=[];localButtons=[];extractionButton=null;extractionProgress=null;
     if(!data){p(root,loading?"Reading the private client workspace…":notice||"Open this workspace to read saved client records.","ch-muted");controls();return;}
     overview(root);notePanel(root);attentionQueue(root);workspaceTools(root);
     const layout=e("div","ch-layout"),queue=e("div"),work=e("div");queues(queue);layout.append(queue,work);
@@ -448,14 +529,15 @@
       let next=await app.api(statusPath());if(!current(marker,token))return;
       if(next?.demo_only!==false||!Number.isInteger(next.revision)||!Array.isArray(next.clients)||!Array.isArray(next.intakes)||!Array.isArray(next.documents))throw new Error("The private workspace response could not be verified.");
       if(!selectedClient&&next.clients.length&&!profileOpen){selectedClient=next.clients[0].id;next=await app.api(statusPath());if(!current(marker,token))return;if(next?.demo_only!==false||!Number.isInteger(next.revision)||!Array.isArray(next.clients)||!Array.isArray(next.intakes)||!Array.isArray(next.documents))throw new Error("The selected client workspace response could not be verified.");}
-      data=next;client=null;intake=null;document=null;packet=null;
+      data=next;client=null;intake=null;document=null;packet=null;extraction=null;proposal=null;
       const reads=[];if(selectedClient)reads.push(["client","clients",selectedClient]);if(selectedIntake)reads.push(["intake","intakes",selectedIntake]);if(selectedDocument)reads.push(["document","documents",selectedDocument]);
       const details=await Promise.all(reads.map(async([kind,path,id])=>({kind,value:await app.api(`/service-desk/${path}/${encodeURIComponent(id)}`)})));
       if(!current(marker,token))return;
       for(const item of details){if(item.value.revision!==data.revision)throw new Error("The workspace changed while loading document details. Refresh before acting.");if(item.kind==="client")client=item.value.client;if(item.kind==="intake")intake=item.value.intake;if(item.kind==="document")document=item.value.document;}
       if(client&&client.id!==selectedClient||document&&document.client_id!==selectedClient||intake&&intake.client_id!==selectedClient)throw new Error("Selected records belong to a different service client. Refresh and choose them again.");
       if(selectedClient&&(data.intakes.some(row=>row.client_id!==selectedClient)||data.documents.some(row=>row.client_id!==selectedClient)))throw new Error("The selected client list could not be verified. Refresh before another action.");
-      if(selectedPacket){const saved=await app.api(`/service-desk/inbox/${encodeURIComponent(selectedPacket)}`);if(!current(marker,token))return;if(saved.revision!==data.revision||!validPacket(saved.packet)||saved.packet.id!==selectedPacket||saved.packet.client_id!==selectedClient)throw new Error("The saved source packet could not be verified for this client revision.");packet=saved.packet;}
+      if(selectedPacket){const saved=await app.api(`/service-desk/inbox/${encodeURIComponent(selectedPacket)}`);if(!current(marker,token))return;if(saved.revision!==data.revision||!validPacket(saved.packet)||saved.packet.id!==selectedPacket||saved.packet.client_id!==selectedClient)throw new Error("The saved source packet could not be verified for this client revision.");packet=saved.packet;extraction=saved.structured_extraction?.schema===1?saved.structured_extraction:null;}
+      if(selectedProposal&&packet&&structuredSupported()){const saved=await app.api(`/service-desk/inbox/proposals/${encodeURIComponent(selectedProposal)}`);if(!current(marker,token))return;if(saved.revision!==data.revision||saved.proposal?.id!==selectedProposal||!validProposal(saved.proposal,packet))throw new Error("The model proposal could not be verified against the selected source and client revision.");proposal=saved.proposal;}
       stale=false;notice="";if(uncertain)inspected=true;
     }catch(error){if(current(marker,token)){notice=error.message;stale=true;}}
     finally{if(current(marker,token)){loading=false;render();}}
@@ -464,7 +546,7 @@
     if(!canWrite())return;busy=true;pendingMutation={kind,id:body.request_id};notice="";const marker=generation,token=app.state.token;controls();
     try{
       const result=await app.api(path,{method,body});if(!current(marker,token))return;
-      const successStatus=path==="/service-desk/export/acknowledge"?"acknowledged":"completed";
+      const successStatus=["/service-desk/export/acknowledge","/service-desk/inbox/proposals/acknowledge"].includes(path)?"acknowledged":"completed";
       if(result?.status!==successStatus)throw Object.assign(new Error(result?.error||result?.reason||"The local change did not complete. Inspect saved state before continuing."),{status:409});
       if(onSuccess)onSuccess(result);app.toast("Saved locally. Nothing sent, posted or paid.");
     }catch(error){if(!current(marker,token))return;notice=error.message;if(error.status===409)stale=true;else if(!error.status||error.status>=500)uncertain={kind,id:body.request_id};}
@@ -485,5 +567,5 @@
 
   function locked(){generation++;clearInbox();nextActions=null;nextActionsError="";queueLoading=false;pendingMutation=null;data=null;client=null;intake=null;document=null;selectedClient=null;selectedIntake=null;selectedDocument=null;loading=false;busy=false;stale=false;uncertain=null;inspected=false;notice="";drafts=new Map();profileOpen=false;intakeOpen=false;pages={client_offset:0,intake_offset:0,document_offset:0};buttons=[];inputs=[];localButtons=[];$("client-handoff-content")?.replaceChildren();controls();}
   function attach(value){app=value;const root=$("client-handoff-content");if(!root||root===attached)return;attached=root;$("refresh-client-handoff")?.addEventListener("click",load);controls();}
-  window.ariadneClientHandoff={attach,load,status,locked,leave,loadNextActions,inboxAcceptPayload,validPacket,money,relativePath,taxBps,linePayload,recordFields,clientPayload,intakePayload,acceptancePayload,invoicePayload,documentMeta,fieldLabel,canReview,review,acknowledgeExport};
+  window.ariadneClientHandoff={attach,load,status,locked,leave,loadNextActions,inboxAcceptPayload,proposalAcceptPayload,validPacket,validProposal,money,relativePath,taxBps,linePayload,recordFields,clientPayload,intakePayload,acceptancePayload,invoicePayload,documentMeta,fieldLabel,canReview,review,acknowledgeExport};
 })();

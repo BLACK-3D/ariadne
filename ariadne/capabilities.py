@@ -159,6 +159,13 @@ def catalog(app):
     inbox_ready = all(callable(getattr(desk, name, None)) for name in
                       ("prepare_intake_packet", "get_intake_packet", "accept_intake_packet"))
     actions_ready = callable(getattr(desk, "next_actions", None))
+    structured_ready = False
+    if callable(getattr(desk, "_structured_identity", None)):
+        try:
+            desk._structured_identity()
+            structured_ready = True
+        except (ValueError, TypeError):
+            pass
     capabilities.extend([
         group("client_evidence_inbox", "Evidence-backed client intake", "Prepare local documents or email as source-cited, reviewable Service desk intake drafts.",
               "Business", set(), ready=inbox_ready,
@@ -166,6 +173,9 @@ def catalog(app):
         group("client_next_actions", "Service desk attention queue", "See bounded next actions across clients: missing facts, owner review, customer response, completion evidence and export holds.",
               "Business", {"service_desk_read"}, ready=actions_ready,
               details="Read-only, refreshed on demand; coverage and pagination are explicit. Due dates are not payment evidence. No automatic outreach, payment posting, model call or background watcher."),
+        group("client_structured_intake", "Local structured intake suggestions", "Use the configured local model to propose source-cited facts from less structured paperwork.",
+              "Business", set(), ready=structured_ready,
+              details="Operator-only and optional. Configured provider is advertised, not model availability or accuracy. One bounded inference plus local metadata checks; saved proposals need none. Literal evidence and independent validation precede owner review. No imported pricing, tax or permission approval; no automatic retry, cloud fallback or scheduled inference."),
     ])
     def extension(identifier, name, description, category, names, ready, details, setup):
         entry = group(identifier, name, description, category, set(names), ready=ready, details=details)

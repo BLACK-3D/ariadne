@@ -1,7 +1,8 @@
 """Private, offline client intake and versioned quote/invoice draft workflow.
 
 Owner-recorded approval and customer acceptance are separate observations. This
-module never sends documents, posts a ledger, collects payment or calls a model.
+module never sends documents, posts a ledger or collects payment. Explicit optional
+structured extraction uses a separately bound local-model provider.
 """
 from __future__ import annotations
 
@@ -14,6 +15,7 @@ import re
 
 from .atomic import publish_bytes
 from .client_inbox import ClientInboxMixin, initialize as initialize_inbox, TABLES as INBOX_TABLES
+from .structured_intake import StructuredIntakeMixin, initialize as initialize_structured, TABLES as STRUCTURED_TABLES, receipt_reserve
 from .business_ops import _cents, _money, _round_ratio
 from .handoff import HandoffConflict, HandoffDesk, _bytes, _digest, _fields, _identifier, _json, _load, _text
 
@@ -201,7 +203,7 @@ def _assess(document, review=None, acceptance=None, *, invoice_id=None):
     return result
 
 
-class ClientHandoffDesk(ClientInboxMixin, HandoffDesk):
+class ClientHandoffDesk(StructuredIntakeMixin, ClientInboxMixin, HandoffDesk):
     """Owner-only shared workspace. Clients are records, not authenticated tenants."""
     @staticmethod
     def _exists(db):
@@ -224,6 +226,7 @@ class ClientHandoffDesk(ClientInboxMixin, HandoffDesk):
         ): db.execute(statement)
         db.execute("INSERT OR IGNORE INTO client_handoff_meta VALUES(1,0,1)")
         initialize_inbox(db)
+        initialize_structured(db)
 
     @staticmethod
     def _meta(db):
@@ -311,9 +314,10 @@ class ClientHandoffDesk(ClientInboxMixin, HandoffDesk):
     @staticmethod
     def _entity_quota(db, additional):
         total = sum(db.execute("SELECT coalesce(sum(bytes),0) FROM "+name).fetchone()[0] for name in ("client_handoff_clients","client_handoff_intakes","client_handoff_versions"))
-        for name in INBOX_TABLES:
+        for name in (*INBOX_TABLES, *STRUCTURED_TABLES):
             if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)).fetchone():
                 total += db.execute("SELECT coalesce(sum(bytes),0) FROM " + name).fetchone()[0]
+        total += db.execute("SELECT coalesce(sum(reserved_bytes),0) FROM client_handoff_requests WHERE action='extract_intake_proposal' AND status='running'").fetchone()[0]
         if total+additional > MAX_ENTITY_BYTES: raise ValueError("The private client-workflow storage quota is full; review retained history.")
 
     @staticmethod
@@ -346,7 +350,8 @@ class ClientHandoffDesk(ClientInboxMixin, HandoffDesk):
     def _save_receipt(self,db,body,action,status,revision,receipt,reserved=0):
         raw=self._raw(receipt);size=len(raw.encode())
         used=db.execute("SELECT coalesce(sum(receipt_bytes),0) FROM client_handoff_requests").fetchone()[0]
-        if used+size>MAX_RECEIPT_BYTES: raise ValueError("The compact request receipt quota is full.")
+        pending = receipt_reserve(db) + (MAX_ENTITY if action == "extract_intake_proposal" and status == "running" else 0)
+        if used+size+pending>MAX_RECEIPT_BYTES: raise ValueError("The compact request receipt quota is full.")
         db.execute("INSERT INTO client_handoff_requests VALUES(?,?,?,?,?,?,?,?,?,?)",(body["request_id"],action,_digest(body),status,_now().isoformat(),revision,raw,size,reserved,receipt.get("entity_id")))
 
     def _mutate(self,action,body,change):
@@ -530,6 +535,7 @@ class ClientHandoffDesk(ClientInboxMixin, HandoffDesk):
             "inbox":{"packets":[],"total":0,"offset":0,"limit":limit,"has_more":False},
             "scope":"Private owner workspace. Client profiles are not authenticated tenants. Documents remain unsent drafts; no ledger posting or payment is recorded."}
         with self.database() as db:
+            result["structured_extraction"] = self._structured_status(db)
             if self._exists(db):
                 result.update(initialized=True,revision=self._meta(db)["revision"])
                 result["inbox"]=self._inbox_status(db,limit,client_id)
@@ -570,7 +576,7 @@ class ClientHandoffDesk(ClientInboxMixin, HandoffDesk):
         with self.database() as db:
             if not self._exists(db):raise ValueError("No job intakes have been saved.")
             value=self._intake(db,identifier)
-            return {"revision":self._meta(db)["revision"],"intake":{**value,**self._intake_summary(db,value),"intake_packet":self._intake_packet_reference(db,identifier)}}
+            return {"revision":self._meta(db)["revision"],"intake":{**value,**self._intake_summary(db,value),"intake_packet":self._intake_packet_reference(db,identifier),"structured_proposal":self._intake_structured_reference(db,identifier)}}
 
     def get_document(self, identifier):
         with self.database() as db:
@@ -579,7 +585,7 @@ class ClientHandoffDesk(ClientInboxMixin, HandoffDesk):
             history=[{"revision":row["revision"],"content_sha256":row["sha256"],"bytes":row["bytes"],"current":row["revision"]==value["revision"]}
                 for row in db.execute("SELECT revision,sha256,bytes FROM client_handoff_versions WHERE document_id=? ORDER BY revision DESC LIMIT 20",(identifier,))]
             events=[self._receipt(row) for row in db.execute("SELECT request_id,status,substr(receipt,1,?) receipt,receipt_bytes FROM client_handoff_requests WHERE entity_id=? ORDER BY rowid DESC LIMIT 20",(MAX_ENTITY+1,identifier))]
-            value.update(intake_packet=self._intake_packet_reference(db,value["intake_id"]),history=history,history_retained=db.execute("SELECT count(*) FROM client_handoff_versions WHERE document_id=?",(identifier,)).fetchone()[0],events=events,
+            value.update(intake_packet=self._intake_packet_reference(db,value["intake_id"]),structured_proposal=self._intake_structured_reference(db,value["intake_id"]),history=history,history_retained=db.execute("SELECT count(*) FROM client_handoff_versions WHERE document_id=?",(identifier,)).fetchone()[0],events=events,
                 evidence_scope="Customer acceptance and completed-work evidence are reported by the owner. No customer account, signature verification, external delivery or payment is established.")
             return {"revision":self._meta(db)["revision"],"document":value}
 
@@ -604,7 +610,7 @@ class ClientHandoffDesk(ClientInboxMixin, HandoffDesk):
         old=db.execute("SELECT receipt_bytes FROM client_handoff_requests WHERE request_id=?",(identifier,)).fetchone()
         if not old:raise HandoffConflict("The export reservation disappeared.")
         used=db.execute("SELECT coalesce(sum(receipt_bytes),0) FROM client_handoff_requests").fetchone()[0]
-        if used-old[0]+size>MAX_RECEIPT_BYTES:raise ValueError("The compact receipt quota is full.")
+        if used-old[0]+size+receipt_reserve(db,identifier)>MAX_RECEIPT_BYTES:raise ValueError("The compact receipt quota is full.")
         db.execute("UPDATE client_handoff_requests SET status=?,revision=?,receipt=?,receipt_bytes=? WHERE request_id=?",(status,revision,raw,size,identifier))
 
     def export(self,body):

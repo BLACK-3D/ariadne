@@ -1,0 +1,7 @@
+FICTIONAL PRACTICE SOURCE — no actual customer, agreement, work or sale.
+
+Example Customer, using customer@example.test, asked about a Fictional repair visit at 2 Fictional Example Road.
+The described task was Fictional repair labour, estimated at 2.5 hours with a supplied rate of USD 40.00 per hour.
+
+Dates were not supplied. The rate has not been approved. Tax treatment, permission, customer acceptance, completed work and payment are unknown.
+All extracted field assignments need owner review against this fictional source.

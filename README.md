@@ -62,7 +62,7 @@ The [Threadline interface](docs/INTERFACE.md) brings observed system state, a di
 - [Architecture](docs/ARCHITECTURE.md) · [Project direction](docs/PROJECT_DIRECTION.md)
 - [MIT license for original source](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
-Current application source: **0.34.0**. Starter packaging prepares the core; it does not include every optional pack. Historical full-appliance version **0.16.1** is a separate local artifact and is not the current downloadable starter.
+Current application source: **0.35.0**. Starter packaging prepares the core; it does not include every optional pack. Historical full-appliance version **0.16.1** is a separate local artifact and is not the current downloadable starter.
 
 <details>
 <summary>Development history, advanced operations and historical qualification notes</summary>

@@ -1,6 +1,6 @@
 # Document inbox and next actions
 
-The Service desk now connects a local customer document to a reviewable job intake. It extracts bounded text, proposes fields from explicit labels and retains the exact source snapshot and fingerprints. You review the suggestions before saving an ordinary intake. Quotes and invoices continue through their existing separate approval controls.
+The Service desk connects a local customer document to a reviewable job intake. Source import extracts bounded text, proposes fields from explicit labels and retains the exact source snapshot and fingerprints. For less structured paperwork, you can separately ask the configured local model for source-checked suggestions. You review either path before saving an ordinary intake. Quotes and invoices continue through their existing separate approval controls.
 
 Open **Service desk → Real clients**. This is the owner-operated workspace, separate from **Fictional demo**. Only use records you are permitted to handle. No customer login, email connection, signature verification, delivery, accounting posting or payment collection is added.
 
@@ -9,7 +9,7 @@ Open **Service desk → Real clients**. This is the owner-operated workspace, se
 1. Save or select the service client's business profile. This is the business delivering the work, whose issuer details belong on its quote.
 2. Open **Document inbox · turn a source into a reviewed intake**. Choose one local document and select **Read selected document**. Choosing the file alone does not upload it.
 3. Review the retained text, extraction warnings and **Label-based suggestions**. Each candidate displays the exact quoted source line, character span and quote SHA-256. Line numbers and character offsets belong to the extracted snapshot, not the original PDF's physical layout. Separate fingerprints identify the original bytes, extracted text and immutable packet.
-4. Select **Review suggested intake**. Check or edit each field against the source. Missing or ambiguous facts stay unknown; the placeholder title/scope and quantity of one also need review. This first version uses deterministic label matching, not general AI interpretation of arbitrary paperwork.
+4. Select **Review suggested intake**. Check or edit each field against the source. Missing or ambiguous facts stay unknown; the placeholder title/scope and quantity of one also need review. These initial suggestions use deterministic label matching. Optional model-assisted review is a separate action described below.
 5. Confirm **I checked this intake against the retained source text and its extraction warnings**, then select **Save reviewed intake draft**. Editing a fact or adding/removing a service line clears that confirmation. Saving creates one ordinary intake linked to the source packet; it does not create or approve a quote automatically.
 6. Select **Generate quote draft**, resolve the quote's sourced price, tax, permission and date gates, and review that exact quote. Record a genuine customer response separately. Completed-work evidence and invoice dates remain necessary before generating an invoice draft. Invoice approval and export are separate steps.
 
@@ -31,6 +31,29 @@ Unit price: 40.00
 ```
 
 Dates are deliberately omitted so the sample cannot silently supply stale dates. Enter and review the actual service date, document date and quote valid-until date yourself. Supported labels include `Title`/`Subject`, `Customer`/`Customer name`, `Customer email`/`Email`, `Customer address`, `Service date`, `Document date`, `Due date`, `Scope`/`Description`, `Quantity`, `Unit` and `Unit price`/`Rate`. Labels are case-insensitive. Dates need `YYYY-MM-DD`; quantities and prices use exact decimal text. Repeated assertions for the same field, unsupported values and unrecognized labels are left unresolved. Tax and permission approvals are never extracted.
+
+## Optional local model extraction
+
+For prose that does not fit the explicit labels, open a saved source packet and use **Local model suggestions → Ask local model for suggestions**. This is an explicit operator action: opening the workspace, selecting a file, reading a packet or inspecting a proposal never starts inference. No model, service URL, account or schema is supplied through the form. The server uses its configured local provider and model. Try the [fictional prose sample](examples/client-inbox-prose-demo.txt) to compare model suggestions with the label-only path; it contains no actual customer or authorization.
+
+1. Inspect the retained text and extraction warnings first. The model sees this bounded snapshot, not the original binary file, missing pages, image-only content, attachments or websites.
+2. Select **Ask local model for suggestions** once. Ariadne requests schema-shaped JSON with no operational tools. The interface shows the request in progress and prevents duplicate gestures. Availability means the local callback is configured; the installed model may still be missing, busy or unable to complete this request.
+3. Inspect the **Saved model proposals**, accepted suggestions, exact source quotes and warnings. The server independently checks output structure, allowed fields, values and literal source evidence. Unsupported and conflicting suggestions stay unresolved. The original packet and its deterministic suggestions remain immutable. Model, schema, response, source and proposal fingerprints remain separate.
+4. Select **Review model-assisted intake**, check or correct every proposed fact, then confirm source review. Editing a field or service line clears that confirmation. **Save reviewed intake draft** binds the exact proposal and source hashes and creates the same ordinary intake as the manual path. It also retains separate model-proposal provenance. Price, tax and permission approvals are still false.
+
+Model-suggested prices need a literal amount next to `USD` or `US$`. Plain `$`, signed or comma-grouped amounts, slash fractions and other currencies stay unresolved; the label-based path is unchanged.
+
+A valid schema and matching quote establish neither truthful interpretation nor agreement. A model can select the wrong customer, mistake a hypothetical amount for a price, or miss a qualification elsewhere in the source. You remain responsible for checking what the source actually says. Do not treat extracted wording such as “approved,” “completed” or “paid” as commercial authority.
+
+**Review suggested intake** continues to use the original label-based/manual path. Choosing it does not silently attach a displayed model proposal to the saved intake. A packet still creates at most one intake across both paths. Saved intake and document views expose **Inspect reviewed model proposal** when that provenance exists. Saved proposals remain readable even when no generation provider is configured; viewing historical evidence does not load or call a model.
+
+### Failed, interrupted or uncertain extraction
+
+A generation claim is recorded before inference. A failed or interrupted model request produces a durable extraction hold, not an automatic retry. A lost browser response is uncertain: refresh and inspect the source, saved proposals and **Recorded local changes**. Loading an existing proposal is a read, never another generation.
+
+The hold blocks another model generation; manual label-based intake remains available. A `running` receipt records incomplete or possibly active work; it does not prove the process is still alive or that it was interrupted. Once you have inspected the failed or incomplete receipt, check **I inspected the extraction hold, saved proposals and recorded local changes**, then select **Acknowledge inspected extraction hold**. This binds the exact held receipt and workspace revision. It does not retry, adopt, resume or accept the earlier work. Any later generation requires a separate explicit action. The server independently refuses acknowledgement while a generation is active. After a crash releases that ownership lock, an inspected incomplete receipt can be acknowledged without replaying it.
+
+Leaving the workspace or locking the tab clears displayed model/source text and unsaved review. An in-flight browser response is discarded and never adopted after leaving. The server's saved receipt, proposal and failure holds remain authoritative; no client-side timer polls for them.
 
 ## Supported inputs and limits
 
@@ -65,8 +88,8 @@ Using the agent still uses the configured model for its normal reasoning; the de
 
 ## Offline use and operating cost
 
-These features use deterministic local parsing, hashing and SQLite records. They make **zero model and Internet calls**, require no paid account, add no resident service and work without a loaded language model. They still use bounded CPU, memory and local storage; no measured energy or latency saving is claimed. Optional OCR and semantic-search packs are separate capabilities.
+Source import, deterministic label suggestions and the next-action queue use local parsing, hashing and SQLite records. Those paths make **zero model and Internet calls**, require no paid account, add no resident service and work without a loaded language model. Optional structured extraction makes **one bounded inference request per explicit generation** to the configured local model; viewing its saved proposal makes none. It uses local compute, memory and potentially substantial cold-load time. No measured energy, latency or financial saving is claimed. Optional OCR and semantic-search packs remain separate capabilities.
 
-A currently running older Ariadne server may serve updated static files before its Python backend is restarted. The UI detects the absence of the new inbox status contract, keeps manual intake available and does not probe missing feature endpoints. Use the updated application on your next normal start; no restart of a working owner instance is implied by browsing source changes.
+A currently running older Ariadne server may serve updated static files before its Python backend is restarted. The UI detects absent inbox/structured-extraction contracts, keeps the older manual path available and does not probe or generate through missing feature endpoints. Use the updated application on your next normal start; no restart of a working owner instance is implied by browsing source changes.
 
 See the [full Service desk workflow](SERVICE_DESK_0_20.md), [fresh-PC setup](GET_STARTED.md) and [public-source privacy boundary](PUBLIC_SOURCE.md).

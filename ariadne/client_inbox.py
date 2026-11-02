@@ -318,10 +318,13 @@ class ClientInboxMixin:
         with self.database() as db:
             if not self._exists(db):
                 raise ValueError("No evidence packet has been saved.")
-            return {"schema": 1, "revision": self._meta(db)["revision"], "packet": self._packet(db, packet_id)}
+            packet = self._packet(db, packet_id)
+            return {"schema": 1, "revision": self._meta(db)["revision"], "packet": packet, "structured_extraction": self._structured_packet_status(db, packet)}
 
     def accept_intake_packet(self, body):
-        self._arguments(body, {"packet_id", "content_sha256", "review_confirmed", "intake"}, {"packet_id", "content_sha256", "review_confirmed", "intake"})
+        self._arguments(body, {"packet_id", "content_sha256", "review_confirmed", "intake", "proposal_id", "proposal_sha256"}, {"packet_id", "content_sha256", "review_confirmed", "intake"})
+        if bool("proposal_id" in body) != bool("proposal_sha256" in body):
+            raise ValueError("Supply both model proposal identifiers for a structured review.")
         if body["review_confirmed"] is not True:
             raise ValueError("Explicit source review is required before creating an intake.")
         from .client_handoff import _core, _QUOTE_EDITS, _now, MAX_INTAKES, _SHA
@@ -357,13 +360,18 @@ class ClientInboxMixin:
                           "accepted_at": intake["created_at"], "review_confirmed": True,
                           "scope": SOURCE_SCOPE}
             link = self._raw(provenance)
-            self._entity_quota(db, len(raw.encode("utf-8")) + len(link.encode("utf-8")))
+            structured = self._structured_acceptance(db, body, packet, intake)
+            structured_raw = self._raw(structured) if structured is not None else None
+            self._entity_quota(db, len(raw.encode("utf-8")) + len(link.encode("utf-8")) + (len(structured_raw.encode("utf-8")) if structured_raw else 0))
             db.execute("INSERT INTO client_handoff_intakes VALUES(?,?,?,?,?,?)", (identifier, intake["client_id"], intake["created_at"], _digest(intake), raw, len(raw.encode("utf-8"))))
             db.execute("INSERT INTO client_handoff_intake_sources VALUES(?,?,?,?)", (identifier, packet["id"], link, len(link.encode("utf-8"))))
+            if structured_raw is not None:
+                db.execute("INSERT INTO client_handoff_structured_intakes VALUES(?,?,?,?)", (identifier, structured["proposal_id"], structured_raw, len(structured_raw.encode("utf-8"))))
             db.execute("UPDATE client_handoff_inbox SET consumed_intake_id=? WHERE id=? AND consumed_intake_id IS NULL", (identifier, packet["id"]))
             return {"entity_type": "intake", "entity_id": identifier, "content_sha256": _digest(intake),
                     "packet_id": packet["id"], "packet_content_sha256": packet["content_sha256"], "facts_sha256": _digest(core),
-                    "model_calls": 0, "network_calls": 0}
+                    "model_calls": 0, "network_calls": 0,
+                    **({"proposal_id": structured["proposal_id"], "proposal_content_sha256": structured["proposal_content_sha256"]} if structured else {})}
         return self._mutate("accept_intake_packet", body, change)
 
     def _intake_packet_reference(self, db, intake_id):

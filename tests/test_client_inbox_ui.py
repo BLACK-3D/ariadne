@@ -17,7 +17,7 @@ class ClientInboxUIContractTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         receipt = json.loads(result.stdout)
-        self.assertGreaterEqual(receipt["passed"], 26)
+        self.assertGreaterEqual(receipt["passed"], 53)
         self.assertEqual(receipt["failures"], 0)
 
 
