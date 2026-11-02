@@ -24,13 +24,13 @@ from ariadne import __version__
 
 SOURCE_DIRS = ("ariadne", "scripts", "tests")
 SOURCE_FILES = {"LICENSE", "README.md", "THIRD_PARTY_NOTICES.md", "pyproject.toml", "Dockerfile", "compose.yaml",
-    "compose.provision.yaml", "Start Ariadne.cmd", "Stop Ariadne.cmd", "Backup Ariadne.cmd", "start.ps1", "start.sh", ".gitignore", ".dockerignore"}
+    "compose.provision.yaml", "Start Ariadne.cmd", "Stop Ariadne.cmd", "Backup Ariadne.cmd", "Setup Ariadne.cmd", "START_HERE.html", "start.ps1", "start.sh", ".gitignore", ".dockerignore"}
 CONFIG_FILES = {"engineering-assets.json", "knowledge-model-assets.json", "knowledge-wheels-manifest.json", "ocr-wheels-manifest.json",
     "production-assets.json", "production-blender-assets.json", "mcp.example.json", "connectors.example.json", "box-profiles.json", "public-models.json", "speech-assets.json", "repository-watchlist.json"}
 DOCS = {"ARCHITECTURE.md", "ANALYTICS_0_3.md", "OCR_0_3.md", "MCP_0_3.md", "KNOWLEDGE_0_4.md", "MEDIA_0_4.md", "PRODUCTION_0_4.md", "PORTABLE_0_4.md", "DELIVERY_0_4.md",
     "DIFFERENTIAL_REVIEW_0_4_SHARED.md", "REVIEW_0_4_EXTENSIONS.md", "REVIEW_PORTABLE_PYTHON_0_4.md", "SURVIVAL_0_5.md", "SURVIVAL-SOURCES.md", "WORKFLOWS_0_5.md", "AGENTS_0_6.md", "DAILY-BRIEFING.md", "WAKE_VOICE.md", "INTERNET.md", "COMMAND_CENTER_0_8.md", "OFFLINE_ROUTINES_0_9.md", "OFFLINE_AUTONOMY_0_10.md", "FAST_VOICE_0_11.md", "BUILD_FROM_SOURCE.md", "GITHUB_SOURCE.md"}
 DOCS.update({"SIGNAL_ROOM_0_12.md", "INDEPENDENT_HOST_0_12.md", "DAILY_SIGNAL_0_12.md"})
-DOCS.add("CHECKED_BACKUPS_0_13.md")
+DOCS.update({"CHECKED_BACKUPS_0_13.md", "GET_STARTED.md"})
 DOCS.add("REPOSITORY_WATCH_0_14.md")
 DOCS.update({"BUSINESS_OPS_0_15.md", "MARKET_RESEARCH_0_15.md", "LOCAL_CONTROLS_0_15.md", "OPERATIONS_0_15.md"})
 DOCS.update({"PORTABLE_0_16.md", "AUTONOMOUS_OPERATIONS_0_16.md"})

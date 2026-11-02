@@ -1,3 +1,65 @@
+# Ariadne — your own local AI workspace
+
+An AI assistant that runs on your PC, opens in your browser and keeps its workspace on your disk. Use it for conversations, files, business drafts, a client service desk, research and controlled local workflows. Once its model and tools are installed, local work can continue without Internet or Codex.
+
+**[Download the Windows starter](https://github.com/BLACK-3D/ariadne/releases/latest/download/ariadne-windows-starter.zip)** · **[Setup guide](docs/GET_STARTED.md)** · **[Source ZIP](https://github.com/BLACK-3D/ariadne/archive/refs/heads/main.zip)**
+
+## Start here on a new PC
+
+The Windows starter is a small **source-and-setup kit**, not a preloaded model appliance. Initial setup needs Internet and an existing **Python 3.13, 64-bit** installation. No AI API subscription or brokerage account is needed for local use.
+
+1. Install [Python 3.13 for Windows](https://www.python.org/downloads/windows/) if needed. Download the starter ZIP and **extract all files** to a writable local folder, for example `C:\Ariadne`. This build excludes E: and linked folders.
+2. Open **START_HERE.html** for the readable local guide. Double-click **Setup Ariadne.cmd** once. It creates a project environment, caches pinned dependencies, downloads the checked local model runtime and prepares `qwen3.5:9b`. Downloads can take a while; keep the setup window open.
+3. Double-click **Start Ariadne.cmd**. Open [Ariadne on this PC](http://127.0.0.1:8080/). Open your newly created `data/server.token` in a text editor and paste the key into the pairing screen. Keep that key private.
+4. Try **Service desk → Fictional demo** for a working quote/invoice example, or send a short conversational message. See the [five-minute first run](docs/GET_STARTED.md#a-five-minute-first-tour).
+5. Use **Stop Ariadne.cmd** to shut down Ariadne and its owned services. Closing your browser or Codex leaves the Windows background host running. Starting automatically after reboot is a separate, optional setup.
+
+Already using this installation? Use **Start**, not **Setup**. Setup refuses an existing owner's database/token and never enables the microphone, scheduling or external connectors.
+
+### Before you download
+
+| Item | What to expect |
+|---|---|
+| First supported path | Windows 10/11 x64 with Python 3.13 x64; Linux/macOS have a [manual source route](docs/BUILD_FROM_SOURCE.md). |
+| Memory | **16 GB RAM recommended as a planning estimate** for the default 9B model; other apps and context length need extra memory. GPU acceleration helps; CPU inference can be slow. This is not a minimum-hardware certification. |
+| Disk | Allow roughly **30 GB free for the starter/model as a planning estimate**, plus your own data. Optional media/native packs can need much more. |
+| Internet | Required for first-time downloads and new weather/news/market data. Installed local inference, saved records and deterministic tools can work offline. |
+| Cost | Local operation uses your electricity and hardware. Optional connected services can have their own costs; no paid account is created by setup. |
+
+## What you can use
+
+| Area | Included core / optional setup |
+|---|---|
+| Local conversation and agent missions | Local Ollama model, workspace files, memory, tool approvals and run history. Model quality and latency depend on your PC and task. |
+| Service desk | Fictional demo plus real-client intake, versioned quotes, approvals and invoice handoff. Core deterministic features work without a model or network. |
+| Venture Lab | Business ideas, evidence, tasks and print-on-demand/service comparisons. Hypothetical scenarios are distinct from actual customer/cash evidence. |
+| Trading research | Local-file research and paper-account tools. New data needs a qualified feed; strategies and profits are not guaranteed. No broker is connected by setup. |
+| Daily brief | Saved activity and source reports; fresh weather/news requires Internet and regional configuration. Scheduling is opt-in. |
+| Voice, cameras and connected systems | Optional capability packs and deliberate device/connector setup. The base starter does not activate a microphone, camera or device. |
+| Offline library and specialist tools | Core bundled references plus separately provisioned OCR, semantic search, media and engineering packs. Inspect **Capabilities** to see what is actually installed. |
+
+## Keep it yours
+
+Your fresh installation creates its own `data/` folder and pairing key. Share the public starter/source, **not an existing working folder or backup**: those can contain chats, business records, tokens and connector credentials. Keep the server on loopback for the first setup. See [source contents and privacy](docs/PUBLIC_SOURCE.md).
+
+To rely on it during an outage, finish setup and a local task while connected, stop Ariadne cleanly, then test a restart and the same local task without Internet. New weather, headlines, quotes and cloud services cannot update offline. A `.venv` is tied to its base Python installation; a fully independent removable-drive appliance additionally needs a qualified bundled runtime and model inventory. See [offline and transfer instructions](docs/GET_STARTED.md#keep-an-offline-copy-private).
+
+## Guides and development
+
+- [Get started and troubleshoot](docs/GET_STARTED.md)
+- [Manual setup and optional packs](docs/BUILD_FROM_SOURCE.md)
+- [Service desk workflow](docs/SERVICE_DESK_0_20.md)
+- [Voice controls](docs/VOICE_CONVERSATION.md)
+- [Architecture](docs/ARCHITECTURE.md) · [Project direction](docs/PROJECT_DIRECTION.md)
+- [MIT license for original source](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)
+
+Current application source: **0.33.0**. The public Windows starter prepares core capabilities; it does not bundle every optional pack or a preinstalled model. The historical full offline appliance is **0.16.1**, a separate local artifact, and is not advertised as the current downloadable release.
+
+<details>
+<summary>Development history, advanced operations and historical qualification notes</summary>
+
+The notes below describe their stated versions and environments. Follow the new-PC guide above for current first-run setup.
+
 # Ariadne — local AI in a box
 
 Public source sharing: [what is included, private-data exclusions and safe source exports](docs/PUBLIC_SOURCE.md). GitHub source downloads do not include provisioned model weights or runtimes.
@@ -168,7 +230,7 @@ Tables are bounded to 100,000 source characters, 2,000 rows and 100 columns. Num
 
 ## Portable deployment
 
-The full **0.10 Windows x64 offline ZIP** includes current source, Python, installed engines, pinned public models, notices and offline repair wheels. Extract it into an allowed folder and double-click **Start Ariadne.cmd**. A new box creates its own pairing key and private state; it does not copy the original owner's conversations, files or credentials. See [current offline and portable operation](docs/OFFLINE_AUTONOMY_0_10.md) and [baseline portable instructions](docs/PORTABLE_0_4.md).
+The retained **0.16.1 Windows x64 offline ZIP** is a historical local build with Python, engines, public models, notices and repair wheels. It is not a current GitHub download and does not include newer source features. Extract it into an allowed folder and double-click **Start Ariadne.cmd**. A new box creates its own pairing key and private state; it does not copy the original owner's conversations, files or credentials. See [current offline and portable operation](docs/OFFLINE_AUTONOMY_0_10.md) and [baseline portable instructions](docs/PORTABLE_0_4.md).
 
 The source-only distribution requires Python **3.11+** for the core. This checkout runs without a package installation:
 
@@ -185,14 +247,14 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --require-hashes -r requirements-server.txt
 ```
 
-The Windows launcher prefers the bundled `runtime/python/python.exe`, then `.venv`, then system Python. It uses isolated Python mode and opens the browser after the HTTP server has bound. The dependency-free server permits loopback use only; LAN serving requires Waitress. On Linux/macOS run `sh start.sh` with Python and a separately provisioned local Ollama service. `pip install .[server]` installs a package and the optional server dependency. The full runtime is not automatically downloaded by importing or starting the application.
+The Windows launcher uses bundled `runtime/python/python.exe` or `.venv`; the first-time setup requires a separately installed Python 3.13 x64 when neither is present. It uses isolated Python mode and opens the browser after the HTTP server has bound. The dependency-free server permits loopback use only; LAN serving requires Waitress. On Linux/macOS run `sh start.sh` with Python and a separately provisioned local Ollama service. `pip install .[server]` installs a package and the optional server dependency. The full runtime is not automatically downloaded by importing or starting the application.
 
 Use a security-supported Python with current CA trust before online provisioning or HTTPS integrations. The bootstrap requirement pins pip 26.2.2 with the checksum in the [Python security team's October 2026 guidance](https://discuss.python.org/t/information-for-python-users-regarding-emudhra-emsign-ca-certificate-security-incident/109576). It corrects pip's vendored certificate bundle; it does not update the base Python interpreter, OS/container trust stores, or other environments. The verified pip wheel is also cached in `runtime/wheels` for `--no-index` repair with `requirements-bootstrap.txt`.
 
 To provision a new **Windows x64** installation while online:
 
 ```powershell
-python scripts/provision.py --model qwen3.5:9b
+python scripts/setup_windows.py
 python scripts/provision_voice.py
 ```
 
@@ -339,3 +401,5 @@ System speech was the default in 0.4: measured short-sentence latency was about 
 The factory Node-RED service exposes only health and event echo routes; its editor and palette installation are disabled. Owners can register additional local applications in the console. The pinned ERPNext recipe is included, but Docker/Linux prerequisites and ERP container images are not installed on this host. Local business records work without ERPNext. MCP servers, owner application connections and Docker code execution require their separate owner configuration.
 
 Offline mode blocks external Python sockets and DNS by default. It is not an OS firewall: native processes use their own offline settings and cached assets. No provisioning download is performed on launch. Review [0.4 delivery and limits](docs/DELIVERY_0_4.md), [media](docs/MEDIA_0_4.md), [knowledge](docs/KNOWLEDGE_0_4.md) and [production tools](docs/PRODUCTION_0_4.md).
+
+</details>

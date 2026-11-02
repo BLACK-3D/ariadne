@@ -152,18 +152,18 @@ def start_model_server(executable, env, allow_owned=False, on_process=None, crea
         raise SystemExit(f"Port {port} already has a model server. Refusing to change its storage or offline policy. Stop it or use that server explicitly.")
 
 
-def main():
+def main(argv=None, *, on_process=None, allow_owned=True):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", default="qwen3:4b")
     parser.add_argument("--runtime-only", action="store_true")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     if not args.model or args.model.startswith("-") or len(args.model) > 100 or any(c not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:._-/" for c in args.model):
         raise SystemExit("Invalid model name")
     executable = download_runtime()
     if args.runtime_only:
         return
     env = local_env()
-    start_model_server(executable, env, allow_owned=True)
+    start_model_server(executable, env, allow_owned=allow_owned, on_process=on_process)
     print(f"Provisioning model {args.model} into {env['OLLAMA_MODELS']}", flush=True)
     with (ROOT / "data" / "model-pull.log").open("wb") as log:
         subprocess.run([str(executable), "pull", args.model], env=env, cwd=ROOT, stdout=log, stderr=log, check=True)

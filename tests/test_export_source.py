@@ -198,7 +198,8 @@ class ExportSourcePrivacyTests(unittest.TestCase):
     def test_admitted_paths_are_accepted_by_unchanged_refresh_consumer(self):
         admitted = ("ariadne/module.py", "scripts/export_source.py", "tests/test_export_source.py",
             "docs/public.md", "config/connectors.example.json", "config/.env.example", "README.md",
-            "requirements-server.txt")
+            "requirements-server.txt", "Setup Ariadne.cmd", "START_HERE.html",
+            "docs/GET_STARTED.md", "scripts/setup_windows.py", "scripts/setup_windows.ps1")
         for name in admitted:
             with self.subTest(path=name):
                 self.assertEqual(source._member(name), name)

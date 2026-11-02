@@ -1,10 +1,12 @@
 # Build Ariadne from source
 
+For a guided first installation and a short tour, start with [Get started](GET_STARTED.md). The Windows starter requires one-time online preparation; it is not a preprovisioned offline appliance.
+
 A Git clone contains the application, local UI, tests, dependency locks, asset manifests and bundled reference documents. It does **not** contain Python/Ollama runtimes, model weights, installed native engines, wheel caches or owner data. Prepare those while connected before expecting outage operation.
 
 ## Windows quick start
 
-Use native **Windows x64 and Python 3.13 x64** for the qualified optional binary profiles. Install a currently supported Python 3.13 maintenance release and Git, clone this repository, and open PowerShell in its root. Keep the project on an allowed local disk; this build excludes **E:** and linked/reparse paths. Core software also supports other platforms, but the optional Windows wheels and native engines need separate platform-specific provisioning elsewhere.
+The guided setup targets native **Windows 10/11 x64 and Python 3.13 x64**; use that Python profile for the qualified optional binary packs. Install a currently supported Python 3.13 maintenance release and Git, clone this repository with byte-preserving line endings, and open PowerShell in its root. Use `git -c core.autocrlf=false clone https://github.com/BLACK-3D/ariadne.git`; the starter ZIP already preserves committed file bytes. Keep the project on an allowed local disk; this build excludes **E:** and linked/reparse paths. Core software also supports other platforms, but the optional Windows wheels and native engines need separate platform-specific provisioning elsewhere.
 
 Create the project environment and retain the small core wheelhouse:
 
@@ -13,8 +15,10 @@ py -3.13 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --require-hashes -r requirements-bootstrap.txt
 .\.venv\Scripts\python.exe -m pip download --only-binary=:all: --require-hashes --dest runtime/wheels -r requirements-bootstrap.txt -r requirements-server.txt -r requirements-documents.txt
 .\.venv\Scripts\python.exe -m pip install --no-index --find-links runtime/wheels --require-hashes -r requirements-server.txt -r requirements-documents.txt
-.\.venv\Scripts\python.exe scripts/provision.py --model qwen3.5:9b
+.\.venv\Scripts\python.exe -I -B scripts/setup_windows.py
 ```
+
+The setup helper is for a new installation. It downloads the pinned `qwen3.5:9b` model, refuses existing private installation state or an occupied model-service port, and cleans up only its own temporary provisioning process. It does not launch Ariadne. For the guided equivalent, double-click **Setup Ariadne.cmd** instead of running the environment preparation block above.
 
 Then **double-click `Start Ariadne.cmd`**, or run:
 
@@ -22,7 +26,7 @@ Then **double-click `Start Ariadne.cmd`**, or run:
 & '.\Start Ariadne.cmd'
 ```
 
-Open `http://127.0.0.1:8080` and pair using the token shown locally by the launcher. The launcher prefers bundled `runtime/python/python.exe`, then `.venv`, then system Python. It starts the owned model service and opens the browser after the application binds.
+Open `http://127.0.0.1:8080` and pair using the newly generated key in this installation's `data/server.token`. Open that file locally; the detached launcher does not print its value into logs. The Windows launcher uses bundled `runtime/python/python.exe`, or this project's `.venv/Scripts/python.exe` when no bundle is present. It has no system-Python fallback. It starts the owned model service and opens the browser after the application binds.
 
 The factory bootstrap selects **`qwen3.5:9b`** in a new database. The pinned `qwen3:4b` remains optional, but its Thinking 2507 build exhausted the fixed 2,048-token response budget before tools on one fresh-copy file-proof mission. Do not assume that smaller weights provide the same tool reliability or faster completion. Review [model qualification limits](SQLITE_RELIABILITY_0_16_1.md) before selecting another installed model in **Settings**. An existing owner's choice is preserved. Model downloads record digests; a qualified model tag whose upstream digest changes fails validation rather than silently accepting replacement bytes.
 
@@ -144,6 +148,6 @@ Inspect the plan, qualify the intended capabilities, then choose a new output na
 .\runtime\python\python.exe -I -B scripts/export_offline.py --output dist/ariadne-offline-local.zip
 ```
 
-The exporter writes a ZIP64 appliance with payload hashes and a whole-archive checksum, excluding owner records and credentials. The 0.10 exporter requires the three exact public Qwen tags/manifests in config/public-models.json and their referenced blobs; unknown/private model tags and metadata are excluded. The notice staging command copies only the accepted tiny source notice snapshots, performs no download, and refuses differing existing files. It requires substantial additional disk space for the archive and a fresh extraction. It packages the installed allowlisted assets; it does not download missing capabilities or certify their behavior. Retain applicable third-party licenses and notices when distributing native engines or models.
+The exporter writes a ZIP64 appliance with payload hashes and a whole-archive checksum, excluding owner records and credentials. The full factory exporter requires the three exact public Qwen tags/manifests in config/public-models.json and their referenced blobs; unknown/private model tags and metadata are excluded. The notice staging command copies only the accepted tiny source notice snapshots, performs no download, and refuses differing existing files. It requires substantial additional disk space for the archive and a fresh extraction. It packages the installed allowlisted assets; it does not download missing capabilities or certify their behavior. Retain applicable third-party licenses and notices when distributing native engines or models.
 
 Test the actual one-click launcher from a new folder on the intended Windows machine with the network disconnected. A source-export smoke test using an existing interpreter is a different check. `scripts/export_source.py` creates only the small source ZIP and cannot produce a complete outage appliance. See [portable operation](PORTABLE_0_4.md) for bootstrap and recovery behavior.
