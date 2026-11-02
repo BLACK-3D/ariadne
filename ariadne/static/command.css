@@ -513,3 +513,410 @@ body.command-console:not(.command-motion-visible) .presence-orbit,body.command-c
   .routine-step-picker { padding:10px; }
   .routine-step-picker legend span { display:block; margin-left:0; }
 }
+
+/* Threadline shell. Local CSS/SVG; activity follows observed state only. */
+body.command-console.threadline-console{--bg:#0a0d0b;--sidebar:#0c100d;--panel:#111710;--surface:#172018;--surface-hover:#1d291d;--well:#0c120d;--line:#354332;--line-soft:#263125;--text:#e6ebdd;--text-secondary:#c3cebb;--muted:#a2af9a;--faint:#85947b;--accent:#c5e49d;--accent-strong:#d6edb9;--amber:#e5bd7a;--danger:#f1ab98;--display:"Bahnschrift","Segoe UI Variable Display","Segoe UI",sans-serif;background:var(--bg);font-size:14px}
+
+.threadline-console .app-shell{background:radial-gradient(ellipse at 22% 29%,#5770430d,transparent 45%),var(--bg)}
+
+.threadline-console .topbar{height:70px;flex-basis:70px;padding:0 28px;gap:26px;background:#0a0e0bea;border-color:var(--line-soft)}
+
+.threadline-console .brand{font-size:20px;letter-spacing:4px;gap:13px}
+.threadline-console .brand-mark{color:var(--accent);width:27px}
+.threadline-console .brand small{font-size:7px;letter-spacing:1.5px;margin-top:9px}
+.threadline-console .instance-mark{font-size:8px;letter-spacing:1.25px;color:var(--faint)}
+
+.threadline-console .topbar-actions{gap:16px}
+.threadline-console .connection-badge{color:var(--muted)}
+.threadline-console .topbar .quiet-button{font-size:10px}
+
+.threadline-console .workspace-navigation{left:0;top:70px;bottom:0;width:82px;padding:21px 8px 17px;border:0;border-right:1px solid var(--line-soft);border-radius:0;background:#0c100dbd;gap:20px}
+
+.threadline-console .command-navigation{gap:11px}
+.threadline-console .command-tab{border-radius:3px;min-height:66px;gap:8px;font-size:10px;border-color:transparent}
+.threadline-console .rail-index{font-size:10px;color:var(--faint);letter-spacing:.9px}
+.threadline-console .command-tab.active{color:var(--accent);background:#1b271777;border-color:#374c2e}
+.threadline-console .command-tab.active:after{left:-9px;height:20px;background:var(--accent);border-radius:0}
+.threadline-console .command-tab:hover{background:var(--surface);color:var(--text)}
+.threadline-console .directory-toggle{font-size:9px;gap:10px}
+
+.threadline-console main{padding-left:82px;scrollbar-color:#3d4d35 #0d120d}
+.threadline-console .global-banner{padding-left:110px;border-color:var(--line)}
+.threadline-console .content-view{padding:32px 32px 60px;max-width:1740px}
+.threadline-console .content-view .page-heading h1{font-size:36px;letter-spacing:-1.1px}
+
+.threadline-console .settings-card,.threadline-console .resource-card,.threadline-console .survival-panel,.threadline-console .internet-source{border-radius:4px;background:#111910;border-color:var(--line-soft)}
+
+.threadline-console .button{border-radius:3px;min-height:44px}
+.threadline-console .button-primary{background:var(--accent);color:#14200f}
+.threadline-console .button-primary:hover{background:var(--accent-strong)}
+.threadline-console input,.threadline-console select,.threadline-console textarea{border-radius:3px}
+.threadline-console .eyebrow{font-size:9px;letter-spacing:1.5px;line-height:1.7}
+
+.threadline-console .system-directory{top:86px;left:98px;width:min(720px,calc(100vw - 126px));max-height:calc(100dvh - 108px);border:1px solid #46583a;background:#10180ff7;border-radius:5px;box-shadow:0 24px 90px #000a}
+.threadline-console .system-directory .new-mission-button{background:#1a2916;border-color:#405335;border-radius:3px}
+.threadline-console .system-directory .nav-item{border-radius:3px}
+.threadline-console .system-directory .nav-item.active{background:#1d2c17;border-color:#435937}
+.threadline-console .sidebar-scrim{inset:70px 0 0;backdrop-filter:blur(3px)}
+
+/* Presence, directive and readout are peers in one operating surface. */
+.threadline-console .command-view{grid-template-columns:minmax(265px,.95fr) minmax(360px,1.25fr) minmax(220px,.7fr);column-gap:28px;row-gap:26px;padding:27px 32px 46px;max-width:1740px;align-items:start;align-content:start}
+
+.threadline-console .command-overview,.threadline-console .mission-layout{display:contents}
+.threadline-console .command-overline{grid-column:1/-1;grid-row:1;min-height:32px;padding:0 0 12px;border-bottom:1px solid var(--line-soft)}
+.threadline-console .command-overline .eyebrow{color:var(--faint)}
+.threadline-console #command-sync{color:var(--muted);font-size:9px}
+
+.threadline-console .presence-deck{grid-column:1;grid-row:2;display:flex;flex-direction:column;align-items:stretch;min-height:0;isolation:isolate;min-width:0;padding:18px 0 0}
+.threadline-console .presence-copy{width:100%;padding:0;pointer-events:auto;min-width:0}
+.threadline-console .presence-kicker{color:var(--accent);font-size:9px;letter-spacing:1.9px}
+.threadline-console .presence-kicker i{border-radius:0;width:5px;height:5px;box-shadow:0 0 0 4px #bbdb9120}
+
+.threadline-console .presence-copy h1{font-size:clamp(30px,3vw,48px);font-weight:300;line-height:1.05;letter-spacing:-1.7px;margin:20px 0 16px;text-wrap:balance;overflow-wrap:anywhere}
+.threadline-console .presence-copy>p{font-size:12px;line-height:1.8;max-width:350px;color:var(--muted)}
+.threadline-console .presence-principle{font-size:9px;margin-top:20px;gap:7px;max-width:none;color:var(--faint)}
+
+.threadline-console .command-presence{position:relative;inset:auto;z-index:0;width:100%;height:260px;min-height:0;margin-top:10px;display:block}
+.threadline-console .presence-geometry{width:100%;height:100%;max-height:none;overflow:visible}
+.threadline-console .presence-label{position:absolute;background:#0a110adb;border-color:#34442c;border-radius:2px;font-size:8px;padding:5px 7px;max-width:95%;line-height:1.4;color:var(--text-secondary)}
+.threadline-console .presence-label-mic{right:auto;left:2px;top:auto;bottom:15px}
+.threadline-console .presence-label-network{right:0;bottom:-13px;text-align:right}
+.threadline-console .presence-base{bottom:42px;left:50%;font-size:7px;letter-spacing:1.6px;color:var(--faint);background:var(--bg);padding:0 4px}
+
+.threadline-console .presence-core{animation:none;transform-origin:240px 174px}
+.threadline-console.command-motion-visible .command-presence:is([data-state=executing],[data-state=transcribing],[data-state=speaking],[data-state=recording]) .presence-core{animation:threadline-work 4s ease-in-out infinite}
+.threadline-console .command-presence:is([data-state=paused],[data-state=review]) .presence-core{stroke:var(--amber)}
+.threadline-console .command-presence:is([data-state=locked],[data-state=unreachable],[data-state=unavailable]) .presence-core{opacity:.35}
+@keyframes threadline-work{50%{opacity:.55}
+}
+
+/* The input stays visible on an ordinary laptop. */
+.threadline-console .mission-main{grid-column:2;grid-row:2;display:flex;flex-direction:column;gap:17px;min-width:0;padding:0}
+.threadline-console .composer-wrap{order:0;position:relative;padding:23px 24px 14px;margin:0;background:linear-gradient(120deg,#172016,#10160f);border:1px solid #44513a;border-radius:4px;box-shadow:0 12px 40px #0002;min-width:0}
+.threadline-console .composer-wrap:before,.threadline-console .composer-wrap:after{content:"";position:absolute;pointer-events:none;width:18px;height:18px;border-color:var(--accent)}
+.threadline-console .composer-wrap:before{left:-1px;top:-1px;border-left:2px solid;border-top:2px solid;color:var(--accent)}
+.threadline-console .composer-wrap:after{right:-1px;bottom:-1px;border-right:2px solid;border-bottom:2px solid;color:var(--accent)}
+
+.threadline-console .directive-heading{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin:0 0 19px}
+.threadline-console .directive-heading h2{font:400 25px/1.25 var(--display);letter-spacing:-.6px;max-width:300px;margin:9px 0 0}
+.threadline-console .directive-local{font-size:7px;letter-spacing:.8px;white-space:nowrap;gap:5px;color:var(--muted);margin-top:4px}
+.threadline-console .directive-local i{background:var(--accent);width:3px;height:3px}
+
+.threadline-console .composer{border:0;background:none;padding:0;border-radius:0;box-shadow:none}
+.threadline-console #mission-prompt{font:14px/1.7 var(--font);color:var(--text);min-height:116px;max-height:300px;padding:0;resize:vertical;background:none;border:0;box-shadow:none;outline-offset:5px}
+.threadline-console #mission-prompt::placeholder{color:#9aab90;opacity:1}
+
+.threadline-console .agent-picker{margin:14px 0 0;padding:13px 0 0;border-top:1px solid var(--line);gap:8px}
+.threadline-console .agent-picker label{font:9px var(--mono);color:var(--muted)}
+.threadline-console .agent-picker select{background:#0c140c;border-color:#3b4a31;font-size:11px;min-height:35px;max-width:220px}
+.threadline-console #mission-agent-note{font-size:9px;line-height:1.7;color:var(--faint)}
+
+.threadline-console .mission-expectations{margin-top:12px;border-color:var(--line)}
+.threadline-console .mission-expectations summary{min-height:38px;align-items:center;font-size:10px;color:var(--text-secondary)}
+.threadline-console .composer-toolbar{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);gap:12px}
+.threadline-console .composer-tools{gap:6px;min-width:0}
+.threadline-console .composer-tools .icon-button{width:34px;height:40px}
+.threadline-console .composer-local{font-size:9px;gap:6px;max-width:120px;overflow-wrap:anywhere}
+.threadline-console .send-button{min-height:44px;padding:0 16px;border-radius:3px;background:var(--accent);color:#17210f;font:600 11px var(--font);gap:15px;flex-shrink:0}
+.threadline-console .send-button:hover{background:var(--accent-strong)}
+.threadline-console .send-button svg{width:16px;height:16px}
+.threadline-console .composer-caption{font-size:8px;color:var(--muted);gap:5px;line-height:1.8;margin:12px 0 0}
+.threadline-console .composer-caption svg{width:11px;height:11px}
+.threadline-console .keyboard-hint{font-size:8px;margin-left:auto}
+
+
+.threadline-console .conversation{order:1;padding:0;min-height:0;overflow:visible}
+.threadline-console .welcome{padding:0;max-width:none;margin:0;background:none}
+.threadline-console .quick-start-heading{margin:0 0 7px;gap:7px;display:flex;justify-content:space-between;align-items:center}
+.threadline-console .quick-start-heading>span:last-child{font-size:9px;color:var(--faint);display:none}
+.threadline-console .suggestion-grid{display:grid;grid-template-columns:1fr;gap:0;margin:0}
+.threadline-console .suggestion{display:grid;grid-template-columns:22px minmax(0,1fr) 16px;gap:9px;align-items:center;min-height:44px;padding:10px 3px;background:none;border:0;border-bottom:1px solid var(--line-soft);border-radius:0;text-align:left}
+.threadline-console .suggestion>svg:first-child{grid-column:1;grid-row:1;color:var(--faint);width:15px;height:15px}
+.threadline-console .suggestion>strong{grid-column:2;grid-row:1;font:400 11px var(--font);color:var(--text-secondary)}
+.threadline-console .suggestion>span:not([data-icon]){display:none}
+.threadline-console .suggestion>svg:last-child{grid-column:3;grid-row:1;width:12px;height:12px;color:var(--faint)}
+.threadline-console .suggestion:hover{background:#c5e49d08}
+
+/* Last observed values, with clear decisions and continuity. */
+.threadline-console .command-metrics{grid-column:3;grid-row:2;display:flex;flex-direction:column;gap:0;align-self:stretch;border:0;padding:0;margin:0;background:none;min-width:0}
+.threadline-console .readout-heading{display:flex;align-items:center;justify-content:space-between;min-height:39px;gap:8px;border-bottom:1px solid var(--line);margin-bottom:5px}
+.threadline-console .readout-mark{border:1px solid #425637;color:var(--accent);font:7px var(--mono);padding:3px 5px;letter-spacing:1px}
+
+.threadline-console .command-metric{display:block;text-align:left;width:100%;min-height:78px;padding:13px 0;background:none;border:0;border-bottom:1px solid var(--line-soft);border-radius:0;color:var(--text);min-width:0}
+.threadline-console .command-metric:disabled{opacity:1;cursor:default}
+.threadline-console .command-metric:not(:disabled):hover{background:#c5e49d06}
+.threadline-console .command-metric .metric-label{font:8px var(--mono);letter-spacing:1.3px;color:var(--faint)}
+.threadline-console .command-metric>div{display:flex;align-items:baseline;gap:8px;margin-top:8px;min-width:0}
+.threadline-console .command-metric strong{font:400 23px/1.15 var(--display);letter-spacing:-.7px;overflow-wrap:anywhere;min-width:0}
+.threadline-console .command-metric div>span:not([data-icon]){font:10px var(--font);color:var(--muted);line-height:1.5}
+.threadline-console .command-metric svg{width:12px;height:12px;margin-left:auto;color:var(--faint);align-self:center}
+.threadline-console .metric-review:not(:disabled) strong{color:var(--amber)}
+.threadline-console .metric-model strong,.threadline-console .metric-brief strong{font:13px/1.5 var(--mono);letter-spacing:0}
+.threadline-console #command-model-note,.threadline-console #command-brief-note{display:block;font-size:9px;line-height:1.6;color:var(--muted);margin-top:5px;overflow-wrap:anywhere}
+
+.threadline-console .continuity-card{margin-top:20px;padding:15px 13px;background:#121b10;border:1px solid var(--line-soft);border-left:2px solid #5c7549;border-radius:2px;min-width:0}
+.threadline-console .continuity-card h2{font:400 15px/1.5 var(--display);margin:9px 0 6px;letter-spacing:-.2px;overflow-wrap:anywhere}
+.threadline-console .continuity-card p{font-size:10px;line-height:1.75;color:var(--muted);margin:0 0 8px;overflow-wrap:anywhere}
+.threadline-console .continuity-card .text-button{min-height:44px;font-size:10px;display:flex;gap:12px;align-items:center;color:var(--accent);padding:0;background:none}
+.threadline-console .continuity-card .text-button:disabled{color:var(--muted);opacity:1}
+.threadline-console .continuity-card svg{width:12px;height:12px}
+
+/* Direct routes into useful local systems; opening one launches no work. */
+.threadline-console .workspace-launchpad{grid-column:1/-1;grid-row:3;border-top:1px solid var(--line);padding-top:20px;margin-top:7px;min-width:0}
+.threadline-console .launchpad-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}
+.threadline-console .launchpad-heading>span:last-child{font-size:10px;color:var(--faint)}
+.threadline-console .workspace-portals{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.threadline-console .workspace-portal{background:#10170f;border:1px solid var(--line-soft);border-radius:3px;min-width:0;min-height:105px;text-align:left;padding:18px 15px;display:flex;align-items:center;gap:13px;color:var(--text)}
+.threadline-console .workspace-portal:hover,.threadline-console .workspace-portal:focus-visible{border-color:#657d4b;background:#192415}
+.threadline-console .workspace-portal>.portal-icon{width:20px;height:20px;color:var(--accent);flex:none}
+.threadline-console .workspace-portal>span:not([data-icon]){display:flex;flex-direction:column;gap:5px;min-width:0}
+.threadline-console .workspace-portal small{font:7px var(--mono);letter-spacing:1.2px;color:var(--faint)}
+.threadline-console .workspace-portal strong{font:400 18px/1.2 var(--display);letter-spacing:-.3px}
+.threadline-console .workspace-portal em{font:10px/1.5 var(--font);font-style:normal;color:var(--muted)}
+.threadline-console .workspace-portal>svg:last-child{width:12px;height:12px;margin-left:auto;flex:none;color:var(--faint)}
+
+.threadline-console .command-mission-log{grid-column:1/-1;grid-row:4;min-width:0;margin:0;padding:4px 0 0;border:0;background:none}
+.threadline-console .ledger-heading{padding-bottom:12px;border-bottom:1px solid var(--line-soft);align-items:center}
+.threadline-console .ledger-heading h2{font:400 21px/1.4 var(--display);letter-spacing:-.4px;margin:6px 0 0}
+.threadline-console #command-log-count{font-size:9px;color:var(--faint)}
+.threadline-console .recent-runs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0 18px;margin:0}
+.threadline-console .run-item{border:0;border-bottom:1px solid var(--line-soft);border-radius:0;background:none;padding:15px 0;margin:0;min-width:0}
+.threadline-console .run-item:hover{background:#c5e49d05}
+.threadline-console .ledger-actions{padding-top:10px}
+
+/* Selected work is an inspectable dossier, with approvals beside its evidence. */
+.threadline-console .command-view[data-selected=true]{display:block;max-width:1640px}
+.threadline-console .command-view[data-selected=true] .command-overview{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,.7fr);gap:0 28px;border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:24px}
+.threadline-console .command-view[data-selected=true] .command-overline{grid-column:1/-1;grid-row:auto;margin-bottom:15px}
+.threadline-console .command-view[data-selected=true] .presence-deck{display:block;grid-column:1;grid-row:auto;min-height:0;padding:0}
+.threadline-console .command-view[data-selected=true] .presence-copy h1{font-size:29px;margin:10px 0}
+.threadline-console .command-view[data-selected=true] .presence-copy>p{display:block;max-width:560px;font-size:11px}
+.threadline-console .command-view[data-selected=true] .presence-principle{display:none}
+
+.threadline-console .command-view[data-selected=true] .command-presence{position:static;height:auto;min-height:0;width:100%;display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.threadline-console .command-view[data-selected=true] .presence-label{display:flex;position:static;max-width:none;font-size:8px;margin:0;text-align:left}
+.threadline-console .command-view[data-selected=true] .presence-geometry,.threadline-console .command-view[data-selected=true] .presence-base{display:none}
+.threadline-console .command-view[data-selected=true] .command-metrics{display:grid;grid-template-columns:1fr 1fr;gap:0 18px;grid-column:2;grid-row:auto;margin:0;border:0;padding:0}
+.threadline-console .command-view[data-selected=true] .readout-heading,.threadline-console .command-view[data-selected=true] .continuity-card{display:none}
+.threadline-console .command-view[data-selected=true] .command-metric{min-height:70px}
+.threadline-console .command-view[data-selected=true] .metric-label{font-size:8px}
+.threadline-console .command-view[data-selected=true] .command-metric strong{font-size:17px}
+.threadline-console .command-view[data-selected=true] .metric-model strong,.threadline-console .command-view[data-selected=true] .metric-brief strong{font-size:11px}
+
+.threadline-console .command-view[data-selected=true] .mission-layout{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:26px}
+.threadline-console .command-view[data-selected=true] .mission-main{display:flex;grid-column:1;grid-row:auto;gap:22px}
+.threadline-console .command-view[data-selected=true] .mission-heading{order:0;padding:0;align-items:flex-start;gap:16px}
+.threadline-console .command-view[data-selected=true] .mission-heading h1{font-size:30px;line-height:1.25;letter-spacing:-.7px;overflow-wrap:anywhere}
+.threadline-console .command-view[data-selected=true] .conversation{order:1;min-height:120px;padding:0}
+.threadline-console .command-view[data-selected=true] .composer-wrap{order:2;position:relative;margin:0;padding:20px}
+.threadline-console .command-view[data-selected=true] .directive-heading{display:none}
+.threadline-console .command-view[data-selected=true] #mission-prompt{min-height:76px}
+.threadline-console .command-view[data-selected=true] .activity-panel{position:sticky;top:20px;align-self:start;display:block;max-height:none;background:#11190f;border:1px solid var(--line);border-radius:3px;padding:18px}
+.threadline-console .command-view[data-selected=true] .activity-panel h2{font-size:17px}
+.threadline-console .command-view[data-selected=true] .workspace-launchpad{display:none}
+.threadline-console .command-view[data-selected=true] .command-mission-log{margin-top:32px;padding-top:20px;border-top:1px solid var(--line)}
+
+.threadline-console .message{border-radius:0;border-color:var(--line-soft);background:none}
+.threadline-console .message.assistant{border-left:2px solid #657f4b;padding-left:18px}
+.threadline-console .approval-card{border-color:#8c7444;background:#211e13;border-radius:3px}
+.threadline-console .pairing-overlay{background:radial-gradient(ellipse at 50% 35%,#23331a66,transparent 65%),#090d0b}
+.threadline-console .pairing-card{border-color:#3f5133;border-radius:5px;background:#10180f;box-shadow:0 30px 100px #0008}
+.threadline-console .pairing-card h1{font-family:var(--display);letter-spacing:-1px}
+
+
+@media(min-width:1800px){.threadline-console .command-view{column-gap:38px;padding-top:38px}
+.threadline-console .command-presence{height:330px}
+.threadline-console .composer-wrap{padding:30px}
+.threadline-console #mission-prompt{min-height:148px}
+.threadline-console .command-metric{min-height:90px}
+}
+
+@media(max-width:1250px){
+ .threadline-console .instance-mark{display:none}
+.threadline-console .topbar-actions{margin-left:auto;gap:13px}
+.threadline-console .command-view{grid-template-columns:minmax(250px,.85fr) minmax(340px,1.15fr);gap:24px;padding:24px}
+
+ .threadline-console .command-metrics{grid-column:1/-1;grid-row:3;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0 22px;border-top:1px solid var(--line);padding-top:12px}
+.threadline-console .readout-heading{grid-column:1/-1;border:0;min-height:23px;margin:0}
+.threadline-console .command-metric{border:0;min-height:87px}
+
+ .threadline-console .continuity-card{grid-column:1/-1;display:grid;grid-template-columns:1fr auto;gap:3px 20px;margin-top:8px;padding:13px 16px}
+.threadline-console .continuity-card>.eyebrow{grid-column:1}
+.threadline-console .continuity-card h2{grid-column:1;margin:3px 0}
+.threadline-console .continuity-card p{grid-column:1;margin:0}
+.threadline-console .continuity-card button{grid-column:2;grid-row:1/4}
+
+ .threadline-console .workspace-launchpad{grid-row:4;margin:0}
+.threadline-console .command-mission-log{grid-row:5}
+.threadline-console .workspace-portals{gap:10px}
+.threadline-console .workspace-portal{padding:15px 10px;gap:10px}
+.threadline-console .workspace-portal em{font-size:9px}
+.threadline-console .workspace-portal strong{font-size:17px}
+
+}
+
+@media(max-width:980px){
+ .threadline-console .topbar{padding:0 20px;gap:18px}
+.threadline-console .brand{font-size:18px;letter-spacing:3px}
+.threadline-console .topbar-actions{gap:10px}
+.threadline-console #internet-indicator span:last-child,.threadline-console #wake-indicator span:last-child{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+ .threadline-console .command-view{padding:22px;gap:22px;grid-template-columns:minmax(220px,.8fr) minmax(300px,1.2fr)}
+.threadline-console .presence-copy h1{font-size:34px}
+.threadline-console .directive-local{display:none}
+.threadline-console .composer-wrap{padding:20px 18px 13px}
+.threadline-console .directive-heading h2{font-size:24px}
+.threadline-console .workspace-portals{grid-template-columns:repeat(2,minmax(0,1fr))}
+.threadline-console .workspace-portal{min-height:90px;padding:16px}
+.threadline-console .command-view[data-selected=true] .mission-layout{grid-template-columns:minmax(0,1fr) 260px;gap:18px}
+
+}
+
+@media(max-width:760px){
+ .threadline-console .topbar{height:65px;flex-basis:65px;padding:0 16px;gap:12px}
+.threadline-console .brand{font-size:17px;letter-spacing:2.5px;gap:8px}
+.threadline-console .brand-mark{width:23px}
+.threadline-console .brand small{font-size:6px;letter-spacing:.75px}
+.threadline-console .topbar-actions{gap:4px}
+.threadline-console .topbar .quiet-button,.threadline-console .topbar .icon-button{width:35px;min-width:35px;min-height:44px;padding:5px;justify-content:center}
+.threadline-console #pause-label{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.threadline-console .connection-badge{display:none}
+.threadline-console .instance-mark{display:none}
+
+ .threadline-console .workspace-navigation{position:fixed;top:auto;bottom:0;left:0;right:0;width:100%;height:68px;border:0;border-top:1px solid var(--line);border-radius:0;display:flex;flex-direction:row;gap:0;padding:6px 7px;background:#0c120df5;z-index:30}
+.threadline-console .command-navigation{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));flex:5;gap:3px}
+.threadline-console .command-tab{min-height:53px;padding:5px 2px;font-size:9px;gap:5px;border-radius:2px}
+.threadline-console .rail-index{font-size:8px;letter-spacing:.5px}
+.threadline-console .command-tab.active:after{width:14px;height:2px;left:calc(50% - 7px);top:-7px}
+.threadline-console .navigation-context{flex:1;align-self:stretch;margin:0;min-width:0;justify-content:center}
+.threadline-console .directory-toggle{font-size:8px;padding:3px;min-height:53px;gap:5px;width:100%}
+.threadline-console .directory-toggle svg{width:14px;height:14px}
+
+ .threadline-console main{padding-left:0;padding-bottom:79px}
+.threadline-console .global-banner{padding:12px 16px}
+.threadline-console .content-view{padding:24px 18px 30px}
+.threadline-console .command-view{grid-template-columns:minmax(0,1fr);gap:24px;padding:18px 18px 24px;display:grid}
+.threadline-console .command-overline{grid-column:1;grid-row:1;gap:6px;padding-bottom:10px}
+.threadline-console .command-overline .eyebrow{font-size:7px;letter-spacing:1px}
+.threadline-console #command-sync{font-size:7px}
+.threadline-console .command-overline .icon-button{width:30px;height:38px}
+
+ .threadline-console .mission-main{grid-column:1;grid-row:2;gap:16px}
+.threadline-console .composer-wrap{padding:21px 19px 14px}
+.threadline-console .directive-heading h2{font-size:26px}
+.threadline-console #mission-prompt{min-height:105px}
+.threadline-console .agent-picker{flex-wrap:wrap}
+.threadline-console .agent-picker select{max-width:calc(100% - 60px);flex:1}
+.threadline-console #mission-agent-note{flex-basis:100%;font-size:9px}
+.threadline-console .composer-local{max-width:99px;font-size:8px}
+.threadline-console .send-button{font-size:10px;padding:0 13px;gap:9px}
+.threadline-console .keyboard-hint{display:none}
+
+ .threadline-console .presence-deck{grid-column:1;grid-row:3;display:grid;grid-template-columns:minmax(0,1fr) minmax(140px,.9fr);align-items:center;gap:10px;padding:18px 0 8px;border-top:1px solid var(--line);min-height:200px}
+.threadline-console .presence-copy h1{font-size:28px;letter-spacing:-1px;margin:12px 0}
+.threadline-console .presence-copy p{font-size:10px;line-height:1.7}
+.threadline-console .presence-kicker{font-size:7px;letter-spacing:1.3px}
+.threadline-console .presence-principle{display:none}
+.threadline-console .command-presence{height:190px;margin:0;min-height:0}
+.threadline-console .presence-label{font-size:7px;padding:4px;max-width:100%;white-space:normal}
+.threadline-console .presence-label-mic{bottom:10px;left:0;right:auto}
+.threadline-console .presence-label-network{bottom:-12px;right:0}
+.threadline-console .presence-base{display:none}
+
+ .threadline-console .command-metrics{grid-column:1;grid-row:4;grid-template-columns:1fr 1fr;gap:0 18px;padding-top:12px}
+.threadline-console .command-metric{min-height:85px;border-bottom:1px solid var(--line-soft)}
+.threadline-console .continuity-card{display:block;padding:15px;margin-top:16px}
+.threadline-console .continuity-card button{display:flex}
+.threadline-console .continuity-card p{margin:6px 0}
+.threadline-console .workspace-launchpad{grid-column:1;grid-row:5;padding-top:18px}
+.threadline-console .launchpad-heading>span:last-child{display:none}
+.threadline-console .workspace-portals{gap:9px}
+.threadline-console .workspace-portal{padding:14px 11px;gap:9px;min-height:103px}
+.threadline-console .workspace-portal>.portal-icon{width:15px;height:15px}
+.threadline-console .workspace-portal strong{font-size:17px}
+.threadline-console .workspace-portal small{font-size:6px;letter-spacing:.8px}
+.threadline-console .workspace-portal em{font-size:9px}
+.threadline-console .workspace-portal>svg:last-child{display:none}
+.threadline-console .command-mission-log{grid-column:1;grid-row:6}
+.threadline-console .recent-runs{grid-template-columns:1fr 1fr;gap:0 15px}
+.threadline-console .ledger-heading h2{font-size:20px}
+
+ .threadline-console .system-directory{top:76px;left:12px;right:12px;width:auto;max-height:calc(100dvh - 160px);padding:20px;border-radius:4px}
+.threadline-console .system-directory .navigation{grid-template-columns:1fr}
+.threadline-console .system-directory .nav-item{min-height:58px}
+.threadline-console .sidebar-scrim{inset:65px 0 68px}
+
+ .threadline-console .command-view[data-selected=true] .command-overview{display:block;padding-bottom:17px;margin-bottom:22px}
+.threadline-console .command-view[data-selected=true] .command-overline{margin-bottom:18px}
+.threadline-console .command-view[data-selected=true] .presence-deck{display:block;border:0;padding:0;min-height:0}
+.threadline-console .command-view[data-selected=true] .command-presence{height:auto;margin-top:10px;display:flex}
+.threadline-console .command-view[data-selected=true] .command-metrics{display:grid;grid-template-columns:1fr 1fr;margin-top:15px}
+.threadline-console .command-view[data-selected=true] .mission-layout{display:flex;flex-direction:column;gap:24px}
+.threadline-console .command-view[data-selected=true] .mission-main{width:100%}
+.threadline-console .command-view[data-selected=true] .activity-panel{position:static;width:100%;max-height:none}
+.threadline-console .command-view[data-selected=true] .mission-heading h1{font-size:25px}
+.threadline-console .command-view[data-selected=true] .composer-wrap{padding:18px}
+
+}
+
+@media(max-width:360px){.threadline-console .topbar{padding:0 10px}
+.threadline-console .brand small{display:none}
+.threadline-console .brand{font-size:16px}
+.threadline-console .brand-mark{width:20px}
+.threadline-console .command-view{padding-left:14px;padding-right:14px}
+.threadline-console .workspace-portal{padding:13px 10px}
+.threadline-console .workspace-portal .portal-icon{display:none}
+.threadline-console .send-button{gap:6px;padding:0 11px}
+}
+
+@media(prefers-reduced-motion:reduce){.threadline-console .presence-core,.threadline-console.command-motion-visible .command-presence .presence-core{animation:none!important;transition:none!important}
+.threadline-console *{scroll-behavior:auto!important}
+}
+
+@media(forced-colors:active){.threadline-console .threadline-geometry{forced-color-adjust:none}
+.threadline-console .composer-wrap,.threadline-console .workspace-portal{border:1px solid CanvasText}
+.threadline-console .command-tab.active{outline:1px solid Highlight}
+}
+
+@media print{.threadline-console .workspace-navigation,.threadline-console .workspace-launchpad{display:none}
+.threadline-console main{padding:0}
+.threadline-console{background:white;color:black}
+}
+
+
+/* Observed-layout corrections: preserve one page scroll and align icon hosts. */
+.threadline-console .composer-wrap{overflow:visible;max-height:none;height:auto}
+
+.threadline-console .composer-wrap:before,.threadline-console .composer-wrap:after{background:none;clip-path:none;box-shadow:none}
+
+.threadline-console .command-metric:before,.threadline-console .command-metric:after{display:none}
+
+.threadline-console .suggestion>[data-icon]:first-child{grid-column:1;grid-row:1;position:static;width:16px;height:16px;color:var(--faint)}
+
+.threadline-console .suggestion>[data-icon]:first-child svg{width:16px;height:16px}
+
+.threadline-console .suggestion>i[data-icon]{grid-column:3;grid-row:1;position:static;inset:auto;display:flex;align-items:center;width:12px;height:12px}
+
+.threadline-console .suggestion>i[data-icon] svg{width:12px;height:12px}
+
+.threadline-console .workspace-portal>[data-icon]{display:flex;align-items:center;justify-content:center}
+
+.threadline-console .workspace-portal>.portal-icon svg{width:20px;height:20px}
+
+.threadline-console .workspace-portal>[data-icon]:last-child{margin-left:auto;width:12px;height:12px;flex:none;color:var(--faint)}
+
+.threadline-console .workspace-portal>[data-icon]:last-child svg{width:12px;height:12px}
+
+@media(max-width:760px){.threadline-console .workspace-portal>[data-icon]:last-child{display:none}
+.threadline-console .workspace-portal>.portal-icon svg{width:15px;height:15px}
+}
+
+
+@media(max-width:760px){.threadline-console .topbar .quiet-button,.threadline-console .topbar .icon-button{width:44px;min-width:44px}
+.threadline-console .composer-tools .icon-button{width:44px;height:44px}
+}
+
+@media(max-width:360px){.threadline-console .topbar-actions{gap:0}
+.threadline-console .brand{font-size:15px;letter-spacing:1.5px;gap:6px}
+.threadline-console .brand-mark{width:18px}
+}

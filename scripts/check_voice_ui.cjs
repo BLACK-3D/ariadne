@@ -40,7 +40,7 @@ function fixture(handler) {
   const state={authenticated:true,token:"fixture-session",speechRequest:0,speechPreferenceRequest:0,speechPreferenceConfirmed:0,speechPreferencesSaving:false,speechButton:null,speechUrl:null,refreshingStatus:false,
     status:{active_runs:0,speech_backend:"natural",speech_voice:"af_heart",speech_speed:1.12,wake:{active:false},voice:{speech:true,speech_backends:["natural","system"],default_voice:"af_heart",natural_runtime:{state:"ready"},voice_presets:[
       {id:"af_heart",name:"Heart · warm American",language:"en-us"},{id:"bf_emma",name:"<literal British label>",language:"en-gb"}]}}};
-  const sandbox=vm.createContext({state,
+  const sandbox=vm.createContext({state, wakeStatusRevision: 0,
     $: selector => elements.get(selector.replace(/^#/,"")),
     clear: element => element.replaceChildren(), node: (_tag,_class,text) => new Element("created",text || ""), icon: name => ({name}),
     api: async(route,options) => {requests.push({route,options}); if(handler) return handler(route,options); return route==="/voice/preferences" ? {speech_backend:options.body.backend,speech_voice:options.body.voice,speech_speed:options.body.speed} : {audio:true};},

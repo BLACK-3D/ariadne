@@ -16,21 +16,45 @@
     const review = runs.filter(run => reviewStates.has(run.status));
     const running = runs.filter(run => ["running", "verifying"].includes(run.status));
     const queued = runs.filter(run => run.status === "queued");
+    // Focus is navigation over already observed work, never a new mission or read.
+    const inspected = state.selectedId && state.detail?.run?.id === state.selectedId ? state.detail.run : null;
+    const focus = inspected || running[0] || queued[0] || runs[0] || null;
+    const focusOrigin = inspected ? "Selected mission" : running.length ? "Current mission" : queued.length ? "Queued mission" : "Latest recorded mission";
+    const focusState = {queued:"Queued", running:"Running", verifying:"Verifying outputs", waiting_approval:"Awaiting an action decision",
+      awaiting_approval:"Awaiting an action decision", completed:"Execution finished", failed:"Failed", interrupted:"Interrupted",
+      cancelled:"Cancelled", exhausted:"Step limit reached"}[focus?.status] || "Recorded state";
+    const focusCheck = focus?.verification_status === "passed" ? " Expected output checks passed." : focus?.verification_status === "failed" ? " Output checks need attention." : "";
+    const wakeKnown = typeof wake.active === "boolean", wakeActive = wake.active === true;
+    const wakeMuted = wake.suppressed === true || wake.acknowledging === true;
+    const wakeBusy = wake.state === "working" || Boolean(wake.pending_run_id);
+    const micName = wake.mode === "browser" ? "Browser" : "PC";
+    const mic = state.recording ? "Browser recording" : state.transcribing ? "Transcribing locally"
+      : !wakeKnown ? "Microphone status unavailable" : !wakeActive ? "Microphone off"
+      : wake.speaking === true ? "Speaking locally" : wakeMuted ? "Mic · playback muted"
+      : wake.state === "starting" ? `${micName} mic · starting` : wakeBusy ? `${micName} mic · processing request`
+      : wake.conversation_active === true || wake.state === "conversing" ? `${micName} mic · conversation awake`
+      : wake.state === "awaiting_command" ? `${micName} mic · command window`
+      : wake.state === "listening" ? `${micName} mic · listening for Ariadne` : `${micName} mic · active`;
     const installed = Boolean(status.ollama?.available && (status.ollama.models || []).some(model => model.name === status.model || model.name === `${status.model}:latest`));
     const reported = Number.isSafeInteger(status.active_runs) && status.active_runs >= 0 ? status.active_runs : active.length;
     const result = {
       phase: "standby", label: "Standing by", detail: "No missions in progress. Give Ariadne a directive.",
       activeCount: Math.max(reported, active.length), reviewCount: review.length,
       model: status.model || "Not selected", modelNote: installed ? "Installed · local inference" : status.ollama?.available ? "Selected model is unavailable" : "Local runtime unavailable",
-      mic: state.recording ? "Browser recording" : state.transcribing ? "Transcribing locally" : wake.active ? wake.speaking ? "Speaking locally" : wake.suppressed ? "Mic · playback muted" : `${wake.mode === "browser" ? "Browser" : "PC"} mic · ${String(wake.state || "active").replaceAll("_", " ")}` : "Microphone off",
+      mic,
       network: status.internet?.config?.enabled === true ? status.internet.connection_verified === true ? "Public web · recently verified" : "Public web · unverified" : "Web off · saved evidence",
       nextBrief: "Not loaded", briefNote: "Open Daily brief or refresh this overview.", firstReviewId: review[0]?.id || null,
+      focusTitle: focus ? typeof focus.title === "string" && focus.title.trim() ? focus.title : "Untitled mission" : "No recorded mission",
+      focusDetail: focus ? `${failed ? "Last confirmed · " : ""}${focusOrigin} · ${focusState}.${focusCheck}` : "Give Ariadne a directive, or open a local workspace.",
+      focusRunId: typeof focus?.id === "string" && focus.id ? focus.id : null,
     };
     if (!state.authenticated) {
       result.phase = "locked"; result.label = "Console locked"; result.detail = "Pair this browser tab with your local server.";
       result.activeCount = null; result.reviewCount = null;
       result.model = "Not connected"; result.modelNote = "Pair this browser tab to inspect the local model.";
       result.mic = "Status unavailable"; result.network = "Status unavailable";
+      result.firstReviewId = null; result.focusRunId = null;
+      result.focusTitle = "Pair to view your work"; result.focusDetail = "Your local mission context appears after pairing.";
     } else if (failed) {
       result.phase = "unreachable"; result.label = "Server unreachable"; result.detail = "Last confirmed values are shown. Check the local server and refresh.";
     } else if (!installed) {
@@ -52,11 +76,19 @@
       result.phase = "recording"; result.label = "Recording your directive"; result.detail = "Browser microphone input is active. Stop recording to transcribe locally.";
     } else if (state.transcribing) {
       result.phase = "transcribing"; result.label = "Transcribing locally"; result.detail = "Processing the recorded audio on your server.";
-    } else if (wake.active && wake.speaking) {
+    } else if (wakeActive && wake.speaking === true) {
       result.phase = "speaking"; result.label = "Speaking locally"; result.detail = "PC voice playback is active. Wake detection is suppressed during playback.";
-    } else if (wake.active && wake.state === "awaiting_command") {
+    } else if (wakeActive && wakeMuted) {
+      result.label = "Recognition paused"; result.detail = "Local recognition is paused for playback. Wait before speaking.";
+    } else if (wakeActive && wake.state === "starting") {
+      result.label = "Starting microphone"; result.detail = "Local PC microphone capture is starting.";
+    } else if (wakeActive && wakeBusy) {
+      result.phase = "active"; result.label = "Voice request in progress"; result.detail = "The local listener reports a pending request. Its recorded mission shows execution details.";
+    } else if (wakeActive && (wake.conversation_active === true || wake.state === "conversing")) {
+      result.phase = "conversing"; result.label = "Ariadne is awake"; result.detail = "The voice conversation is open. Keep talking without repeating Ariadne.";
+    } else if (wakeActive && wake.state === "awaiting_command") {
       result.phase = "listening"; result.label = "Ready for your spoken directive"; result.detail = "The PC microphone is in its wake-word command window.";
-    } else if (wake.active && wake.state === "listening" && !wake.suppressed) {
+    } else if (wakeActive && wake.state === "listening") {
       result.phase = "listening"; result.label = "Listening for Ariadne"; result.detail = "PC wake-word listening is active. No idle language-model calls.";
     }
     if (state.authenticated && briefing?.config) {
@@ -97,6 +129,12 @@
     put("command-state", data.label); put("command-state-detail", data.detail);
     put("command-phase-announcement", data.label);
     put("command-model", data.model); put("command-model-note", data.modelNote);
+    put("command-focus-title", data.focusTitle); put("command-focus-detail", data.focusDetail);
+    const focus = document.getElementById("command-focus-open");
+    if (focus) {
+      focus.disabled = !app.state.authenticated || !data.focusRunId;
+      focus.setAttribute("aria-label", data.focusRunId ? `Open mission: ${data.focusTitle}` : "No recorded mission to open");
+    }
     put("command-mic", data.mic); put("command-network", data.network);
     put("command-active", data.activeCount); put("command-review", data.reviewCount);
     put("command-next-brief", data.nextBrief); put("command-brief-note", briefingError && !briefingData ? briefingError : data.briefNote);
@@ -144,11 +182,24 @@
     document.addEventListener("visibilitychange", render);
     document.getElementById("command-refresh")?.addEventListener("click", refresh);
     document.getElementById("command-new-mission")?.addEventListener("click", app.newMission);
+    document.getElementById("command-focus-open")?.addEventListener("click", async () => {
+      const current = snapshot(app.state, briefingData, connectionFailed).focusRunId;
+      if (!current || !app.state.authenticated) return;
+      await app.selectRun(current);
+    });
     document.getElementById("command-review-open")?.addEventListener("click", async () => {
       const current = snapshot(app.state, briefingData, connectionFailed).firstReviewId;
       if (!current || !app.state.authenticated) return;
       await app.selectRun(current);
-      document.querySelector("#approval-list button")?.focus();
+      // Dossier rendering queues its first-frame scroll reset. Reveal the
+      // requested decision only after that frame, without a polling loop.
+      requestAnimationFrame(() => {
+        if (!app.state.authenticated || app.state.view !== "missions" || app.state.selectedId !== current) return;
+        const list = document.getElementById("approval-list"), first = document.querySelector("#approval-list button");
+        if (!list || !first) return;
+        list.scrollIntoView({behavior:"instant", block:"center"});
+        first.focus({preventScroll:true});
+      });
     });
     render();
   }

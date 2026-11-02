@@ -26,6 +26,7 @@ const checks = [];
 const clone = value => JSON.parse(JSON.stringify(value));
 const elements = new Map();
 const documentEvents = new Map(), bodyClasses = new Set();
+const commandFrames = [];
 let focused = null;
 class Element {
   constructor(id) { this.id = id; this.dataset = {}; this.attributes = {}; this.handlers = {}; this.writes = 0; this._text = ""; }
@@ -34,12 +35,12 @@ class Element {
   set innerHTML(value) { throw new Error("Untrusted state must never enter innerHTML"); }
   setAttribute(name, value) { this.attributes[name] = String(value); }
   addEventListener(name, handler) { this.handlers[name] = handler; }
-  focus() { focused = this.id; }
+  focus(options) { focused = this.id; this.focusOptions = options; }
 }
 for (const id of ["view-missions", "command-presence", "command-state", "command-state-detail", "command-phase-announcement",
   "command-model", "command-model-note", "command-mic", "command-network", "command-active", "command-review",
   "command-next-brief", "command-brief-note", "command-sync", "command-log-count", "command-review-open",
-  "command-refresh", "command-new-mission", "approval-button"]) elements.set(id, new Element(id));
+  "command-refresh", "command-new-mission", "command-focus-title", "command-focus-detail", "command-focus-open", "approval-list", "approval-button"]) elements.set(id, new Element(id));
 const forbidden = () => { throw new Error("The presence module attempted an independent timer or external request"); };
 const documentFixture = {
   hidden: false,
@@ -49,10 +50,12 @@ const documentFixture = {
   querySelector: selector => selector === "#approval-list button" ? elements.get("approval-button") : null,
 };
 const context = vm.createContext({window: {}, document: documentFixture,
-  Date: FixtureDate, Intl, fetch: forbidden, setTimeout: forbidden, setInterval: forbidden, requestAnimationFrame: forbidden});
+  Date: FixtureDate, Intl, fetch: forbidden, setTimeout: forbidden, setInterval: forbidden,
+  requestAnimationFrame: callback => { commandFrames.push(callback); return commandFrames.length; }});
 vm.runInContext(source, context, {filename: "command.js", timeout: 2000});
 const command = context.window.ariadneCommand;
 assert.equal(typeof command?.snapshot, "function");
+assert.equal(commandFrames.length, 0);
 checks.push("module initialization has no network, timers or model work");
 
 function base() { return {authenticated: true, view: "missions", runs: [], detail: null, selectedId: null,
@@ -285,6 +288,72 @@ test("actual PC playback is identified as speaking", s => { s.status.wake = {act
 test("actual wake command window is identified", s => { s.status.wake = {active: true, state: "awaiting_command"}; }, "listening");
 test("actual idle wake listener distinguishes ongoing speech processing from language-model calls", s => { s.status.wake = {active: true, state: "listening", suppressed: false}; }, "listening", r => assert.match(r.detail, /no idle language-model calls/i));
 test("suppressed wake listener does not claim live listening", s => { s.status.wake = {active: true, state: "listening", suppressed: true}; }, "standby", r => assert.match(r.mic, /muted/i));
+test("wake-once conversation is awake without asking for another wake word", s => {
+  s.status.wake = {active:true, state:"conversing", conversation_active:true};
+}, "conversing", r => { assert.match(r.label, /awake/i); assert.match(r.detail, /without repeating Ariadne/); assert.match(r.mic, /conversation awake/); });
+test("active conversation flag works during a listening snapshot", s => {
+  s.status.wake = {active:true, state:"listening", conversation_active:true};
+}, "conversing");
+test("voice work never claims that a busy listener is waiting for speech", s => {
+  s.status.wake = {active:true, state:"working", pending_run_id:"voice-work", conversation_active:true};
+}, "active", r => { assert.match(r.label, /in progress/); assert.doesNotMatch(r.detail, /keep talking|listening|ready for/i); });
+test("muted conversation does not advertise awake recognition", s => {
+  s.status.wake = {active:true, state:"conversing", conversation_active:true, acknowledging:true};
+}, "standby", r => { assert.match(r.mic, /muted/); assert.match(r.label, /paused/); });
+test("starting capture is distinct from listening", s => {
+  s.status.wake = {active:true, state:"starting"};
+}, "standby", r => { assert.match(r.label, /starting/i); assert.doesNotMatch(r.detail, /is listening|keep talking/i); });
+test("inactive microphone cannot imply an awake conversation", s => {
+  s.status.wake = {active:false, state:"conversing", conversation_active:true};
+}, "standby", r => assert.equal(r.mic, "Microphone off"));
+test("absent microphone state is unavailable rather than off", s => { delete s.status.wake; }, "standby", r => assert.match(r.mic, /unavailable/i));
+for (const [label, change, expected] of [
+  ["pause", s => { s.status.paused = true; }, "paused"],
+  ["submission", s => { s.creating = true; }, "submitting"],
+  ["missing model", s => { s.status.ollama.available = false; }, "unavailable"],
+]) test(`${label} retains precedence over an open voice conversation`, s => {
+  s.status.wake = {active:true, state:"conversing", conversation_active:true}; change(s);
+}, expected);
+test("selected inspected mission stays in focus while another mission executes", s => {
+  s.selectedId = "inspected";s.detail = {run:{id:"inspected", title:"Inspected result", status:"completed", verification_status:"passed"}};
+  s.runs = [{id:"running", title:"Current work", status:"running"}];s.status.active_runs = 1;
+}, "executing", r => { assert.equal(r.focusRunId, "inspected"); assert.equal(r.focusTitle, "Inspected result"); assert.match(r.focusDetail, /Selected mission/); assert.match(r.focusDetail, /checks passed/); assert.equal(r.detail, "Current work"); });
+test("running work takes focus before queued and recent records", s => {
+  s.runs = [{id:"recent", title:"Recent record", status:"completed"}, {id:"queued", title:"Queued item", status:"queued"}, {id:"running", title:"Running item", status:"running"}];
+}, "executing", r => assert.equal(r.focusRunId, "running"));
+test("queued work takes focus before the latest completed record", s => {
+  s.runs = [{id:"recent", title:"Recent record", status:"completed"}, {id:"queued", title:"Queued item", status:"queued"}];
+}, "queued", r => assert.equal(r.focusRunId, "queued"));
+test("an uninspected selection does not replace observed running work", s => {
+  s.selectedId = "not-opened";s.runs = [{id:"not-opened", title:"Uninspected", status:"completed"}, {id:"running", title:"Running item", status:"running"}];
+}, "executing", r => assert.equal(r.focusRunId, "running"));
+test("latest already loaded record is available without inventing active work", s => {
+  s.runs = [{id:"latest", title:"Saved result", status:"completed"}];
+}, "standby", r => { assert.equal(r.focusRunId, "latest"); assert.match(r.focusDetail, /Latest recorded mission/); assert.equal(r.activeCount, 0); });
+test("empty history has no fabricated focus target", () => {}, "standby", r => { assert.equal(r.focusRunId, null); assert.match(r.focusTitle, /no recorded/i); });
+const privateState = base();privateState.authenticated = false;privateState.selectedId = "PRIVATE_ROUTING_ID";
+privateState.runs = [{id:"PRIVATE_ROUTING_ID", title:"PRIVATE_MISSION_TITLE", status:"waiting_approval"}];
+privateState.detail = {run:privateState.runs[0]};
+const privateSnapshot = command.snapshot(privateState);
+assert.equal(privateSnapshot.focusRunId, null);assert.equal(privateSnapshot.firstReviewId, null);
+assert.doesNotMatch(JSON.stringify(privateSnapshot), /PRIVATE_ROUTING_ID|PRIVATE_MISSION_TITLE/);
+checks.push("locked focus and review routing reveal no previously inspected mission identity or title");
+const staleState = base();staleState.runs = [{id:"stale", title:"Saved mission", status:"completed"}];
+const staleFocus = command.snapshot(staleState, null, true);
+assert.equal(staleFocus.focusRunId, "stale");assert.match(staleFocus.focusDetail, /^Last confirmed/);
+checks.push("unreachable focus labels saved work as last confirmed instead of live activity");
+function checkWakeCommandNotification() {
+  const start = appSource.indexOf("function applyWakeSnapshot(wake) {"), end = appSource.indexOf("function confirmWakeSnapshot(wake) {", start);
+  assert.ok(start >= 0 && end > start);
+  let renders = 0, wakeRender = null;
+  const fixture = {state:{status:{}},wakeStatusRevision:0,renderWakeStatus(value){wakeRender=value;},
+    window:{ariadneCommand:{render(){renders+=1;}}},fetch:forbidden,setTimeout:forbidden,setInterval:forbidden};
+  vm.createContext(fixture);vm.runInContext(appSource.slice(start,end),fixture);
+  const wake = {active:true, conversation_active:true, state:"conversing"};fixture.applyWakeSnapshot(wake);
+  assert.equal(fixture.state.status.wake,wake);assert.equal(wakeRender,wake);assert.equal(fixture.wakeStatusRevision,1);assert.equal(renders,1);
+  checks.push("confirmed lightweight wake snapshots notify the overview immediately with no additional reader or timer");
+}
+checkWakeCommandNotification();
 const inaccessible = command.snapshot(base(), null, true);
 assert.equal(inaccessible.phase, "unreachable"); assert.match(inaccessible.detail, /last confirmed/i);
 checks.push("connection failure clearly labels last-confirmed values");
@@ -311,10 +380,10 @@ checkScrollContracts();
 checkKeyboardContracts();
 
 async function lifecycle() {
-  const state = base(), requests = []; let refreshes = 0, loads = 0, mission = null;
+  const state = base(), requests = []; let refreshes = 0, loads = 0, mission = null, afterSelect = null;
   const helpers = {state, api: async endpoint => { requests.push(endpoint); return briefing; },
     refreshStatus: async () => { refreshes += 1; }, loadRuns: async () => { loads += 1; },
-    newMission: () => {}, selectRun: async id => { mission = id; }};
+    newMission: () => {}, selectRun: async id => { mission = id; state.selectedId = id; state.view = "missions"; afterSelect?.(id); }};
   command.attach(helpers);
   assert.equal(requests.length, 0);
   checks.push("attachment/rendering performs no status fetch or public request");
@@ -332,18 +401,60 @@ async function lifecycle() {
   const announcements = elements.get("command-phase-announcement").writes;
   command.render(); command.render();
   assert.equal(elements.get("command-phase-announcement").writes, announcements);
+  assert.equal(commandFrames.length, 0);
   checks.push("unchanged phase is not repeatedly announced during status rendering");
+  checks.push("ordinary overview rendering schedules no animation frames or background work");
   state.runs = [{id: "literal-fixture", status: "running", title: '<img src=x onerror="hostile()">'}]; state.status.active_runs = 1;
   command.render();
   assert.equal(elements.get("command-state-detail").textContent, '<img src=x onerror="hostile()">');
+  assert.equal(elements.get("command-focus-title").textContent, '<img src=x onerror="hostile()">');
   checks.push("untrusted mission titles remain literal text in the presence UI");
+  await elements.get("command-focus-open").handlers.click();
+  assert.equal(mission, "literal-fixture");
+  checks.push("focus shortcut opens only the already observed mission through the existing selection handler");
+  command.connectionLost();
+  assert.match(elements.get("command-focus-detail").textContent, /^Last confirmed/);
+  command.status();
+  const removed = new Map();
+  for (const id of ["command-focus-title", "command-focus-detail", "command-focus-open"]) { removed.set(id,elements.get(id));elements.delete(id); }
+  assert.doesNotThrow(() => command.render());for (const [id,element] of removed) elements.set(id,element);
+  checks.push("focus rendering tolerates markup without the optional focus controls");
   await command.refresh();
   assert.equal(refreshes, 1); assert.equal(loads, 1); assert.deepEqual(requests, ["/briefing", "/briefing"]);
   checks.push("manual refresh uses existing local readers without polling timers");
   state.runs = [{id: "review-fixture", status: "waiting_approval"}]; command.render();
+  let scrollTop = 320; const approvalTop = 1165, viewportHeight = 900, revealCalls = [], frameOrder = [];
+  const approvalList = elements.get("approval-list"), approvalButton = elements.get("approval-button");
+  approvalList.scrollIntoView = options => {
+    revealCalls.push(options); frameOrder.push("reveal");
+    scrollTop = approvalTop - viewportHeight / 2;
+  };
+  // The real selectRun -> renderRun path queues a first-frame scrollTop=0.
+  afterSelect = () => { commandFrames.push(() => { scrollTop = 0; frameOrder.push("dossier"); }); };
+  focused = null;
   await elements.get("command-review-open").handlers.click();
-  assert.equal(mission, "review-fixture"); assert.equal(focused, "approval-button");
-  checks.push("review shortcut selects the waiting mission and focuses its action controls");
+  assert.equal(mission, "review-fixture"); assert.equal(focused, null); assert.equal(commandFrames.length, 2);
+  commandFrames.shift()(); assert.equal(scrollTop, 0); assert.equal(focused, null);
+  commandFrames.shift()();
+  assert.deepEqual(frameOrder, ["dossier", "reveal"]);
+  assert.equal(revealCalls.length, 1); assert.equal(revealCalls[0].behavior, "instant"); assert.equal(revealCalls[0].block, "center");
+  assert.ok(approvalTop-scrollTop >= 0 && approvalTop-scrollTop <= viewportHeight);
+  assert.equal(focused, "approval-button"); assert.equal(approvalButton.focusOptions.preventScroll, true); assert.equal(commandFrames.length, 0);
+  checks.push("review shortcut reveals the offscreen approval after the dossier first-frame reset and focuses without a second scroll");
+  afterSelect = null;
+  for (const [label, change] of [
+    ["locking", () => { state.authenticated = false; }],
+    ["navigation", () => { state.view = "agents"; }],
+    ["another selection", () => { state.selectedId = "other-mission"; }],
+  ]) {
+    state.authenticated = true; state.view = "missions"; state.selectedId = null;
+    focused = null; const beforeReveals = revealCalls.length;
+    await elements.get("command-review-open").handlers.click(); assert.equal(commandFrames.length, 1);
+    change(); commandFrames.shift()();
+    assert.equal(focused, null); assert.equal(revealCalls.length, beforeReveals); assert.equal(commandFrames.length, 0);
+    checks.push(`deferred review focus is discarded after ${label}`);
+  }
+  state.authenticated = true; state.view = "missions"; state.selectedId = "review-fixture";
   let resolveRead;
   helpers.api = endpoint => { requests.push(endpoint); return new Promise(resolve => { resolveRead = resolve; }); };
   const pending = command.connected();
@@ -351,6 +462,9 @@ async function lifecycle() {
   assert.equal(elements.get("command-state").textContent, "Console locked");
   assert.equal(elements.get("command-next-brief").textContent, "Not loaded");
   assert.equal(elements.get("command-refresh").disabled, true);
+  assert.equal(elements.get("command-focus-open").disabled, true);
+  assert.doesNotMatch(elements.get("command-focus-title").textContent, /literal-fixture|hostile|review-fixture/);
+  mission = null;await elements.get("command-focus-open").handlers.click();assert.equal(mission,null);
   checks.push("locking invalidates an in-flight local briefing read and disables actions");
 }
 lifecycle().then(() => {

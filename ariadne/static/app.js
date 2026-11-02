@@ -2502,6 +2502,7 @@ function applyWakeSnapshot(wake) {
   wakeStatusRevision += 1;
   if (state.status) state.status.wake = wake;
   renderWakeStatus(wake);
+  window.ariadneCommand?.render();
 }
 function confirmWakeSnapshot(wake) {
   cancelWakePolling();

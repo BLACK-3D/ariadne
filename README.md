@@ -46,6 +46,8 @@ To rely on it during an outage, finish setup and a local task while connected, s
 
 ## Guides and development
 
+The [Threadline interface](docs/INTERFACE.md) brings real system state, a directive workbench, review controls and direct business/workflow routes into one local operating environment.
+
 - [Get started and troubleshoot](docs/GET_STARTED.md)
 - [Manual setup and optional packs](docs/BUILD_FROM_SOURCE.md)
 - [Service desk workflow](docs/SERVICE_DESK_0_20.md)
