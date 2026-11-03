@@ -1,0 +1,198 @@
+{
+  "schema": 1,
+  "checked_client_date": "2026-11-03",
+  "assessment_kind": "primary_documentation_readiness_review",
+  "approved_use": "Free, no-account, permitted automated US stock/ETF option research; actual BBO prices and side sizes with causal timestamps at most five seconds old. No broker orders or new spending.",
+  "requirements": {
+    "market": "US listed stock and ETF options",
+    "free": true,
+    "no_account": true,
+    "actual_bid_ask": true,
+    "actual_side_sizes": true,
+    "maximum_quote_age_seconds": 5,
+    "permitted_automated_access": true,
+    "causal_volume_open_interest_and_stock_activity": true
+  },
+  "qualified_source_ids": [],
+  "providers": [
+    {
+      "id": "marketdata_demo",
+      "title": "MarketData unauthenticated demonstration",
+      "urls": [
+        "https://www.marketdata.app/docs/api/authentication/",
+        "https://www.marketdata.app/docs/api/options/quotes/",
+        "https://www.marketdata.app/docs/account/free-accounts/"
+      ],
+      "authentication": "No token for historical AAPL demonstration only; broader/current API access requires an authenticated entitlement.",
+      "latency": "Unauthenticated demonstration is historical. Free/trial account documentation specifies at least 24-hour-delayed data, not five-second quotes.",
+      "quote_semantics": "Option responses document bid, ask, side sizes, daily volume, prior-session open interest and updated snapshot time. A snapshot time is not an independently established exchange-event clock for each side.",
+      "automated_use": "The vendor documents its API and unlocked historical demonstration. This does not grant current data access or establish a reliability SLA.",
+      "qualification": "not_qualified",
+      "blockers": [
+        "No-account entitlement is historical AAPL only.",
+        "Current free no-account actual BBO within five seconds is not established.",
+        "Actual response clocks, metric publication clocks and full gate evidence have not been qualified."
+      ]
+    },
+    {
+      "id": "tradier",
+      "title": "Tradier brokerage market data",
+      "urls": [
+        "https://docs.tradier.com/docs/market-data",
+        "https://docs.tradier.com/overview/endpoints"
+      ],
+      "authentication": "Brokerage account or approved partner/advisor access and API token are required.",
+      "latency": "Realtime US equities/options for brokerage access; sandbox data is delayed 15 minutes.",
+      "quote_semantics": "Documented market data includes options chains and consolidated realtime data for eligible authenticated users; no payload was captured in this assessment.",
+      "automated_use": "Documented authenticated API. Personal-use and applicable data entitlements still apply.",
+      "qualification": "not_qualified",
+      "blockers": [
+        "Requires an account and authentication.",
+        "Sandbox delay fails the existing five-second gate.",
+        "No actual response or operating reliability was qualified."
+      ]
+    },
+    {
+      "id": "alpaca",
+      "title": "Alpaca option quote API",
+      "urls": [
+        "https://docs.alpaca.markets/us/reference/optionlatestquotes",
+        "https://docs.alpaca.markets/us/docs/about-market-data-api"
+      ],
+      "authentication": "A valid API key or authorized account connection is required.",
+      "latency": "Official OPRA entitlement differs from the free indicative feed. Free indicative trades are delayed and its quotes are modified.",
+      "quote_semantics": "The official latest-quote API distinguishes OPRA from indicative pricing. Modified indicative quotes cannot stand in for the actual option book requested here.",
+      "automated_use": "Documented authenticated market-data API, subject to feed entitlements.",
+      "qualification": "not_qualified",
+      "blockers": [
+        "Requires an account/API authentication.",
+        "The free indicative quote stream is not an unmodified actual OPRA book.",
+        "No no-account actual BBO entitlement was established."
+      ]
+    },
+    {
+      "id": "cboe_dashboard",
+      "title": "Cboe delayed quotes dashboard",
+      "urls": [
+        "https://www.cboe.com/delayed_quotes/api/quote_table"
+      ],
+      "authentication": "Public dashboard viewing is available; that is not an automated-feed entitlement.",
+      "latency": "Delayed dashboard data, not a verified five-second realtime feed.",
+      "quote_semantics": "Public quote-table presentation does not establish an authorized continuous BBO capture with the required causal clocks and depth.",
+      "automated_use": "The displayed notice explicitly prohibits automated extraction/download of its quote-table data. No dashboard/API extraction was attempted.",
+      "qualification": "not_qualified",
+      "blockers": [
+        "Automated quote-table extraction is prohibited by the displayed notice.",
+        "Delayed data cannot satisfy current five-second admission.",
+        "No alternate hidden endpoint or access-control workaround is authorized."
+      ]
+    },
+    {
+      "id": "thetadata",
+      "title": "ThetaData free entitlement",
+      "urls": [
+        "https://thetadata.net/docs/Articles/Getting-Started/Subscriptions.html",
+        "https://thetadata.net/docs/Articles/Getting-Started/Getting-Started.html"
+      ],
+      "authentication": "Getting-started documentation describes a user-portal API key or account email/password authentication.",
+      "latency": "The free entitlement covers historical EOD stock/options data, not a free realtime options quote stream.",
+      "quote_semantics": "A historical EOD report is not a fresh book. Actual quote/depth payloads and publication clocks were not captured or qualified.",
+      "automated_use": "Documented authenticated product. The current documentation is inconsistent about terminal necessity and some free rate limits, so neither detail is adopted as an integration guarantee.",
+      "qualification": "not_qualified",
+      "blockers": [
+        "The documented free tier does not supply realtime options quotes.",
+        "Documented access uses account authentication.",
+        "Setup and rate-limit ambiguities require clarification before any separately authorized adapter."
+      ]
+    },
+    {
+      "id": "nasdaq_cloud",
+      "title": "Nasdaq Cloud Data Service option chains",
+      "urls": [
+        "https://github.com/Nasdaq/NasdaqCloudDataService-REST-API/blob/main/restapi/chain.md"
+      ],
+      "authentication": "The documented request requires an Authorization Bearer token.",
+      "latency": "The documented chain route distinguishes realtime and 15-minute-delayed offsets; no anonymous realtime entitlement is established.",
+      "quote_semantics": "The chain schema documents option identity, bid/ask prices, side sizes, volume and open interest. The listed chain fields alone do not establish per-side quote-event/publication clocks.",
+      "automated_use": "An official API specification exists, but token access and applicable product/data rights remain prerequisites.",
+      "qualification": "not_qualified",
+      "blockers": [
+        "Not a documented no-account/no-token route.",
+        "An actual timestamp-complete payload and fresh entitlement have not been qualified."
+      ]
+    },
+    {
+      "id": "tradingview_mcp",
+      "title": "TradingView official MCP",
+      "urls": [
+        "https://www.tradingview.com/mcp/docs"
+      ],
+      "authentication": "An eligible paid plan and OAuth account authorization are required.",
+      "latency": "Freshness depends on exchange entitlements; a five-second actual option-book feed is not established by the published tool catalogue.",
+      "quote_semantics": "Published tools cover bars, screening and research; they do not establish the required option BBO price/size/event-clock response.",
+      "automated_use": "Official MCP access is documented for authenticated eligible users, with per-user rate limits. Public viewing is not an alternative automated extraction licence.",
+      "qualification": "not_qualified",
+      "blockers": [
+        "Requires an account and an eligible paid plan.",
+        "Published tools do not establish the required options BBO source."
+      ]
+    },
+    {
+      "id": "onclick_historical",
+      "title": "OnClickMedia free historical API",
+      "urls": [
+        "https://www.onclickmedia.com/About",
+        "https://www.onclickmedia.com/pricing"
+      ],
+      "authentication": "The free historical API is advertised without account or API key.",
+      "latency": "The free product is historical EOD options data. Live options appear under custom dedicated offerings, not the free tier.",
+      "quote_semantics": "Retained Ariadne observations contain historical prices and sizes, but actual quote-event/publication clocks and standard deliverables remain unverified. The provider identifies upstream aggregation and data-quality limits.",
+      "automated_use": "The provider documents historical API access and requests considerate availability-first collection. Shared throughput is not an SLA. Its educational/research disclaimer excludes realtime trading/financial-decision reliance.",
+      "qualification": "not_qualified",
+      "blockers": [
+        "Free historical EOD observations fail the current five-second gate.",
+        "Source timestamps cannot be manufactured from dates or retrieval times.",
+        "Public historical access does not establish a reliable realtime feed."
+      ]
+    },
+    {
+      "id": "robinhood_existing_account",
+      "title": "Robinhood official authenticated agent tools",
+      "urls": [
+        "https://robinhood.com/us/en/support/articles/trading-with-your-agent/",
+        "https://robinhood.com/us/en/support/articles/onboarding-an-external-agent/"
+      ],
+      "authentication": "An existing eligible Robinhood account and an explicitly authorized external-agent connection are required. This is not a no-account source.",
+      "latency": "The official tool list describes realtime option and equity quotes, without establishing a feed SLA or the actual payload field coverage in this assessment.",
+      "quote_semantics": "Official tools include option chains, instruments, historical bars and realtime quotes. Exact event clocks, displayed sizes and dated liquidity metrics require a separately scoped response qualification.",
+      "automated_use": "Official authenticated tools also expose account information and real-order operations. A future paper-data adapter must restrict reviewed read tools and must not treat a broad connection as read-only authority.",
+      "qualification": "not_qualified",
+      "blockers": [
+        "Fails the no-account requirement.",
+        "No authenticated response was captured or connected for this review.",
+        "Any account connection or broader access grant needs separate authorization and field-level qualification."
+      ]
+    }
+  ],
+  "research_completed": true,
+  "new_collector_added": false,
+  "new_feed_connected": false,
+  "ledger_connection_implemented": false,
+  "activation_performed": false,
+  "source_caps_changed": false,
+  "market_quote_capture_performed": false,
+  "scope_limitations": [
+    "No checked source qualified; this is not a claim that no qualifying source can ever exist.",
+    "Documentation review does not prove reliability, actual field coverage or a provider SLA.",
+    "No delayed, historical, indicative or response-receipt time is relabelled as a fresh exchange quote event."
+  ],
+  "connection_status": "Unimplemented. The existing options-book gate is batch-scoped and does not maintain a durable paper ledger or authorize capital.",
+  "future_shared_ledger_requirements": [
+    "Use the existing account and its shared cash; add zero funding and no automatic top-ups.",
+    "Bind an immutable source identity, append-only observation prefix and actual availability clocks; consume displayed depth durably across repeated observations.",
+    "Preserve pending work, holdings, approvals, source caps, pauses, and failed/interrupted/uncertain receipts.",
+    "Qualify fees, inventory, entry/monthly controls, disposal behavior and migration separately; a gate pass alone is not a funded fill.",
+    "With no qualified source, keep entry admission inactive; do not fabricate quotes, relax clocks or replay uncertain work."
+  ],
+  "guide": "docs/OPTIONS_FEED_READINESS.md"
+}
