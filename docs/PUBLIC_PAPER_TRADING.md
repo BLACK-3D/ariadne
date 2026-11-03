@@ -6,6 +6,8 @@ Public supplies authenticated market data. Ariadne keeps the paper account local
 
 ## Create the account and secret
 
+Public's [Electronic Delivery and Signature Agreement, section 6](https://public.com/disclosures/electronic-delivery-agreement) requires a valid mobile phone number to open and maintain an account, and its [signup page](https://public.com/signup) starts with that field. No official phone-free onboarding path was verified. If this requirement is unacceptable, choose another data provider before opening a Public account. Enter account-verification details directly with Public; Ariadne does not collect your phone number or verification codes.
+
 1. Open [Public's API page](https://public.com/api) and sign up or sign in directly with Public. Complete its account approval, identity checks and applicable agreements yourself. Approval and market-data eligibility are Public's decisions. This integration does not open an account, accept agreements, request trading permissions or move money for you.
 2. Read the [current fee schedule](https://public.com/disclosures/customer-fee-schedule) and [Individual API terms](https://public.com/disclosures/individual-API-program). Check your actual market-data entitlement and any account/funding requirements with Public before relying on its quotes. Ariadne does not require you to transfer the $25,000 real bankroll to obtain a data connection.
 3. While signed in, open [Public API settings](https://public.com/settings/v2/api/api-keys) and generate a personal secret key. Public's [quickstart](https://public.com/api/docs/quickstart) links to these settings. Menu labels may change; use the official quickstart if the direct link changes.
