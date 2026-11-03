@@ -132,9 +132,11 @@ def poster_view(report, now=None):
     if type(options) is dict and options.get("config", {}).get("enabled"):
         options_summary = (options.get("paper") or {}).get("summary") or {}
         options_fresh = (options.get("forward_quality") or {}).get("fresh_now") is True
-        options_budget = "$25,000 total / no top-ups" if options_summary.get("schema")==6 else "$500 monthly budget"
+        options_budget = "$25,000 total / no top-ups" if options_summary.get("schema") in (6,7) else "$500 monthly budget"
         if options.get("hold") or options_summary.get("hold"):
             priority_note = "OPTIONS PAPER HELD / "+options_budget+" / inspect report."
+        elif options_summary.get("schema")==7:
+            priority_note = "PUBLIC OPTIONS PAPER / saved P/L $"+_short(options_summary.get("trading_pnl"),18)+" / "+options_budget+" / dated results only."
         elif not options_summary.get("last_daily_result"):
             priority_note = "OPTIONS PAPER / warming indicators / no trading result yet." if options.get("forward_quality") else "OPTIONS PAPER / waiting for recorded quotes / no trading result yet."
         elif not options_fresh:

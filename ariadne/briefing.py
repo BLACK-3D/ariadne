@@ -730,7 +730,10 @@ class BriefingService:
                 lines.append("- Recorded paper event: "+_md(json.dumps(event, ensure_ascii=False)))
             lines += ["- Historical backtests are research, not evidence of future profit. Cash distributions use modeled ex-date credit, not actual payment dates."]
         options = report.get("options_paper", {})
-        if options and options.get("config", {}).get("enabled"):
+        from .options_public_brief import view as public_view, markdown as public_markdown
+        if public_view(options) and options.get("config", {}).get("enabled"):
+            lines.extend(public_markdown(options))
+        elif options and options.get("config", {}).get("enabled"):
             eod_view = options_eod_brief_view(options)
             bankroll_mode = bool(eod_view and eod_view["schema"]==6)
             lines += ["", "## Aggressive options: $25,000 total simulated bankroll" if bankroll_mode else "## Aggressive options: $500 monthly simulated loss budget", "",

@@ -49,6 +49,9 @@ def _now(value=None):
 
 def _paper_engine(state):
     """Old accounts retain their frozen engine until an explicit safe upgrade."""
+    if type(state) is dict and type(state.get("schema")) is int and state["schema"] == 7:
+        from . import options_public_engine
+        return options_public_engine
     if type(state) is dict and type(state.get("schema")) is int and state["schema"] == 6:
         from . import options_bankroll_eod
         return options_bankroll_eod
@@ -83,6 +86,8 @@ class OptionsWorkflow(HandoffDesk):
         self.root_eod = OptionsRootWorkflow(self)
         from .options_bankroll_workflow import OptionsBankrollWorkflow
         self.bankroll = OptionsBankrollWorkflow(self)
+        from .options_public_paper import OptionsPublicPaper
+        self.public_paper = OptionsPublicPaper(self)
         from .options_vix import VixResearchWorkflow
         self.vix = VixResearchWorkflow(self)
 
@@ -240,7 +245,9 @@ class OptionsWorkflow(HandoffDesk):
             if state["processed_count"] == 0 and state["trade_count"] == 0:
                 if any(state[key] != initial[key] for key in ("cash", "contributions", "month", "monthly_start_equity", "monthly_committed", "fees")):
                     raise ValueError("An untouched migrated portfolio cannot change its inherited cash or monthly allowance.")
-        if type(state.get("schema")) is int and state["schema"] == 6:
+        if type(state.get("schema")) is int and state["schema"] == 7:
+            self.public_paper.verify_account(db, row["id"], state)
+        elif type(state.get("schema")) is int and state["schema"] == 6:
             self.bankroll.verify_account(db, row["id"], state)
         elif type(state.get("schema")) is int and state["schema"] == 5:
             self.root_eod.verify_account(db, row["id"], state)
@@ -289,7 +296,11 @@ class OptionsWorkflow(HandoffDesk):
         allowed = {"root_collect", "root_config", "import", "register_archive", "compare", "research_compare", "backtest", "vix_signals", "vix_backtest"}
         if active_schema == 5:
             allowed |= {"root_migrate", "bankroll_migrate"}
-        if active_schema in (5,6) and action not in allowed:
+        if active_schema == 6:
+            allowed |= {"public_migrate"}
+        if active_schema == 7:
+            allowed = {"public_paper", "import", "register_archive", "compare", "research_compare", "backtest", "vix_signals", "vix_backtest"}
+        if active_schema in (5,6,7) and action not in allowed:
             raise HandoffConflict("The KO epoch owns the existing shared account; legacy actions cannot replace its source or reset its risk.")
         if db.execute("SELECT 1 FROM opt_runs WHERE status IN ('running','failed') LIMIT 1").fetchone():
             raise HandoffConflict("An uncertain options request requires explicit inspection and acknowledgement.")
@@ -319,6 +330,8 @@ class OptionsWorkflow(HandoffDesk):
                 self._finish(db, receipt)
 
     def _verify_artifacts(self, receipt):
+        if receipt["action"] in {"public_migrate", "public_paper"}:
+            return self.public_paper.verify(receipt)
         if receipt["action"] == "bankroll_migrate":
             return self.bankroll.verify(receipt)
         if receipt["action"] in {"root_migrate", "root_collect", "root_config"}:
@@ -402,6 +415,10 @@ class OptionsWorkflow(HandoffDesk):
     def _paper_readiness(self, account, eod, clock, hold=None):
         """Optional local metadata cannot grant entries or hold financial exits."""
         from .options_paper_readiness import build_readiness, load_index
+        if account and account["state"].get("schema")==7:
+            return {"diagnostic_status":"requires_current_qualified_capture", "paper_schema":7,
+                    "source_id":"public", "entry_qualified":False,
+                    "scope":"Each Public paper decision requires a current authenticated capture and independently dated qualification metadata. Saved frames and legacy readiness files grant no new entry permission."}
         bankroll_mode = bool(account and account["state"].get("schema")==6)
         root_mode = bool(account and account["state"].get("schema")==5)
         if bankroll_mode:
@@ -455,7 +472,7 @@ class OptionsWorkflow(HandoffDesk):
             forward = self._info(db, clock, forward=True)
             catalog = self._catalog(db)
             feed = self.feed.snapshot(db, clock)
-            eod = self.root_eod.snapshot(db, clock, account) if account and account["state"].get("schema") in (5,6) else self.eod.snapshot(db, clock, account)
+            eod = ({"config":{"enabled":False},"quality":None,"scope":"Original EOD epoch sealed by Public paper migration."} if account and account["state"].get("schema")==7 else self.root_eod.snapshot(db, clock, account) if account and account["state"].get("schema") in (5,6) else self.eod.snapshot(db, clock, account))
             vix = self.vix.snapshot(db, clock, account)
             runs = [dict(row) for row in db.execute("SELECT request_id,action,day,status FROM opt_runs ORDER BY rowid DESC LIMIT 10")] if self._exists(db) else []
             held = db.execute("SELECT request_id,action,status,receipt FROM opt_runs WHERE status IN ('running','failed') ORDER BY rowid LIMIT 1").fetchone() if self._exists(db) else None
@@ -478,10 +495,11 @@ class OptionsWorkflow(HandoffDesk):
         readiness = self._paper_readiness(account,eod,clock,hold)
         with self.database() as db:
             bankroll = self.bankroll.snapshot(db,clock,account,hold) if account and account["state"].get("schema") in (5,6) else None
+            public_paper = self.public_paper.snapshot(db,account)
         return {"schema": 1, "revision": revision, "config": cfg, "rule": RULE, "rule_sha256": RULE_SHA256,
                 "quality": quality, "data_sha256": data["sha256"] if data else None,
-                "forward_quality": eod.get("quality") if account and account["state"].get("schema") in (3,4,5,6) else forward["quality"] if forward else None,
-                "legacy_forward_quality": forward["quality"] if forward and account and account["state"].get("schema") in (3,4,5,6) else None,
+                "forward_quality": eod.get("quality") if account and account["state"].get("schema") in (3,4,5,6,7) else forward["quality"] if forward else None,
+                "legacy_forward_quality": forward["quality"] if forward and account and account["state"].get("schema") in (3,4,5,6,7) else None,
                 "forward_data_sha256": forward["sha256"] if forward else None, "paper": account,
                 "events": events, "hold": hold, "last_run": _load(last[0]) if last else None, "history": runs,
                 "backtest": historical, "inbox": INBOX, "model_calls": 0, "brokerage_connected": False,
@@ -489,11 +507,11 @@ class OptionsWorkflow(HandoffDesk):
                 "archive_catalog": catalog, "comparison": compared,
                 "feed": feed,
                 "eod": eod,
-                "paper_readiness": readiness, "bankroll": bankroll,
+                "paper_readiness": readiness, "bankroll": bankroll, "public_paper":public_paper,
                 "research": researched,
                 "vix": vix,
                 "scope": ("Simulated options only. One $25000 total bankroll including retained capital; no automatic topups. Shared monthly gross commitment ceiling25000, all-in entry min(1000,4%equity,cash,unused commitment), actual integer-contract sizes. Entire bankroll can be lost; this ceiling is not a drawdown stop. Missing exits hold the ledger. No real orders or proven profitability."
-                    if account and account["state"].get("schema")==6 else "Simulated options only. $500 monthly non-recycling premium/fee allowance; no cross-month positions. Missing exits hold the ledger and invalidate cap assurance. No real orders, auto-exercise or verified future profitability.")}
+                    if account and account["state"].get("schema") in (6,7) else "Simulated options only. $500 monthly non-recycling premium/fee allowance; no cross-month positions. Missing exits hold the ledger and invalidate cap assurance. No real orders, auto-exercise or verified future profitability.")}
 
     def configure(self, body, now=None):
         if type(body) is not dict or set(body) != {"enabled", "paused", "expected_revision"} or any(type(body[k]) is not bool for k in ("enabled", "paused")):
@@ -965,6 +983,11 @@ class OptionsWorkflow(HandoffDesk):
     def collect_due(self, now=None):
         """One selected source on the same account; no parallel funded books."""
         with self.database() as db:
+            if self._exists(db):
+                row = db.execute("SELECT state FROM opt_accounts WHERE closed_at IS NULL ORDER BY rowid DESC LIMIT 1").fetchone()
+                if row and _load(row[0]).get("schema") == 7:
+                    # New explicit Public paper source seals all old collectors.
+                    return None
             selected = self.eod.config(db)["initialized"]
             root_selected = self.root_eod.config(db)["initialized"]
         if selected:

@@ -61,12 +61,18 @@ The [Threadline interface](docs/INTERFACE.md) brings observed system state, a di
 - [Service desk workflow](docs/SERVICE_DESK_0_20.md)
 - [Document inbox, cited intake review and cross-client next actions](docs/CLIENT_INBOX.md)
 - [Options book review and liquidity checks](docs/OPTIONS_LIQUIDITY.md)
+- [Public account/API setup and local options paper trading](docs/PUBLIC_PAPER_TRADING.md)
 - [Voice controls](docs/VOICE_CONVERSATION.md)
 - [Architecture](docs/ARCHITECTURE.md) · [Project direction](docs/PROJECT_DIRECTION.md)
 - [MIT license for original source](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 Current application source: **0.37.0**. Starter packaging prepares the core; it does not include every optional pack. Historical full-appliance version **0.16.1** is a separate local artifact and is not the current downloadable starter.
 
+### Connect Public data to local paper trading
+
+Current source adds a [Public market-data connection and setup guide](docs/PUBLIC_PAPER_TRADING.md). Create your own eligible Public account, generate a secret in its API settings, then use the local hidden-input setup command. Windows protects the saved credential with CurrentUser DPAPI; secrets and captured data stay outside public source exports. The connection restricts its own endpoints to authentication, explicit account discovery and market data, and provides no real-order interface. This software restriction does not turn a broadly capable Public secret into a broker-enforced read-only key.
+
+Paper trading uses the existing shared **$25,000 total bankroll with no automatic top-ups**, explicit reviewed migration, dated liquidity checks and durable cash/inventory/depth controls. Setup does not migrate an account, clear owner holds, activate recurrence or start real trading. Missing Public evidence still blocks a fill. Authentication, entitlement and actual quote freshness require owner setup and a qualified capture; offline tests cannot certify them. This source addition is not included in the last packaged 0.37.0 starter. Read the guide for current account fees, personal-use restrictions, commands and offline limits.
 ### From a saved intake to a delivery project
 
 In **Service desk**, open a saved intake and choose **Plan delivery project**, or open **Project Kits** from the system directory. Inspect the complete admitted source snapshot and its limitations, then explicitly prepare an immutable local pack. Review its exact workflow instructions and checks before adopting it into Workroom. Adoption saves a plan and two local-only workflows; source review and starting a bounded cycle are separate owner actions.

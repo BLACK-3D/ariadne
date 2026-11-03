@@ -62,6 +62,8 @@ def options_review_view(value):
     status=value.get("status")
     if type(status) is not str or status not in {"not_started","unsupported_profile","waiting_for_first_capture","recorded_observations","held"}:return result
     result["status"]=status
+    if type(value.get("account_schema")) is int and value["account_schema"] == 7:
+        result.update(account_schema=7,scope="Saved strict Public top-of-book paper accounting; marks may be stale. No current quote, brokerage execution or proven profitable edge.")
     performance=value.get("performance")
     if type(performance) is dict:
         result.update(trading_pnl=_money(performance.get("trading_pnl")),fees=_money(performance.get("fees")),

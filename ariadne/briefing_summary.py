@@ -234,6 +234,10 @@ def compact_summary(report, now=None):
                 result["options_paper"].update({key:eod[key] for key in
                     ("stress_policy_active","stress_strategy","stress_activated_at","stress_gate_stage",
                      "stress_gate_allowed","stress_context_reason","stress_context_label","stress_context_published_at")})
+    from .options_public_brief import view as public_view
+    public = public_view(options)
+    if public and type(options) is dict and options.get("config", {}).get("enabled") is True:
+        result["options_paper"] = public
     if type(options) is dict and "options_paper" in result and type(options.get("paper_readiness")) is dict:
         readiness=options["paper_readiness"]
         roots=readiness.get("roots")
