@@ -427,6 +427,7 @@
     const list=e("ul","ch-small ch-muted");for(const line of intake.lines||[])list.append(e("li","",`${line.description}: ${line.quantity} ${line.unit||"unit"} at ${line.unit_price===null?"unknown rate":"$"+line.unit_price}; ${line.price_approved?"rate approval supplied":"rate approval missing"}.`));box.append(list);
     p(box,"An intake is an immutable record of supplied information. Corrections are made to its generated quote and require a new review.","ch-small ch-muted");
     sourceReference(box,intake);
+    if(typeof app.openProjectKit === "function")box.append(localAction("Plan delivery project",async()=>{const id=intake?.id;if(idPattern.test(id||""))await app.openProjectKit(id);}));
     box.append(action("Generate quote draft",async()=>{await mutate("quote generation","/service-desk/quotes",{...meta(data.revision,newId("quote-generate-")),intake_id:intake.id,content_sha256:intake.content_sha256},result=>{selectedDocument=result.entity_id;});},()=>intake.can_generate_quote!==false&&!intake.quote_id,"button-primary"));parent.append(box);
   }
   function documentPreview(parent,row) {

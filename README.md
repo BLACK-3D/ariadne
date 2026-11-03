@@ -38,6 +38,7 @@ Already using an installation? Use **Start**, not **Setup**. Keep its data and m
 | Local conversation and agent missions | Local model, workspace files, memory, tool approvals and run history. Quality and latency depend on your PC and task. |
 | Service desk | Fictional demo plus real-client intake, versioned quotes, approvals and invoice handoff. Core deterministic features work without a model or network. |
 | Project Workroom | Projects with dependencies, reviewed execution budgets, existing agent workflows, zero-model procedures and checked evidence handoffs. Completion and owner attestations remain distinct. |
+| Project Kits | Turn a saved Service desk intake into a frozen source pack and a reviewed delivery project with two local-only draft/review workflows. Preparation uses no model; starting work remains separate. |
 | Venture Lab | Business ideas, evidence, tasks and print-on-demand/service comparisons. Hypothetical scenarios remain distinct from actual customer/cash evidence. |
 | Trading research | Local-file research and paper-account tools. New data needs a qualified feed; no broker or real trading is enabled by setup. |
 | Daily brief | Saved activity and source reports; fresh weather/news needs Internet and regional configuration. Scheduling is opt-in. |
@@ -63,7 +64,13 @@ The [Threadline interface](docs/INTERFACE.md) brings observed system state, a di
 - [Architecture](docs/ARCHITECTURE.md) · [Project direction](docs/PROJECT_DIRECTION.md)
 - [MIT license for original source](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
-Current application source: **0.36.0**. Starter packaging prepares the core; it does not include every optional pack. Historical full-appliance version **0.16.1** is a separate local artifact and is not the current downloadable starter.
+Current application source: **0.37.0**. Starter packaging prepares the core; it does not include every optional pack. Historical full-appliance version **0.16.1** is a separate local artifact and is not the current downloadable starter.
+
+### From a saved intake to a delivery project
+
+In **Service desk**, open a saved intake and choose **Plan delivery project**, or open **Project Kits** from the system directory. Inspect the complete admitted source snapshot and its limitations, then explicitly prepare an immutable local pack. Review its exact workflow instructions and checks before adopting it into Workroom. Adoption saves a plan and two local-only workflows; source review and starting a bounded cycle are separate owner actions.
+
+The prepared project produces a short draft scope, unresolved questions, a proposed delivery checklist and a separate AI review. Typed output checks require the original source fingerprint, draft status, complete expected field structure and bounded file sizes. These checks establish structure and file identity, not factual accuracy or commercial approval. Quotes, invoices, customer acceptance, sending and payment retain their existing controls. See [Project Kits](docs/PROJECT_KITS.md) for the guided flow, source coverage and failure handling.
 
 ### Execute a project locally
 

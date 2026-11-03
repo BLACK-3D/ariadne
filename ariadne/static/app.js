@@ -130,7 +130,7 @@ const state = {
 };
 const activeStatuses = new Set(["queued", "running", "waiting_approval", "awaiting_approval", "pending", "waiting", "verifying"]);
 const isActive = run => Boolean(run && activeStatuses.has(run.status));
-const viewTitles = {missions:"Command center", operations:"Operations", workroom:"Project Workroom", venture:"Venture Lab", handoff:"Service desk", agents:"Agents", briefing:"Daily brief", internet:"Internet", workflows:"Workflows", knowledge:"Knowledge", survival:"Survival", memory:"Memory", schedules:"Schedules", files:"Workspace", connectors:"Capabilities", settings:"Settings & setup"};
+const viewTitles = {missions:"Command center", operations:"Operations", workroom:"Project Workroom", "project-kits":"Project Kits", venture:"Venture Lab", handoff:"Service desk", agents:"Agents", briefing:"Daily brief", internet:"Internet", workflows:"Workflows", knowledge:"Knowledge", survival:"Survival", memory:"Memory", schedules:"Schedules", files:"Workspace", connectors:"Capabilities", settings:"Settings & setup"};
 const executionLabel = run => run?.status === "completed" ? "Execution finished" : humanize(run?.status);
 
 function toast(message, error = false) {
@@ -248,6 +248,7 @@ async function refreshStatus({quiet = false} = {}) {
     state.status = status;
     renderStatus(status);
     window.ariadneWorkroom?.status();
+    window.ariadneProjectKits?.status();
     if (status.active_runs || previousActive !== status.active_runs) await loadRuns();
   } catch (error) {
     if (state.authenticated && state.token === token) {
@@ -292,6 +293,7 @@ async function connect() {
   } finally { connectButton.disabled = false; }
 }
 function lockSession(message = "") {
+  state.navigationGeneration = (state.navigationGeneration || 0) + 1;
   internetGeneration += 1;
   state.pairingGeneration += 1;
   state.authenticated = false;
@@ -325,6 +327,7 @@ function lockSession(message = "") {
   window.ariadneRoutines?.locked();
   window.ariadneOperationWorkflows?.locked();
   window.ariadneWorkroom?.locked();
+  window.ariadneProjectKits?.locked();
   window.ariadneVenture?.locked();
   window.ariadneQQQ?.locked();
   window.ariadneOptions?.locked();
@@ -353,9 +356,11 @@ function setMenu(open) {
 }
 async function showView(view) {
   if (!viewTitles[view]) return;
+  state.navigationGeneration = (state.navigationGeneration || 0) + 1;
   const changedView = state.view !== view;
   if (changedView && state.view === "handoff") window.ariadneClientHandoff?.leave();
   if (changedView && state.view === "workroom") window.ariadneWorkroom?.leave();
+  if (changedView && state.view === "project-kits") window.ariadneProjectKits?.leave();
   if (changedView && state.view === "venture") { window.ariadneRevenue?.detach(); window.ariadneOptionsReview?.detach(); }
   state.view = view;
   for (const item of $$(".view")) item.hidden = item.id !== `view-${view}`;
@@ -370,9 +375,17 @@ async function showView(view) {
   if (changedView) $("#main-content").scrollTop = 0;
   if (state.authenticated) await loadView(view);
 }
+async function openLinkedView(view, action) {
+  if (!state.authenticated) return;
+  const token = state.token, generation = (state.navigationGeneration || 0) + 1;
+  await showView(view);
+  if (!state.authenticated || state.token !== token || state.view !== view || state.navigationGeneration !== generation) return;
+  await action();
+}
 async function loadView(view) {
   if (view === "operations") { await window.ariadneOperations?.load(); return; }
   if (view === "workroom") { await window.ariadneWorkroom?.load(); return; }
+  if (view === "project-kits") { await window.ariadneProjectKits?.load(); return; }
   if (view === "venture") {
     await window.ariadneVenture?.load(); if (state.view !== view) return;
     await window.ariadneRevenue?.load(); if (state.view !== view) return;
@@ -1536,8 +1549,11 @@ async function uploadKnowledge(file) {
 const checkTemplates = {
   file_exists:{kind:"file_exists", path:"output/report.md"},
   file_contains:{kind:"file_contains", path:"output/report.md", text:"Summary"},
+  file_size:{kind:"file_size", path:"output/plan.json", max_bytes:2500},
   json_valid:{kind:"json_valid", path:"output/plan.json"},
   json_number:{kind:"json_number", path:"output/summary.json", pointer:"/total_value", value:"16.00"},
+  json_value:{kind:"json_value", path:"output/plan.json", pointer:"/draft", equals:true},
+  json_shape:{kind:"json_shape", path:"output/plan.json", fields:{draft:"boolean", scope:"string", unknowns:"strings"}},
   csv_columns:{kind:"csv_columns", path:"output/budget.csv", columns:["item", "amount"]},
 };
 function parseChecks(raw) {
@@ -1553,16 +1569,27 @@ function parseChecks(raw) {
   }
   return checks.map((check, index) => {
     const label = `Check ${index + 1}`;
-    if (!check || typeof check !== "object" || Array.isArray(check) || !Object.hasOwn(checkTemplates, check.kind)) throw new Error(`${label}: choose file_exists, file_contains, json_valid, json_number, or csv_columns.`);
+    if (!check || typeof check !== "object" || Array.isArray(check) || !Object.hasOwn(checkTemplates, check.kind)) throw new Error(`${label}: choose file_exists, file_contains, file_size, json_valid, json_number, json_value, json_shape, or csv_columns.`);
     if (typeof check.path !== "string" || !check.path.trim()) throw new Error(`${label}: provide a workspace-relative file path.`);
     const path = check.path.trim().replaceAll("\\", "/");
     if (path.startsWith("/") || /^[a-z]:/i.test(path) || path.split("/").some(part => part === ".." || part === "." || !part)) throw new Error(`${label}: use a relative workspace path such as output/report.md, without parent-directory segments.`);
-    const allowed = new Set(["kind", "path", ...(check.kind === "file_contains" ? ["text"] : check.kind === "csv_columns" ? ["columns"] : check.kind === "json_number" ? ["pointer", "value"] : [])]);
+    const allowed = new Set(["kind", "path", ...(check.kind === "file_contains" ? ["text"] : check.kind === "csv_columns" ? ["columns"] : check.kind === "json_number" ? ["pointer", "value"] : check.kind === "json_value" ? ["pointer", "equals"] : check.kind === "file_size" ? ["max_bytes"] : check.kind === "json_shape" ? ["fields"] : [])]);
     if (Object.keys(check).some(key => !allowed.has(key))) throw new Error(`${label}: contains an unexpected field. Use only ${[...allowed].join(", ")}.`);
     if (check.kind === "file_contains" && (typeof check.text !== "string" || !check.text || check.text.length > 4000)) throw new Error(`${label}: provide the exact text the file must contain, up to 4,000 characters.`);
     if (check.kind === "csv_columns" && (!Array.isArray(check.columns) || !check.columns.length || check.columns.length > 100 || check.columns.some(column => typeof column !== "string" || !column || column.length > 200) || new Set(check.columns).size !== check.columns.length)) throw new Error(`${label}: columns must contain 1 to 100 unique column names, up to 200 characters each.`);
-    if (check.kind === "json_number") {
+    if (check.kind === "file_size" && (!Number.isInteger(check.max_bytes) || check.max_bytes < 1 || check.max_bytes > 10000000)) throw new Error(`${label}: max_bytes must be a whole number from 1 to 10,000,000.`);
+    if (check.kind === "json_shape") {
+      const fields = check.fields, kinds = new Set(["string","boolean","integer","null","strings","nonempty_strings"]);
+      if (!fields || typeof fields !== "object" || Array.isArray(fields) || !Object.keys(fields).length || Object.keys(fields).length > 16 || Object.entries(fields).some(([key,value]) => !/^[A-Za-z_][A-Za-z0-9_]{0,79}$/.test(key) || !kinds.has(value))) throw new Error(`${label}: fields must define 1–16 named root fields with bounded local types.`);
+    }
+    if (check.kind === "json_number" || check.kind === "json_value") {
       if (typeof check.pointer !== "string" || check.pointer.length > 500 || (check.pointer !== "" && !check.pointer.startsWith("/")) || check.pointer.split("/").length - 1 > 32 || /~(?![01])/.test(check.pointer)) throw new Error(`${label}: provide a JSON pointer such as /total_value, up to 500 characters and 32 segments. Escape ~ as ~0 and / inside a key as ~1. An empty pointer selects the root value.`);
+    }
+    if (check.kind === "json_value") {
+      const value = check.equals;
+      if (!(value === null || typeof value === "boolean" || typeof value === "string" && value.length <= 4000 || typeof value === "number" && Number.isSafeInteger(value))) throw new Error(`${label}: equals must be a string up to 4,000 characters, boolean, null or exact safe integer.`);
+    }
+    if (check.kind === "json_number") {
       const validNumber = typeof check.value === "number" && Number.isSafeInteger(check.value);
       const validDecimal = typeof check.value === "string" && /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(check.value) && Number.isFinite(Number(check.value));
       if (!validNumber && !validDecimal) throw new Error(`${label}: value must be an exact safe integer or a quoted decimal such as "16.00". The server enforces its numeric bounds.`);
@@ -1589,7 +1616,7 @@ function addCheckTemplate(input, kind) {
 }
 function checkTemplateControls(input) {
   const controls = node("div", "check-templates");
-  for (const [kind, label] of [["file_exists", "+ File"], ["file_contains", "+ Text"], ["json_valid", "+ JSON"], ["json_number", "+ Number"], ["csv_columns", "+ CSV"]]) {
+  for (const [kind, label] of [["file_exists", "+ File"], ["file_contains", "+ Text"], ["file_size", "+ Size"], ["json_valid", "+ JSON"], ["json_number", "+ Number"], ["json_value", "+ Value"], ["json_shape", "+ Shape"], ["csv_columns", "+ CSV"]]) {
     const item = node("button", "", label); item.type = "button";
     item.addEventListener("click", () => addCheckTemplate(input, kind)); controls.append(item);
   }
@@ -1599,10 +1626,13 @@ function checkDescription(check) {
   if (check.kind === "file_contains") return `Contains ${JSON.stringify(String(check.text || "").slice(0, 150))}`;
   if (check.kind === "csv_columns") return `CSV columns: ${(check.columns || []).join(", ")}`;
   if (check.kind === "json_number") return `JSON ${check.pointer || "(root value)"} equals ${String(check.value)}`;
+  if (check.kind === "json_value") return `JSON ${check.pointer || "(root value)"} exactly equals ${JSON.stringify(check.equals)}`;
+  if (check.kind === "file_size") return `At most ${check.max_bytes} bytes`;
+  if (check.kind === "json_shape") return `Exact typed JSON fields: ${Object.keys(check.fields || {}).join(", ")}`;
   return check.kind === "json_valid" ? "Parses as valid JSON" : "File exists";
 }
 function checkDefinitions(checks) {
-  return (checks || []).filter(check => Object.hasOwn(checkTemplates, check.kind)).map(check => ({kind:check.kind, path:check.path, ...(check.kind === "file_contains" ? {text:check.text} : check.kind === "csv_columns" ? {columns:check.columns} : check.kind === "json_number" ? {pointer:check.pointer, value:check.value} : {})}));
+  return (checks || []).filter(check => Object.hasOwn(checkTemplates, check.kind)).map(check => ({kind:check.kind, path:check.path, ...(check.kind === "file_contains" ? {text:check.text} : check.kind === "csv_columns" ? {columns:check.columns} : check.kind === "json_number" ? {pointer:check.pointer, value:check.value} : check.kind === "json_value" ? {pointer:check.pointer, equals:check.equals} : check.kind === "file_size" ? {max_bytes:check.max_bytes} : check.kind === "json_shape" ? {fields:check.fields} : {})}));
 }
 function renderVerification(detail, parent) {
   const verification = detail.verification || {status:detail.run?.verification_status || "not_requested", checks:[]};
@@ -3017,6 +3047,8 @@ window.ariadneCommand?.attach({state, api, node, button, icon, selectRun, newMis
 window.ariadneRoutines?.attach({state, api, node, button, icon, openArtifact, downloadArtifact, confirmAction, toast, dateLabel, bytes, humanize});
 window.ariadneOperations?.attach({state, api, node, button, openArtifact, newMission, showView, resizeComposer});
 window.ariadneWorkroom?.attach({state, api, node, button, openArtifact, selectRun, showView, toast});
+window.ariadneProjectKits?.attach({state, api, node, button, openArtifact, showView, toast,
+  openProject:id => openLinkedView("workroom", () => window.ariadneWorkroom?.openProject(id))});
 window.ariadneOperationWorkflows?.attach({state, api, node, button, showView, setWorkflowTab, confirmAction, toast});
 window.ariadneVenture?.attach({state, api, node, button, openArtifact, showView, confirmAction, toast});
 window.ariadneQQQ?.attach({state, api, node, button, openArtifact, confirmAction, toast});
@@ -3024,7 +3056,8 @@ window.ariadneOptions?.attach({state, api, node, button, openArtifact, confirmAc
 window.ariadneOptionsReview?.attach({state, api, node, button, openArtifact});
 window.ariadneRevenue?.attach({state, api, node, button, openArtifact, confirmAction, toast});
 window.ariadneHandoff?.attach({state, api, node, button, openArtifact, downloadArtifact, showView, confirmAction, toast});
-window.ariadneClientHandoff?.attach({state, api, node, button, openArtifact, downloadArtifact, confirmAction, toast});
+window.ariadneClientHandoff?.attach({state, api, node, button, openArtifact, downloadArtifact, confirmAction, toast,
+  openProjectKit:id => openLinkedView("project-kits", () => window.ariadneProjectKits?.selectIntake(id))});
 let serviceDeskMode = "real";
 async function loadServiceDesk() {
   if (serviceDeskMode === "demo") await window.ariadneHandoff?.load();
@@ -3049,4 +3082,5 @@ $("#handoff-real-mode").addEventListener("click", () => selectServiceDesk("real"
 $("#handoff-demo-mode").addEventListener("click", () => selectServiceDesk("demo").catch(error => toast(error.message, true)));
 if (typeof location !== "undefined" && new URLSearchParams(location.search).get("view") === "handoff") showView("handoff");
 if (typeof location !== "undefined" && new URLSearchParams(location.search).get("view") === "workroom") showView("workroom");
+if (typeof location !== "undefined" && new URLSearchParams(location.search).get("view") === "project-kits") showView("project-kits");
 if (state.token) connect(); else $("#access-token").focus();

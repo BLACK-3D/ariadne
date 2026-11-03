@@ -75,6 +75,8 @@ class Application:
         self.venture = self.briefing.venture
         self.handoff = HandoffDesk(self.engine.tools, self.store)
         self.client_handoff = ClientHandoffDesk(self.engine.tools, self.store)
+        from .project_kits import ProjectKits
+        self.project_kits = ProjectKits(self.engine.tools, self.store, self.workroom, self.client_handoff)
         structured_model = getattr(self.engine, "model", None)
         if (callable(getattr(structured_model, "structured_extract", None))
                 and callable(getattr(structured_model, "structured_identity", None))):
@@ -299,6 +301,8 @@ class Application:
                           "/static/operations.css": ("operations.css", "text/css"),
                           "/static/workroom.js": ("workroom.js", "text/javascript"),
                           "/static/workroom.css": ("workroom.css", "text/css"),
+                          "/static/project_kits.js": ("project_kits.js", "text/javascript"),
+                          "/static/project_kits.css": ("project_kits.css", "text/css"),
                           "/static/venture.css": ("venture.css", "text/css"),
                           "/static/venture.js": ("venture.js", "text/javascript"),
                           "/static/handoff.js": ("handoff.js", "text/javascript"),
@@ -434,6 +438,8 @@ class Application:
         parts = path.strip("/").split("/")[1:]
         query = parse_qs(env.get("QUERY_STRING", ""))
         result, status = None, 200
+        if parts and parts[0] == "project-kits" and env.get("QUERY_STRING", ""):
+            raise ValueError("Project Kits accepts no query parameters; use its explicit reviewed actions.")
         if parts == ["status"] and method == "GET":
             with self.status_lock:
                 if time.monotonic() - self.status_at > 5 or self.status_cache is None:
@@ -449,6 +455,21 @@ class Application:
             from .network_policy import network_policy_status
             result["network_policy"] = network_policy_status()
             result["internet"] = self.internet.status()
+        elif parts == ["project-kits"] and method == "GET":
+            result = self.project_kits.status()
+        elif parts == ["project-kits", "catalog"] and method == "GET":
+            result = self.project_kits.catalog()
+        elif parts == ["project-kits", "sources"] and method == "GET":
+            result = self.project_kits.sources()
+        elif len(parts) == 3 and parts[:2] == ["project-kits", "sources"] and method == "GET":
+            result = self.project_kits.source(parts[2])
+        elif len(parts) == 3 and parts[:2] == ["project-kits", "kits"] and method == "GET":
+            result = self.project_kits.kit(parts[2])
+        elif len(parts) == 3 and parts[:2] == ["project-kits", "receipts"] and method == "GET":
+            result = self.project_kits.receipt(parts[2])
+        elif parts in (["project-kits", "prepare"], ["project-kits", "adopt"]) and method == "POST":
+            action = self.project_kits.prepare if parts[1] == "prepare" else self.project_kits.adopt
+            result = action(self.client_handoff_body(env))
         elif parts == ["workroom"] and method == "GET":
             result = self.workroom.status()
         elif parts == ["workroom", "catalog"] and method == "GET":

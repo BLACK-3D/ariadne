@@ -245,7 +245,7 @@ class Workroom(HandoffDesk):
         identifiers = set()
         for task in value["tasks"]:
             extra = {"execution_preview"} if stored else set()
-            _fields(task, {"id", "title", "kind", "depends_on", "acceptance", "procedure_id", "workflow_id"} | extra,
+            _fields(task, {"id", "title", "kind", "depends_on", "acceptance", "procedure_id", "workflow_id", "required_source_refs"} | extra,
                     {"id", "title", "kind", "depends_on", "acceptance"} | extra)
             _identifier(task["id"]); _text(task["title"], 200); _text(task["acceptance"], 1000)
             if task["id"] in identifiers:
@@ -253,6 +253,10 @@ class Workroom(HandoffDesk):
             identifiers.add(task["id"])
             if type(task["kind"]) is not str or task["kind"] not in {"manual", "procedure", "workflow"}:
                 raise ValueError("Workroom tasks are manual, procedure or workflow tasks.")
+            if "required_source_refs" in task:
+                if task["kind"] != "manual":
+                    raise ValueError("Required source references belong only to manual review gates.")
+                Workroom._required_refs(task)
             target = {"manual": set(), "procedure": {"procedure_id"}, "workflow": {"workflow_id"}}[task["kind"]]
             if {"procedure_id", "workflow_id"}.intersection(task) != target:
                 raise ValueError("Each Workroom task must contain only its declared execution target.")
@@ -292,6 +296,14 @@ class Workroom(HandoffDesk):
         _isolated_outputs(source["prompt"], checks, True)
         checks = validate_checks(checks, self.registry)
         agent_id = resolve_agent(source["prompt"], source.get("agent_id"))
+        selected = self._resolved_agent(agent_id)
+        workflow = {"id": source["id"], "name": source["name"], "prompt": source["prompt"], "checks": checks,
+                    "agent_id": agent_id, "isolated_outputs": True}
+        return {"workflow": workflow, "workflow_sha256": _digest(workflow), "resolved_agent": selected,
+                "catalog_sha256": _digest(selected)}
+
+    def _resolved_agent(self, agent_id):
+        """One trusted profile projection shared by project and kit capture."""
         if self._agent_catalog is None:
             raise ValueError("The trusted agent catalog must be bound before admitting workflow tasks.")
         catalog = self._agent_catalog()
@@ -307,10 +319,30 @@ class Workroom(HandoffDesk):
         selected = {key: copy.deepcopy(entry[key]) for key in ("id", "name", "profile_version", "tools", "connectivity", "approval_policy")}
         selected["max_steps"] = cap
         selected["instruction"] = profile.instruction
-        workflow = {"id": source["id"], "name": source["name"], "prompt": source["prompt"], "checks": checks,
-                    "agent_id": agent_id, "isolated_outputs": True}
-        return {"workflow": workflow, "workflow_sha256": _digest(workflow), "resolved_agent": selected,
-                "catalog_sha256": _digest(selected)}
+        return selected
+
+    @staticmethod
+    def _required_refs(task):
+        refs = task.get("required_source_refs", [])
+        if type(refs) is not list or len(refs) > 10:
+            raise ValueError("A manual gate supports at most ten required source references.")
+        prepared, seen = [], set()
+        for ref in refs:
+            _fields(ref, {"path", "sha256", "bytes"}, {"path", "sha256", "bytes"})
+            path = _text(ref["path"], 300).replace("\\", "/")
+            _sha(ref["sha256"]); _integer(ref["bytes"], 0, MAX_REFERENCE_BYTES, "Required source bytes")
+            if path in seen:
+                raise ValueError("Required source references must be unique.")
+            seen.add(path)
+            prepared.append({"path": path, "sha256": ref["sha256"], "bytes": ref["bytes"]})
+        return prepared
+
+    @classmethod
+    def _require_sources(cls, task, refs):
+        actual = {(ref["path"].replace("\\", "/"), ref["sha256"], ref["bytes"]) for ref in refs}
+        needed = {(ref["path"], ref["sha256"], ref["bytes"]) for ref in cls._required_refs(task)}
+        if not needed.issubset(actual):
+            raise ValueError("This manual gate requires every exact prepared source reference; they cannot be omitted or replaced.")
 
     def _procedures(self):
         return {row["id"]: row for row in self.routines.procedures.catalog()["procedures"]}
@@ -347,41 +379,46 @@ class Workroom(HandoffDesk):
     def save_project(self, body):
         self._arguments(body, {"project"}, {"project"})
         self._validate_shape(body["project"])
-        def change(db, state):
-            definition = copy.deepcopy(body["project"])
-            for key in ("name", "objective", "acceptance"):
-                definition[key] = definition[key].strip()
+        return self._mutate("save_project", body, lambda db, state: self._save_project(db, state, body["project"]))
+
+    def _save_project(self, db, state, definition):
+        """Capture a definition inside the caller's existing main transaction."""
+        self._validate_shape(definition)
+        definition = copy.deepcopy(definition)
+        for key in ("name", "objective", "acceptance"):
+            definition[key] = definition[key].strip()
+        for task in definition["tasks"]:
+            task["title"] = task["title"].strip(); task["acceptance"] = task["acceptance"].strip()
+            if "required_source_refs" in task:
+                task["required_source_refs"] = self._check_refs(self._required_refs(task))
+            task["execution_preview"] = self._preview(db, task)
+        if len(_bytes(definition)) > MAX_PROJECT_BYTES:
+            raise ValueError("The captured Workroom project exceeds its 256 KiB limit.")
+        old = state["projects"].get(definition["id"])
+        if old:
+            cycle = self._cycle(old)
+            if cycle and (cycle["status"] == "active" or cycle.get("current_task_id")):
+                raise HandoffConflict("An active or unresolved project child locks its definition; inspect it before making a new project.")
+            if _digest(definition) == old["content_sha256"]:
+                raise HandoffConflict("This project definition is unchanged; its task evidence will not be reset.")
+            previous_tasks = {task["id"]: task for task in old["definition"]["tasks"]}
             for task in definition["tasks"]:
-                task["title"] = task["title"].strip(); task["acceptance"] = task["acceptance"].strip()
-                task["execution_preview"] = self._preview(db, task)
-            if len(_bytes(definition)) > MAX_PROJECT_BYTES:
-                raise ValueError("The captured Workroom project exceeds its 256 KiB limit.")
-            old = state["projects"].get(definition["id"])
-            if old:
-                cycle = self._cycle(old)
-                if cycle and (cycle["status"] == "active" or cycle.get("current_task_id")):
-                    raise HandoffConflict("An active or unresolved project child locks its definition; inspect it before making a new project.")
-                if _digest(definition) == old["content_sha256"]:
-                    raise HandoffConflict("This project definition is unchanged; its task evidence will not be reset.")
-                previous_tasks = {task["id"]: task for task in old["definition"]["tasks"]}
-                for task in definition["tasks"]:
-                    previous = previous_tasks.get(task["id"])
-                    if previous and old["runtime"][task["id"]]["status"] == "held":
-                        identity = lambda value: {key: value.get(key) for key in ("kind", "procedure_id", "workflow_id", "execution_preview")}
-                        same_execution = identity(task) == identity(previous)
-                        if same_execution and (task["kind"] != "manual" or task["acceptance"] == previous["acceptance"]):
-                            raise HandoffConflict("A held task cannot replay the same execution under its existing task ID; inspect it and use a new task or changed execution.")
-                if db.execute("SELECT count(*) FROM workroom_versions").fetchone()[0] >= MAX_CYCLES:
-                    raise ValueError("Workroom definition history is full.")
-                db.execute("INSERT INTO workroom_versions VALUES(?,?,?,?)", (definition["id"], old["definition_revision"], _json(old), _digest(old)))
-            elif len(state["projects"]) >= MAX_PROJECTS:
-                raise ValueError("Workroom supports at most 32 projects.")
-            project = {"definition": definition, "definition_revision": old["definition_revision"]+1 if old else 1,
-                       "content_sha256": _digest(definition), "runtime": {task["id"]: self._empty_runtime() for task in definition["tasks"]},
-                       "cycles": old["cycles"] if old else [], "created_at": old["created_at"] if old else _now(), "updated_at": _now()}
-            state["projects"][definition["id"]] = project
-            return {"project_id": definition["id"], "content_sha256": project["content_sha256"]}
-        return self._mutate("save_project", body, change)
+                previous = previous_tasks.get(task["id"])
+                if previous and old["runtime"][task["id"]]["status"] == "held":
+                    identity = lambda value: {key: value.get(key) for key in ("kind", "procedure_id", "workflow_id", "execution_preview")}
+                    same_execution = identity(task) == identity(previous)
+                    if same_execution and (task["kind"] != "manual" or task["acceptance"] == previous["acceptance"]):
+                        raise HandoffConflict("A held task cannot replay the same execution under its existing task ID; inspect it and use a new task or changed execution.")
+            if db.execute("SELECT count(*) FROM workroom_versions").fetchone()[0] >= MAX_CYCLES:
+                raise ValueError("Workroom definition history is full.")
+            db.execute("INSERT INTO workroom_versions VALUES(?,?,?,?)", (definition["id"], old["definition_revision"], _json(old), _digest(old)))
+        elif len(state["projects"]) >= MAX_PROJECTS:
+            raise ValueError("Workroom supports at most 32 projects.")
+        project = {"definition": definition, "definition_revision": old["definition_revision"]+1 if old else 1,
+                   "content_sha256": _digest(definition), "runtime": {task["id"]: self._empty_runtime() for task in definition["tasks"]},
+                   "cycles": old["cycles"] if old else [], "created_at": old["created_at"] if old else _now(), "updated_at": _now()}
+        state["projects"][definition["id"]] = project
+        return {"project_id": definition["id"], "content_sha256": project["content_sha256"]}
 
     @staticmethod
     def _empty_runtime():
@@ -526,7 +563,11 @@ class Workroom(HandoffDesk):
             # _path and _open_read enforce workspace containment/reparse/link rules.
             with self.registry._directory(target.parent) as directory_fd:
                 with os.fdopen(self.registry._open_read(target, directory_fd), "rb") as stream:
+                    before = os.fstat(stream.fileno())
                     raw = stream.read(MAX_REFERENCE_BYTES+1)
+                    after = os.fstat(stream.fileno())
+            if (before.st_ino, before.st_size, before.st_mtime_ns) != (after.st_ino, after.st_size, after.st_mtime_ns):
+                raise ValueError("An evidence file changed while it was being checked.")
             total += len(raw)
             if len(raw) != ref["bytes"] or hashlib.sha256(raw).hexdigest() != ref["sha256"] or total > MAX_EVIDENCE_BYTES:
                 raise ValueError("An evidence file is missing, oversized or changed; inspect its original receipt.")
@@ -551,6 +592,7 @@ class Workroom(HandoffDesk):
                 raise HandoffConflict("This task or its evidence changed; review the current fingerprint.")
             self._dependency_evidence(db, project, task)
             refs = self._check_refs(body["source_refs"])
+            self._require_sources(task, refs)
             total = sum(sum(ref["bytes"] for ref in value["evidence"]["artifacts"]) for key, value in project["runtime"].items() if key != task["id"])
             if total+sum(ref["bytes"] for ref in refs) > MAX_EVIDENCE_BYTES:
                 raise ValueError("The project accepted-evidence byte budget is exhausted.")
@@ -611,6 +653,7 @@ class Workroom(HandoffDesk):
             else:
                 if runtime["evidence"]["assurance"] != "owner_attested":
                     raise ValueError("Manual dependency lacks an owner attestation.")
+                self._require_sources(next(item for item in project["definition"]["tasks"] if item["id"] == identifier), runtime["evidence"]["artifacts"])
                 self._check_refs(runtime["evidence"]["artifacts"])
 
     def _verify_child(self, db, child):

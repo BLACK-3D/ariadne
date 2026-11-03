@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="/static/command.css">
   <link rel="stylesheet" href="/static/operations.css">
   <link rel="stylesheet" href="/static/workroom.css">
+  <link rel="stylesheet" href="/static/project_kits.css">
   <link rel="stylesheet" href="/static/venture.css">
   <link rel="stylesheet" href="/static/handoff.css">
   <link rel="stylesheet" href="/static/client_handoff.css">
@@ -20,6 +21,7 @@
   <script src="/static/routines.js" defer></script>
   <script src="/static/operations.js" defer></script>
   <script src="/static/workroom.js" defer></script>
+  <script src="/static/project_kits.js" defer></script>
   <script src="/static/operations_workflows.js" defer></script>
   <script src="/static/venture.js" defer></script>
   <script src="/static/handoff.js" defer></script>
@@ -44,6 +46,7 @@
         <button class="nav-item" data-view="workflows"><span data-icon="workflow"></span><span>Workflows<small>Repeatable operations and reports</small></span></button>
         <button class="nav-item" data-view="operations"><span data-icon="server"></span><span>Operations<small>Business, markets and local controls</small></span></button>
         <button class="nav-item" data-view="workroom"><span data-icon="workflow"></span><span>Project Workroom<small>Goals, agents &amp; checked handoffs</small></span></button>
+        <button class="nav-item" data-view="project-kits"><span data-icon="file"></span><span>Project Kits<small>Saved intake to a delivery project</small></span></button>
         <button class="nav-item" data-view="venture"><span data-icon="workflow"></span><span>Venture Lab<small>Business plans and ETF research</small></span></button>
         <button class="nav-item" data-view="handoff"><span data-icon="file"></span><span>Service desk<small>Clients, quotes &amp; approvals</small></span></button>
         <button class="nav-item" data-view="knowledge"><span data-icon="book"></span><span>Knowledge<small>Your private reference library</small></span><span class="nav-count" id="knowledge-count"></span></button>
@@ -140,6 +143,9 @@
           </div>
           <div id="client-handoff-content" aria-live="polite"><p>Connect to load your private client workspace.</p></div>
           <div id="handoff-content" aria-live="polite" hidden></div>
+        </section>
+        <section class="view content-view" id="view-project-kits" hidden>
+          <div id="project-kits-content" aria-live="polite"><p>Connect to inspect your private project sources.</p></div>
         </section>
         <section class="view content-view" id="view-workroom" hidden>
           <div id="workroom-content" aria-live="polite"><p>Connect to load your private project workspace.</p></div>

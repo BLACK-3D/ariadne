@@ -39,6 +39,17 @@
     if (!result || result.length > maximum) throw new Error(`${label} needs 1–${maximum} characters.`);
     return result;
   }
+  function sourceReferences(value) {
+    if (!Array.isArray(value) || value.length > 10) throw new Error("Select at most ten checked Workspace artifacts.");
+    const refs=value.map(ref=>{
+      if(!ref||Object.keys(ref).sort().join(",")!=="bytes,path,sha256"||!SHA.test(ref.sha256||"")||!Number.isInteger(ref.bytes)||ref.bytes<0||ref.bytes>10*1024*1024||typeof ref.path!=="string"||ref.path.length>300)throw new Error("Artifact references require exact path, SHA-256 and a byte size up to 10 MiB.");
+      return {path:artifactPath(ref.path),sha256:ref.sha256,bytes:ref.bytes};
+    });
+    if(new Set(refs.map(ref=>ref.path)).size!==refs.length)throw new Error("Artifact references must use different Workspace paths.");
+    return refs;
+  }
+  const includesRequiredSources=(sources,required)=>sourceReferences(required).every(ref=>sources.some(value=>value.path===ref.path&&value.sha256===ref.sha256&&value.bytes===ref.bytes));
+  const initialReviewSources=task=>JSON.stringify(sourceReferences(task?.required_source_refs||[]),null,2);
   function authoringProject(value) {
     if (!value || !ID.test(value.id || "") || !Array.isArray(value.tasks) || !value.tasks.length || value.tasks.length > 24) throw new Error("Choose a project identifier and 1–24 task definitions.");
     const acceptance = bounded(value.acceptance,"Project acceptance",1000);
@@ -50,6 +61,10 @@
       const result = {id:task.id, title:bounded(task.title,"Task title",200), kind:task.kind, depends_on:[...task.depends_on], acceptance:bounded(task.acceptance,"Task acceptance",1000)};
       if (task.kind === "procedure") result.procedure_id = bounded(task.procedure_id,"Procedure identifier",64);
       if (task.kind === "workflow") result.workflow_id = bounded(task.workflow_id,"Workflow identifier",64);
+      if (task.required_source_refs !== undefined) {
+        if(task.kind!=="manual")throw new Error("Required source references belong to an owner-decision step.");
+        result.required_source_refs=sourceReferences(task.required_source_refs);
+      }
       return result;
     });
     if (tasks.some(task => task.depends_on.some(dependency => !seen.has(dependency)))) throw new Error("Every dependency must refer to a task in this project.");
@@ -68,12 +83,8 @@
   }
   function reviewPayload(row, task, decision, note, revisionValue, requestId, sourceRefs = []) {
     if (!row || !ID.test(row.id || "") || !task || task.kind !== "manual" || !["ready","awaiting_review"].includes(task.status) || !ID.test(task.id || "") || !SHA.test(task.content_sha256 || "") || !["accept", "reject"].includes(decision) || !Number.isInteger(revisionValue) || revisionValue < 0 || !ID.test(requestId || "")) throw new Error("Refresh the exact ready owner-decision evidence before recording a review.");
-    if (!Array.isArray(sourceRefs) || sourceRefs.length > 10) throw new Error("Select at most ten checked Workspace artifacts.");
-    const sources = sourceRefs.map(ref => {
-      if (!ref || Object.keys(ref).sort().join(",") !== "bytes,path,sha256" || !SHA.test(ref.sha256 || "") || !Number.isInteger(ref.bytes) || ref.bytes < 0 || ref.bytes > 10*1024*1024 || typeof ref.path !== "string" || ref.path.length > 300) throw new Error("Artifact references require exact path, SHA-256 and a byte size up to 10 MiB.");
-      return {path:artifactPath(ref.path),sha256:ref.sha256,bytes:ref.bytes};
-    });
-    if(new Set(sources.map(ref=>ref.path)).size!==sources.length)throw new Error("Artifact references must use different Workspace paths.");
+    const sources=sourceReferences(sourceRefs);
+    if(task.required_source_refs?.length&&!includesRequiredSources(sources,task.required_source_refs))throw new Error("This source gate requires its saved source references for either decision. Inspect them before reviewing; the server also verifies their current bytes.");
     return {request_id:requestId, expected_revision:revisionValue, project_id:row.id, task_id:task.id, content_sha256:task.content_sha256, decision, note:bounded(note,"Review note",2000),source_refs:sources};
   }
   function statusSummary(row) {
@@ -157,6 +168,7 @@
       project = value.project; board.revision = value.revision;
       readFailed = false;
       selectedTask = project.tasks[0]?.id || null;
+      reviewSources=initialReviewSources(project.tasks[0]);
     } catch (error) { if (current(mark, token)) {warning = error.message;readFailed=true;} }
     finally { if (current(mark, token)) {reading = false; render();} }
   }
@@ -277,6 +289,11 @@
     if(task.depends_on?.length)paragraph(detail,`Depends on: ${task.depends_on.join(", ")}`);
     if(task.procedure_id)paragraph(detail,`Fixed procedure: ${task.procedure_id}`,"wr-stamp");
     if(task.workflow_id)paragraph(detail,`Saved workflow: ${task.workflow_id}`,"wr-stamp");
+    if(task.required_source_refs?.length){
+      const required=node("section","wr-section");required.append(node("h4","","Required source files"));
+      for(const ref of sourceReferences(task.required_source_refs)){required.append(button(ref.path,()=>app.openArtifact?.(ref.path),!busy));paragraph(required,`${ref.bytes} bytes · SHA-256 ${ref.sha256}`,"wr-hash");}
+      paragraph(required,"These are retained source identities. Opening them is not a new integrity check; the server checks their current bytes when a decision is recorded.");detail.append(required);
+    }
     executionPreview(detail,task);
     const child=task.child;
     if(child){const section=node("div","wr-section");section.append(node("h4","","Actual child activity"));paragraph(section,`${child.kind || "Child"} ${child.id || child.run_id || ""} · ${pretty(child.status) || "State unavailable"}`,"wr-stamp");const childId=child.run_id || child.id;if(child.kind!=="routine"&&ID.test(childId||""))section.append(button("Inspect mission and approvals",()=>app.selectRun?.(childId),!busy));disclosure(section,"Child receipt",child);detail.append(section);}
@@ -290,7 +307,7 @@
       const section=node("div","wr-section");section.append(node("h4","","Record an explicit decision"));
       const note=field(section,"Review note","review_note",reviewNote,{area:true,maximum:2000});note.addEventListener("input",()=>{reviewNote=note.value;});
       const sources=field(section,"Checked Workspace source references (JSON array)","source_refs",reviewSources,{area:true,maximum:20000});sources.addEventListener("input",()=>{reviewSources=sources.value;});
-      paragraph(section,"Use [] for a decision without artifact references. Each supplied artifact needs path, sha256 and bytes; the server checks its current bytes. An accepted manual step remains owner-attested.");
+      paragraph(section,task.required_source_refs?.length?"This gate requires the saved source references shown above. Inspect their files before accepting. Hashes establish file identity, not factual truth, customer permission or commercial approval. An accepted step remains owner-attested.":"Use [] for a decision without artifact references. Each supplied artifact needs path, sha256 and bytes; the server checks its current bytes. An accepted manual step remains owner-attested.");
       const actions=node("div","wr-actions");for(const decision of ["accept","reject"])actions.append(button(decision==="accept"?"Accept reviewed step":"Reject with note",()=>{try{return mutate(ROUTES.review,reviewPayload(project,task,decision,reviewNote,revision(),id("task-review-"),JSON.parse(reviewSources)));}catch(error){warning=error.message;render();}},writable()&&SHA.test(task.content_sha256||""),decision==="accept"));section.append(actions);detail.append(section);
     }
     parent.append(detail);
@@ -309,7 +326,7 @@
     const actions=node("div","wr-actions");actions.append(button("Review cycle",()=>{cycleReview=!cycleReview;cycleConfirmed=false;render();},writable()&&!cycleActive(cycle)&&cycle?.status!=="held",true),button("Inspect / advance cycle",()=>{if(!project?.cycle)return;try{mutate(ROUTES.reconcile,{...meta("cycle-check-"),project_id:project.id,cycle_id:project.cycle.id || project.cycle.cycle_id});}catch(error){warning=error.message;render();}},writable()&&!!cycle),button("Stop after this step",()=>{if(!project?.cycle)return;try{mutate(ROUTES.stop,{...meta("cycle-stop-"),project_id:project.id,cycle_id:project.cycle.id || project.cycle.cycle_id});}catch(error){warning=error.message;render();}},writable()&&cycleActive(cycle)),button("Edit project plan",()=>openEditor(project),writable()&&!cycleActive(cycle)));objective.append(actions);
     const accept=node("details","wr-receipt");accept.append(node("summary","","Project acceptance conditions"));list(accept,project.acceptance || []);objective.append(accept);parent.append(objective);cyclePanel(parent);
     const columns=node("div","wr-columns"),path=node("section");path.append(node("span","wr-kicker","DEPENDENCY PATH"),node("h3","","The next useful step"));const steps=node("ol","wr-path");
-    for(const task of project.tasks){const item=node("li","wr-step");item.setAttribute("data-state",task.status || "unknown");const control=button("",()=>{selectedTask=task.id;reviewNote="";reviewSources="[]";render();},!busy);control.className="wr-step-button";control.setAttribute("aria-pressed",String(selectedTask===task.id));control.setAttribute("aria-label",`Inspect step ${task.title}`);const title=node("div","wr-title-row");title.append(node("strong","",task.title),badge(task.status));control.append(title);paragraph(control,task.depends_on?.length?`After ${task.depends_on.join(" · ")}`:"No task dependency");item.append(control);steps.append(item);}path.append(steps);columns.append(path);
+    for(const task of project.tasks){const item=node("li","wr-step");item.setAttribute("data-state",task.status || "unknown");const control=button("",()=>{selectedTask=task.id;reviewNote="";reviewSources=initialReviewSources(task);render();},!busy);control.className="wr-step-button";control.setAttribute("aria-pressed",String(selectedTask===task.id));control.setAttribute("aria-label",`Inspect step ${task.title}`);const title=node("div","wr-title-row");title.append(node("strong","",task.title),badge(task.status));control.append(title);paragraph(control,task.depends_on?.length?`After ${task.depends_on.join(" · ")}`:"No task dependency");item.append(control);steps.append(item);}path.append(steps);columns.append(path);
     const task=project.tasks.find(row=>row.id===selectedTask)||project.tasks[0];if(task)evidencePanel(columns,task);parent.append(columns);
     if(project.cycles?.length)disclosure(parent,"Cycle history",project.cycles);
   }
@@ -338,6 +355,14 @@
   function leave(){epoch++;board=null;catalog=null;project=null;selected=null;selectedTask=null;editor=null;cycleReview=false;cycleConfirmed=false;reviewNote="";reviewSources="[]";warning="";reading=false;readFailed=false;inspection=false;if(uncertainty)uncertainty={request_id:uncertainty.request_id,inspected:false};renderedControls=controlState();if(root())root().replaceChildren();}
   function locked(){leave();if(uncertainty){uncertainty={request_id:uncertainty.request_id,inspected:false};inspection=false;}render();}
   function attach(value){app=value;render();}
+  async function openProject(identifier){
+    if(!ID.test(identifier||"")||!app?.state.authenticated||busy)return;
+    const token=app.state.token,navigation=app.state.navigationGeneration,view=app.state.view;
+    const sameNavigation=()=>app?.state.navigationGeneration===navigation&&app?.state.view===view&&(view==null||view==="workroom");
+    if(!sameNavigation())return;
+    if(!board){const pending=load(),mark=epoch;await pending;if(!current(mark,token)||!sameNavigation())return;}
+    if(board&&!readFailed&&app?.state.authenticated&&app.state.token===token&&!busy&&sameNavigation())await selectProject(identifier);
+  }
   function status(){
     if(!app)return;
     const next=controlState();
@@ -345,5 +370,5 @@
     if(renderedControls&&(next.authenticated!==renderedControls.authenticated||next.token!==renderedControls.token))leave();
     cycleConfirmed=false;render();
   }
-  window.ariadneWorkroom={attach,load,leave,locked,status,authoringProject,cyclePayload,reviewPayload,statusSummary,artifactPath,executionReady};
+  window.ariadneWorkroom={attach,load,leave,locked,status,openProject,authoringProject,cyclePayload,reviewPayload,statusSummary,artifactPath,executionReady,sourceReferences};
 })();

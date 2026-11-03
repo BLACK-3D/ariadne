@@ -384,22 +384,31 @@ class Store:
             return self.decode(db.execute("SELECT * FROM workflows WHERE id=?", (workflow_id,)).fetchone())
 
     def workflow_save(self, name, prompt, checks, workflow_id=None, agent_id=None, isolated_outputs=None):
-        from .agents import resolve_agent
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
-            existing = db.execute("SELECT agent_id,isolated_outputs FROM workflows WHERE id=?", (workflow_id,)).fetchone() if workflow_id else None
-            if workflow_id and not existing:
-                raise KeyError("Workflow not found")
-            if not workflow_id and db.execute("SELECT count(*) FROM workflows").fetchone()[0] >= 100:
-                raise ValueError("At most 100 workflows may be saved")
-            workflow_id = workflow_id or ident()
-            selected = existing["agent_id"] if agent_id is None and existing else "general" if agent_id is None else agent_id
-            if selected != "auto":
-                selected = resolve_agent(prompt, selected)
-            isolation = bool(existing["isolated_outputs"]) if isolated_outputs is None and existing else False if isolated_outputs is None else isolated_outputs
-            _isolated_outputs(prompt, checks, isolation)
-            db.execute("INSERT INTO workflows(id,name,prompt,checks,created_at,agent_id,isolated_outputs) VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,prompt=excluded.prompt,checks=excluded.checks,agent_id=excluded.agent_id,isolated_outputs=excluded.isolated_outputs", (workflow_id, name, prompt, json.dumps(checks), now(), selected, int(isolation)))
-            return self.decode(db.execute("SELECT * FROM workflows WHERE id=?", (workflow_id,)).fetchone())
+            return self._save_workflow(db, name, prompt, checks, workflow_id, agent_id, isolated_outputs)
+
+    def _save_workflow(self, db, name, prompt, checks, workflow_id=None, agent_id=None, isolated_outputs=None, *, create_id=None):
+        """Trusted transaction-aware save; a kit's reserved ID is create-only."""
+        from .agents import resolve_agent
+        if create_id is not None:
+            if workflow_id is not None or type(create_id) is not str or len(create_id) != 32 or any(c not in "0123456789abcdef" for c in create_id):
+                raise ValueError("A new reserved workflow needs a lowercase UUID-shaped identity.")
+            if db.execute("SELECT 1 FROM workflows WHERE id=?", (create_id,)).fetchone():
+                raise ValueError("A reserved workflow identity already exists; no definition was adopted.")
+        existing = db.execute("SELECT agent_id,isolated_outputs FROM workflows WHERE id=?", (workflow_id,)).fetchone() if workflow_id else None
+        if workflow_id and not existing:
+            raise KeyError("Workflow not found")
+        if not workflow_id and db.execute("SELECT count(*) FROM workflows").fetchone()[0] >= 100:
+            raise ValueError("At most 100 workflows may be saved")
+        workflow_id = workflow_id or create_id or ident()
+        selected = existing["agent_id"] if agent_id is None and existing else "general" if agent_id is None else agent_id
+        if selected != "auto":
+            selected = resolve_agent(prompt, selected)
+        isolation = bool(existing["isolated_outputs"]) if isolated_outputs is None and existing else False if isolated_outputs is None else isolated_outputs
+        _isolated_outputs(prompt, checks, isolation)
+        db.execute("INSERT INTO workflows(id,name,prompt,checks,created_at,agent_id,isolated_outputs) VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,prompt=excluded.prompt,checks=excluded.checks,agent_id=excluded.agent_id,isolated_outputs=excluded.isolated_outputs", (workflow_id, name, prompt, json.dumps(checks), now(), selected, int(isolation)))
+        return self.decode(db.execute("SELECT * FROM workflows WHERE id=?", (workflow_id,)).fetchone())
 
     def workflow_delete(self, workflow_id):
         with self.connect() as db:
