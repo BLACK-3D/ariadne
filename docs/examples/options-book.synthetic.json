@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "books": [
+    {
+      "schema": 1,
+      "source_id": "fictional-example",
+      "snapshot_id": "recorded-sale-001",
+      "quote_kind": "top_of_book",
+      "underlying_symbol": "KO",
+      "underlying_type": "stock",
+      "contract_id": "KO261120P00060000",
+      "expiry": "2026-11-20",
+      "type": "put",
+      "strike": "60",
+      "multiplier": 100,
+      "standard_deliverable_verified": true,
+      "deliverable_verification_source": "Fictional caller attestation for this example only",
+      "bid": "1.05",
+      "ask": null,
+      "bid_size": 3,
+      "ask_size": null,
+      "quote_at": "2026-11-02T15:30:00Z",
+      "received_at": "2026-11-02T15:30:00.100Z",
+      "underlying_quote": null,
+      "underlying_activity": null,
+      "contract_activity": null,
+      "open_interest": null
+    }
+  ],
+  "requests": [
+    {
+      "request_id": "fictional-sale-request-001",
+      "source_id": "fictional-example",
+      "snapshot_id": "recorded-sale-001",
+      "contract_id": "KO261120P00060000",
+      "decision_at": "2026-11-02T15:30:01Z",
+      "side": "sell",
+      "quantity": 2,
+      "price_limit": "1.00",
+      "allow_partial": false
+    }
+  ]
+}

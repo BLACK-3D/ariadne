@@ -40,7 +40,7 @@ Already using an installation? Use **Start**, not **Setup**. Keep its data and m
 | Project Workroom | Projects with dependencies, reviewed execution budgets, existing agent workflows, zero-model procedures and checked evidence handoffs. Completion and owner attestations remain distinct. |
 | Project Kits | Turn a saved Service desk intake into a frozen source pack and a reviewed delivery project with two local-only draft/review workflows. Preparation uses no model; starting work remains separate. |
 | Venture Lab | Business ideas, evidence, tasks and print-on-demand/service comparisons. Hypothetical scenarios remain distinct from actual customer/cash evidence. |
-| Trading research | Local-file research and paper-account tools. New data needs a qualified feed; no broker or real trading is enabled by setup. |
+| Trading research | Local-file research and paper-account tools. Current source also adds [strict options-book review](docs/OPTIONS_LIQUIDITY.md) of imported prices, sizes and dated liquidity evidence; this CLI is not in the last packaged 0.37.0 starter. New data needs a qualified feed; no broker or real trading is enabled by setup. |
 | Daily brief | Saved activity and source reports; fresh weather/news needs Internet and regional configuration. Scheduling is opt-in. |
 | Voice, cameras and connected systems | Optional packs and explicit device/connector setup. The core starter does not activate a microphone, camera or device. |
 | References and specialist tools | Bundled references plus separately prepared OCR, semantic search, media and engineering packs. **Capabilities** shows what is actually ready. |
@@ -60,6 +60,7 @@ The [Threadline interface](docs/INTERFACE.md) brings observed system state, a di
 - [Advanced manual setup and optional packs](docs/BUILD_FROM_SOURCE.md)
 - [Service desk workflow](docs/SERVICE_DESK_0_20.md)
 - [Document inbox, cited intake review and cross-client next actions](docs/CLIENT_INBOX.md)
+- [Options book review and liquidity checks](docs/OPTIONS_LIQUIDITY.md)
 - [Voice controls](docs/VOICE_CONVERSATION.md)
 - [Architecture](docs/ARCHITECTURE.md) · [Project direction](docs/PROJECT_DIRECTION.md)
 - [MIT license for original source](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)
