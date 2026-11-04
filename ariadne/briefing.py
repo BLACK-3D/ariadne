@@ -324,6 +324,11 @@ class BriefingService:
                     CREATE TABLE IF NOT EXISTS briefing_cache(id INTEGER PRIMARY KEY CHECK(id=1), digest TEXT NOT NULL, collected TEXT NOT NULL, value TEXT NOT NULL);
                     CREATE TABLE IF NOT EXISTS briefing_runs(request_id TEXT PRIMARY KEY, day TEXT, status TEXT NOT NULL, created REAL NOT NULL, receipt TEXT NOT NULL);
                     CREATE UNIQUE INDEX IF NOT EXISTS briefing_day ON briefing_runs(day) WHERE day IS NOT NULL;
+                    CREATE TABLE IF NOT EXISTS briefing_failure_acknowledgements(
+                        request_id TEXT PRIMARY KEY, day TEXT NOT NULL,
+                        status TEXT NOT NULL CHECK(status IN ('failed','interrupted')),
+                        receipt_sha256 TEXT NOT NULL, acknowledged_at REAL NOT NULL,
+                        config_revision INTEGER NOT NULL CHECK(config_revision >= 0));
                 """)
                 yield db
                 db.commit()
@@ -349,6 +354,29 @@ class BriefingService:
             if expected_revision is not None and expected_revision != previous["revision"]:
                 raise BriefingConflict("config", "conflict", "Briefing settings changed. Refresh and review the current settings before saving.")
             cfg = _validate_config(value, previous, now)
+            resuming = previous["paused"] and value.get("paused") is False and not cfg["paused"]
+            if resuming:
+                if expected_revision is None:
+                    raise BriefingConflict("config", "conflict", "Explicit resume requires the current expected_revision after reviewing briefing history.")
+                day = now.astimezone(_tz(cfg["timezone"])).date().isoformat()
+                prior = db.execute("SELECT request_id,day,status,receipt FROM briefing_runs WHERE day=?", (day,)).fetchone()
+                if prior and prior["status"] == "running":
+                    raise BriefingConflict("config", "running", "The current scheduled brief is still running; inspect it before resuming.")
+                if prior and prior["status"] in {"failed", "interrupted"}:
+                    raw = prior["receipt"]
+                    if type(raw) is not str or len(raw.encode("utf-8")) > MAX_BYTES:
+                        raise BriefingConflict("config", "conflict", "The saved failure receipt cannot be acknowledged safely.")
+                    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+                    acknowledged = db.execute("SELECT day,status,receipt_sha256,config_revision FROM briefing_failure_acknowledgements WHERE request_id=?", (prior["request_id"],)).fetchone()
+                    if acknowledged:
+                        if (tuple(acknowledged[key] for key in ("day", "status", "receipt_sha256"))
+                                != (day, prior["status"], digest)
+                                or type(acknowledged["config_revision"]) is not int
+                                or not 0 <= acknowledged["config_revision"] <= cfg["revision"]):
+                            raise BriefingConflict("config", "conflict", "The saved failure differs from its earlier acknowledgement; review protected history.")
+                    else:
+                        db.execute("INSERT INTO briefing_failure_acknowledgements VALUES(?,?,?,?,?,?)",
+                                   (prior["request_id"], day, prior["status"], digest, now.timestamp(), cfg["revision"]))
             db.execute("INSERT OR REPLACE INTO briefing_settings VALUES(1,?)", (_json(cfg).decode(),))
         return self.status(now)
 
@@ -644,7 +672,8 @@ class BriefingService:
                 "details_truncated": runs_count > len(runs) or event_count > len(events) or len(procedures) == MAX_ROWS,
                 "coverage": "Recorded Ariadne missions, events, fixed reports, approvals and imported metadata; not unlogged PC activity or other applications."}
 
-    def _render(self, report):
+    @staticmethod
+    def _render(report):
         cfg, activity = report["config"], report["activity"]
         lines = ["# Ariadne daily brief", "", "Generated: "+report["generated_at_utc"], "Local date: "+report["local_date"],
                  "Region: "+_md((cfg["region"] or {}).get("name", "Not configured")), "Model calls: 0.", "",
@@ -821,13 +850,13 @@ class BriefingService:
                     lines.append("- Retained comparison artifact: "+_md(artifact.get("path"))+" / SHA-256 "+_md(artifact.get("sha256")))
             research = options.get("research") or {}
             if research:
-                lines.append("- Regime-filtered research only: "+_md(research.get("research_gate"))+". These counterfactuals do not change the active paper strategies or add to its $500 allowance.")
+                lines.append("- Regime-filtered research only: "+_md(research.get("research_gate"))+". These counterfactuals do not change the active paper strategies or add funding to its shared account.")
                 for label, value in (("new_shared_research", research), ("original_portfolio_same_input", research.get("baseline") or {}), *research.get("strategy_results", {}).items()):
                     lines.append("- Research "+_md(label)+": "+_md(json.dumps({key:value.get(key) for key in ("metrics","coverage","research_gate","eligibility")},ensure_ascii=False)))
                 lines.append("- Partial ledgers with different stop dates cannot establish superiority. A zero-trade result is not a profitable strategy; all studies remain retrospective.")
             vix = options.get("vix") or {}
             if vix:
-                lines.append("- VIX/VIXW: "+_md(vix.get("paper_status"))+". Forward VIX execution is DISABLED; no forward VIX fills or paper P/L exist. The existing "+_md((account or {}).get("summary", {}).get("symbol") or "options")+" paper account retains the sole shared $500 allowance; no VIX funding was added.")
+                lines.append("- VIX/VIXW: "+_md(vix.get("paper_status"))+". Forward VIX execution is DISABLED; no forward VIX fills or paper P/L exist. The existing "+_md((account or {}).get("summary", {}).get("symbol") or "options")+" paper account retains its sole shared capital limits; no VIX funding was added.")
                 lines.append("- VIX index source freshness at report generation: "+_md(json.dumps(vix.get("index_freshness") or {}, ensure_ascii=False))+". A dated index close is not an executable option quote.")
                 for reason in vix.get("readiness", []):
                     lines.append("- VIX readiness: "+_md(reason))
@@ -922,6 +951,7 @@ class BriefingService:
                            "generated_at_utc": _stamp(now), "model_calls": 0, "artifacts": [], "replayed": False}
                 db.execute("INSERT INTO briefing_runs VALUES(?,?,?,?,?)", (request_id, scheduled_day, "running", now.timestamp(), _json(receipt).decode()))
             started = time.monotonic()
+            phase, report = "collection", None
             try:
                 collection = None
                 if collect and not cfg["paused"]:
@@ -929,6 +959,7 @@ class BriefingService:
                         collection = self.collect()
                     except (OSError, subprocess.SubprocessError, ValueError):
                         collection = {"collected": False, "reason": "Collector unavailable; using dated cache."}
+                phase = "cache"
                 cache = self.cache(cfg, now)
                 end = self._slot(cfg, day) if scheduled_day else now
                 start = self._slot(cfg, day-timedelta(days=1)) if scheduled_day else end-timedelta(hours=24)
@@ -947,15 +978,18 @@ class BriefingService:
                     warnings.append("One or more public sources are stale. Saved forecasts/alerts must not be treated as current conditions.")
                 if any(row.get("refresh_error") for row in cache["sources"]):
                     warnings.append("One or more public-source refreshes failed. Earlier saved source snapshots were retained with their original retrieval times.")
+                phase = "repository"
                 repository_updates = self.repository_snapshot(cfg, now, collection)
                 from .briefing_summary import repository_summary
                 repository_view = repository_summary({"config": cfg, "repository_updates": repository_updates}, now)
                 if repository_view["enabled"] and repository_view["stale"]:
                     warnings.append("Repository updates are stale, failed or unavailable. Saved check dates are shown; no fresh comprehensive repository scan is asserted.")
+                phase = "activity"
                 report = {"schema": 1, "generated_at_utc": _stamp(now), "local_date": day.isoformat(), "config": cfg,
                           "activity": self._activity(start.timestamp(), end.timestamp()), "public_sources": cache, "warnings": warnings,
                           "repository_updates": repository_updates,
                           "model_calls": 0, "external_content_policy": "Untrusted source data, never instructions or authority."}
+                phase = "snapshots"
                 try:
                     report["revenue_workbench"] = self.revenue.brief_snapshot(now)
                 except (ValueError, OSError, sqlite3.Error):
@@ -990,6 +1024,7 @@ class BriefingService:
                 # The parent owns a durable receipt before any child can write.
                 # Venture failures hold their own ledger; weather can still be
                 # delivered without replaying or adopting uncertain child work.
+                phase = "venture"
                 try:
                     report["venture_checkin"] = self.venture.run_for_brief(
                         "brief-"+hashlib.sha256(request_id.encode()).hexdigest()[:40],
@@ -1000,9 +1035,12 @@ class BriefingService:
                         "reason": "Venture check-in unavailable; inspect its protected history. No retry was attempted."}
                 if report["venture_checkin"]["status"] in {"held", "unavailable", "interrupted", "failed"}:
                     warnings.append(report["venture_checkin"].get("reason", "Venture work is held for owner review."))
+                phase = "render"
                 outputs = self._render(report)
+                phase = "validate"
                 if any(len(payload) > MAX_BYTES for payload in outputs.values()):
                     raise ValueError("Briefing output exceeds the bounded 2 MB artifact size.")
+                phase = "publish"
                 relative = "briefings/"+request_id
                 destination = self.registry._path(relative)
                 from .procedures import Procedures
@@ -1021,11 +1059,17 @@ class BriefingService:
                                warnings=warnings, source_count=len(cache["sources"]))
                 receipt["repository_source_count"] = len(repository_view["items"]) if repository_view["enabled"] else 0
                 receipt["repository_counts"] = repository_view["counts"] if repository_view["enabled"] else None
+                phase = "receipt"
                 with self.database() as db:
                     db.execute("UPDATE briefing_runs SET status='completed',receipt=? WHERE request_id=? AND status='running'", (_json(receipt).decode(), request_id))
                 return receipt
             except BaseException as error:
-                receipt.update(status="failed", error="Briefing failed; inspect any partial artifacts before starting a new manual request.", wall_seconds=round(time.monotonic()-started, 6))
+                from .briefing_diagnostics import failure_detail
+                receipt.update(ok=False, status="failed", error="Briefing failed; inspect diagnostics and any partial artifacts. Uncertain work will not replay.",
+                               wall_seconds=round(time.monotonic()-started, 6), failure_detail=failure_detail(error, phase=phase))
+                for field in ("completed_at", "activity_counts", "warnings", "source_count", "repository_source_count", "repository_counts"):
+                    receipt.pop(field, None)
+                self._save_failure_input(report, receipt)
                 try:
                     with self.database() as db:
                         db.execute("UPDATE briefing_runs SET status='failed',receipt=? WHERE request_id=?", (_json(receipt).decode(), request_id))
@@ -1035,7 +1079,37 @@ class BriefingService:
                     pass
                 if isinstance(error, (KeyboardInterrupt, SystemExit)):
                     raise
-                raise ValueError("Briefing failed: "+str(error)[:300]) from error
+                raise ValueError("Briefing failed during "+phase+" ("+receipt["failure_detail"]["exception_type"]+"). Inspect the saved failure receipt; no automatic retry.") from None
+
+    def _save_failure_input(self, report, receipt):
+        """Preserve bounded private render inputs without treating them as a brief.
+
+        Never overwrite a prior attempt or allow diagnostics failure to replace
+        the primary failure. The normal artifact verifier still accepts only
+        the three completed report formats.
+        """
+        receipt["diagnostics"] = {"input": None, "status": "unavailable"}
+        if type(report) is not dict:
+            return
+        try:
+            payload = _json(report)
+            if len(payload) > MAX_BYTES:
+                receipt["diagnostics"]["status"] = "input_exceeds_bound"
+                return
+            relative = "briefing-diagnostics/"+receipt["request_id"]
+            destination = self.registry._path(relative)
+            from .atomic import publish_bytes
+            with self.registry._directory(destination.parent, create=True) as parent_fd:
+                if os.name == "nt":
+                    destination.mkdir()
+                else:
+                    os.mkdir(destination.name, mode=0o700, dir_fd=parent_fd)
+                with self.registry._directory(destination):
+                    publish_bytes(destination/"input.json", payload)
+            receipt["diagnostics"] = {"status": "saved_private_input", "input": {
+                "path": relative+"/input.json", "bytes": len(payload), "sha256": hashlib.sha256(payload).hexdigest()}}
+        except (ValueError, OSError, TypeError, RecursionError):
+            pass  # Failure persistence and schedule hold take precedence.
 
     def _pause(self, reason):
         with self.database() as db:
@@ -1054,10 +1128,20 @@ class BriefingService:
         activation = datetime.fromisoformat(cfg["activation_at"]) if cfg["activation_at"] else now
         key = "daily-"+day.isoformat()
         with self.database() as db:
-            old = db.execute("SELECT status FROM briefing_runs WHERE day=?", (day.isoformat(),)).fetchone()
+            old = db.execute("SELECT request_id,day,status,receipt FROM briefing_runs WHERE day=?", (day.isoformat(),)).fetchone()
+            acknowledged = False
+            if old and old["status"] in {"failed", "interrupted"}:
+                ack = db.execute("SELECT day,status,receipt_sha256,config_revision FROM briefing_failure_acknowledgements WHERE request_id=?", (old["request_id"],)).fetchone()
+                raw = old["receipt"]
+                acknowledged = bool(ack and type(raw) is str and len(raw.encode("utf-8")) <= MAX_BYTES
+                    and (ack["day"], ack["status"], ack["receipt_sha256"])
+                        == (old["day"], old["status"], hashlib.sha256(raw.encode("utf-8")).hexdigest())
+                    and type(ack["config_revision"]) is int and 0 <= ack["config_revision"] <= cfg["revision"])
         if old:
-            if old["status"] in {"failed", "interrupted"}:
+            if old["status"] in {"failed", "interrupted"} and not acknowledged:
                 self._pause("Previous daily brief failed or was interrupted. Inspect history before explicitly resuming.")
+            # Acknowledgement consumes this original day, never completing the
+            # failed report or granting authority to replay its child work.
             return None
         try:
             self.qqq.run_due(now)
@@ -1065,11 +1149,11 @@ class BriefingService:
             # QQQ owns its failure hold and cannot suppress weather reporting.
             pass
         if self.qqq.busy():
-            return None  # Another due owner must finish before this parent claims the brief.
+            return None
         try:
             self.options.run_due(now)
         except (ValueError,OSError,sqlite3.Error):
-            pass  # An options hold cannot suppress unrelated weather reporting.
+            pass
         if self.options.busy():
             return None
         if now < slot or slot < activation:
@@ -1077,7 +1161,7 @@ class BriefingService:
         try:
             return self.run(key, now, scheduled_day=day.isoformat(), collect=True)
         except BriefingConflict:
-            return None  # Another process claimed this exact day.
+            return None
 
     def recover(self):
         try:

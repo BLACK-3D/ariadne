@@ -78,7 +78,7 @@ def main():
         result = service.run_due()
     else:
         result = service.collect()
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    print(json.dumps(result, ensure_ascii=True, indent=2))
 
 
 if __name__ == "__main__":

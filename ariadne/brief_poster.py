@@ -51,7 +51,15 @@ def poster_view(report, now=None):
     This is a compact presentation, never a current all-clear. Every selected
     source item carries its own freshness label; omitted details stay in JSON/MD.
     """
-    summary = compact_summary(report, now)
+    if type(report) is not dict:
+        raise ValueError("A verified briefing JSON object is required.")
+    # The poster consumes only source/activity summary fields. Financial
+    # priorities below are read separately from the complete saved report.
+    # Unused account metadata must not displace weather or exhaust this budget.
+    source_view = {key: report[key] for key in
+                   ("generated_at_utc", "config", "activity", "public_sources", "warnings", "repository_updates")
+                   if key in report}
+    summary = compact_summary(source_view, now)
     radar = repository_summary(report, now)
     source_index = {row["id"]: row for row in summary["sources"]}
     generated = summary["generated_at_utc"]

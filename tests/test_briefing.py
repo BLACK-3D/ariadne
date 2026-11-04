@@ -160,7 +160,7 @@ class BriefingTests(unittest.TestCase):
             if count == 2:
                 raise OSError("Injected disk full")
             return original(instance, destination, payload, directory_fd)
-        with mock.patch.object(Procedures, "_publish", fail_second), self.assertRaisesRegex(ValueError, "disk full"):
+        with mock.patch.object(Procedures, "_publish", fail_second), self.assertRaisesRegex(ValueError, r"publish \(OSError\)"):
             self.service.run_due(self.now)
         self.assertTrue(self.service.config()["paused"])
         history = self.service.history()["runs"]
@@ -169,6 +169,63 @@ class BriefingTests(unittest.TestCase):
         self.assertIsNone(self.service.run_due(self.now+timedelta(days=1)))
         with self.assertRaises(BriefingConflict):
             self.service.run("daily-2026-10-28", self.now)
+
+    def test_render_failure_keeps_safe_details_and_hash_checked_private_input(self):
+        self.enable()
+        secret = "Bearer sentinel-secret; https://user:password@example.com/private"
+        with mock.patch.object(self.service, "_render", side_effect=ValueError(secret)):
+            with self.assertRaises(ValueError) as raised:
+                self.service.run_due(self.now)
+        receipt = self.service.history()["runs"][0]
+        serialized = json.dumps(receipt)+str(raised.exception)
+        self.assertNotIn("sentinel-secret", serialized)
+        self.assertNotIn("password", serialized)
+        self.assertFalse(receipt["ok"])
+        self.assertEqual(receipt["failure_detail"]["phase"], "render")
+        self.assertEqual(receipt["failure_detail"]["exception_type"], "ValueError")
+        self.assertEqual(receipt["artifacts"], [])
+        saved = receipt["diagnostics"]["input"]
+        payload = self.registry._path(saved["path"]).read_bytes()
+        self.assertEqual(len(payload), saved["bytes"])
+        self.assertEqual(hashlib.sha256(payload).hexdigest(), saved["sha256"])
+        report = json.loads(payload)
+        self.assertEqual(report["local_date"], "2026-10-28")
+        child = report["venture_checkin"]
+        with mock.patch.object(self.service.venture, "run_for_brief", side_effect=AssertionError("No uncertain child replay")):
+            with self.assertRaises(BriefingConflict):
+                self.service.run("daily-2026-10-28", self.now)
+        self.assertEqual(self.service.history()["runs"][0], receipt)
+        self.assertEqual(json.loads(payload)["venture_checkin"], child)
+        self.assertTrue(self.service.config()["paused"])
+        self.assertFalse(self.store.setting("paused", False))
+
+    def test_receipt_commit_failure_clears_success_and_keeps_three_pinned_artifacts(self):
+        from contextlib import contextmanager
+        self.enable()
+        original = self.service.database
+        injected = False
+        @contextmanager
+        def fail_completed_commit():
+            nonlocal injected
+            with original() as db:
+                yield db
+                completed = db.execute("SELECT count(*) FROM briefing_runs WHERE status='completed'").fetchone()[0]
+                if completed and not injected:
+                    injected = True
+                    raise OSError("credential-only-in-error")
+        with mock.patch.object(self.service, "database", fail_completed_commit):
+            with self.assertRaisesRegex(ValueError, r"receipt \(OSError\)"):
+                self.service.run_due(self.now)
+        receipt = self.service.history()["runs"][0]
+        self.assertTrue(injected)
+        self.assertEqual(receipt["status"], "failed")
+        self.assertFalse(receipt["ok"])
+        self.assertNotIn("completed_at", receipt)
+        self.assertNotIn("credential-only-in-error", json.dumps(receipt))
+        self.assertEqual(receipt["failure_detail"]["phase"], "receipt")
+        self.assertEqual(len(receipt["artifacts"]), 3)
+        self.service._verify(receipt)
+        self.assertTrue(self.service.config()["paused"])
 
     def test_recover_interrupted_daily_report_pauses_without_replaying_it(self):
         self.enable()

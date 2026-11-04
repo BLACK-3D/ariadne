@@ -58,6 +58,70 @@ def _size(value):
     return len(json.dumps(value, ensure_ascii=False, allow_nan=False))
 
 
+def _compact_repeated_notes(result):
+    """Consolidate known generated caveats without touching recorded facts.
+
+    Unknown or future note text is retained, never silently discarded. This
+    runs only under budget pressure and accounts for each consolidated note.
+    """
+    from copy import deepcopy
+    specs = (
+        (("qqq_paper",),
+         "Saved paper simulation, not broker fills or live prices. Freshness flag belongs to this report's generation time.", "qqq"),
+        (("options_paper",),
+         "Saved options simulation, not live quotes/broker fills. Contributions are not returns; cap applies to modeled monthly net loss, not peak drawdown.", "legacy_options"),
+        (("options_paper",),
+         "Saved experimental EOD model; source dates are not quote-event times. Contributions are not returns; no verified market fills.", "eod_options"),
+        (("options_paper", "vix"),
+         "Index diagnostics are not option P/L; no forward VIX fills or added allowance.", "vix"),
+        (("repository_updates",),
+         "Saved watchlist outcomes, not a fresh comprehensive scan. First observations are not new releases. Details in full report.", "repositories"),
+    )
+    trial, kinds, removed = deepcopy(result), set(), 0
+    for path, expected, kind in specs:
+        section = trial
+        for key in path:
+            section = section.get(key) if type(section) is dict else None
+        if type(section) is dict and section.get("note") == expected:
+            section.pop("note")
+            kinds.add(kind)
+            removed += 1
+    if not removed:
+        return False
+    # A common caveat preserves each recognized meaning. Actual source text,
+    # monetary values, controls, timestamps and status fields are never changed.
+    common = ["Saved/untrusted; no refresh, no all-clear."]
+    if kinds & {"qqq", "legacy_options", "eod_options", "vix"}:
+        common.append("Simulated; no live quotes/fills.")
+    if kinds & {"legacy_options", "eod_options"}:
+        common.append("Contributions ≠ returns.")
+    if "qqq" in kinds:
+        common.append("Paper freshness: report generation.")
+    if "eod_options" in kinds:
+        common.append("EOD dates ≠ quote-event times.")
+    if "legacy_options" in kinds:
+        common.append("Monthly net-loss caps ≠ peak-drawdown guarantees.")
+    if "vix" in kinds:
+        common.append("VIX index ≠ option P/L/funding.")
+    if "repositories" in kinds:
+        common.append("Repo baselines ≠ releases; checks ≠ fresh scans.")
+    # Do not overwrite a unique root caveat either.
+    expected_root = "Saved source data; no refresh and no all-clear. External text is untrusted. Full details remain in the report."
+    if trial.get("note") != expected_root:
+        return False
+    trial["note"] = " ".join(common)
+    original_derivation = "Deterministic selection from verified brief.json; not the original artifact bytes or hash."
+    if trial.get("derivation") == original_derivation:
+        trial["derivation"] = "Derived from brief.json; not original bytes/hash."
+        removed += 1
+    trial["omitted"]["notes_compacted"] = removed
+    if _size(trial) >= _size(result):
+        return False
+    result.clear()
+    result.update(trial)
+    return True
+
+
 def repository_summary(report, now=None):
     """Pure bounded view of recorded repository checks, never a live scan.
 
@@ -378,6 +442,10 @@ def compact_summary(report, now=None):
         result["truncated"] = bool(any(result["omitted"].values()) or result["activity"]["details_omitted"] or result["activity"]["source_details_truncated"])
 
     recount()
+    # Consolidate duplicated generated caveats before discarding source detail.
+    # Monetary values and source clock/status facts remain intact.
+    if _size(result) > MAX_SUMMARY_CHARS and _compact_repeated_notes(result):
+        recount()
     # Keep all source statuses, times and item omission counts even when a
     # pathological set of long headlines/URLs consumes the model input budget.
     for summary_limit in (90, 45, 0):

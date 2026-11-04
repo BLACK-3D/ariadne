@@ -102,6 +102,56 @@ bypass tool.
 and optional `region_terms`. Configuration revisions increment on each change;
 existing owner settings are preserved. Do not auto-resume a paused schedule.
 
+## Diagnose a failed report offline
+
+Keep the schedule paused while reviewing a failure. Do not use `run` or `due`
+as a diagnostic command: those entry points own durable work and may advance
+child workflows. A completed child does not authorize replaying a failed parent.
+
+New failures retain a bounded `failure_detail` in the parent receipt: stage,
+exception type and up to eight application-relative frames. Exception messages,
+arguments, locals, source lines and chained exceptions are excluded. If a report
+was assembled, its exact bounded JSON is saved privately under
+`data/workspace/briefing-diagnostics/<request-id>/input.json`, with its byte count
+and SHA-256 in `diagnostics.input`. Input capture failure never clears the hold.
+Already published report hashes remain in the failed receipt. A failure to
+commit a successful receipt is recorded as failed, with `ok: false`.
+
+Render a saved input into a **new** staging folder, supplying the exact file
+hash from its diagnostic receipt:
+
+```text
+runtime\python\python.exe -I -B scripts\briefing_preflight.py --input data/workspace/briefing-diagnostics/REQUEST/input.json --input-sha256 HASH --output staging/briefing-preflight-UNIQUE
+```
+
+The command accepts only project-relative paths, rejects links and E:, verifies
+the input hash before rendering, and never replaces an existing attempt. It
+constructs no owner service or database and calls no collector, model, Venture
+check-in or trading workflow. Successful output contains `brief.json`, `brief.md`,
+`brief.svg` and a hash manifest in `receipt.json`; exit status is zero. Rendering
+failures save a safe failed receipt and exit with status 2. A publication failure
+retains any published hashes and attempts to save a failure receipt; disk failure
+can prevent that receipt, so a claimed folder must still be inspected, never
+reused. Local report inputs and generated previews can contain private data and
+belong in ignored staging/data folders, not the public source repository.
+
+A preflight is a preview of its saved inputs, not a replacement daily receipt or
+a fresh observation. Reconstructed inputs must be labeled as such. The 5,500
+character summary bound stays fixed: repeated explanatory notes are compacted
+before source details, with explicit omission accounting. Financial values,
+source availability and source timestamps are retained; full facts stay in JSON
+and Markdown. CLI JSON uses Unicode escapes so Windows consoles can print it
+without changing the decoded facts.
+
+After reviewing the failed parent, any partial files and completed children,
+an explicit resume uses the current configuration revision. It can acknowledge
+today's failed/interrupted receipt by its exact hash without modifying its
+status or replaying it. The consumed day is skipped and future scheduled days
+remain eligible. An unacknowledged or changed failed receipt still pauses the
+schedule. Running work cannot be acknowledged. This mechanism does not clear
+other autonomy, trading or child holds. Source changes must be activated in the
+running host through the normal controlled update process before resuming.
+
 Primary specifications:
 
 - [NWS API documentation](https://www.weather.gov/documentation/services-web-api)
