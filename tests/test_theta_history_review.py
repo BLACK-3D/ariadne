@@ -354,4 +354,172 @@ class IndependentThetaTerminalReview(unittest.TestCase):
         with self.assertRaises(terminal.ThetaTerminalError):terminal.inspect_jar(self.jar(major=0))
 
 
+class IndependentThetaBrowserSetupReview(unittest.TestCase):
+    KEY = 'REVIEW_ONLY_THETA_KEY_123456789'
+
+    class MemoryConnection:
+        def __init__(self, raw):
+            from io import BytesIO
+            self.source=BytesIO(raw);self.output=bytearray();self.closed=False;self.shutdown_called=False
+        def makefile(self, *args, **kwargs):return self.source
+        def sendall(self, value):self.output.extend(value)
+        def settimeout(self, value):pass
+        def shutdown(self, value):self.shutdown_called=True
+        def close(self):self.closed=True
+
+    def state(self):
+        import time
+        from ariadne import theta_setup_browser as browser
+        data=unittest.mock.Mock();data._path.return_value.exists.return_value=False
+        state=browser._State(data,time.monotonic()+60)
+        state.host='127.0.0.1:43187';state.origin='http://'+state.host
+        return state
+
+    def exchange(self,state,raw):
+        from contextlib import redirect_stdout,redirect_stderr
+        from io import StringIO
+        from ariadne import theta_setup_browser as browser
+        connection=self.MemoryConnection(raw);out=StringIO();err=StringIO()
+        with redirect_stdout(out),redirect_stderr(err):
+            browser._handler(state)(connection,('127.0.0.1',12345),object())
+        self.assertEqual(out.getvalue(),'');self.assertEqual(err.getvalue(),'')
+        self.assertNotIn(self.KEY.encode(),connection.output)
+        return bytes(connection.output)
+
+    def post(self,state,*,headers=None,fields=None):
+        from urllib.parse import urlencode
+        from ariadne import theta_setup_browser as browser
+        body=urlencode(fields if fields is not None else [('csrf',state.csrf),('key',self.KEY)]).encode()
+        base=[('Host',state.host),('Origin',state.origin),('Content-Type','application/x-www-form-urlencoded'),
+              ('Content-Length',str(len(body))),('Cookie',browser.COOKIE+'='+str(state.cookie))]
+        if headers is not None:base=headers(base)
+        raw=('POST /save HTTP/1.1\r\n'+''.join(k+': '+v+'\r\n' for k,v in base)+'\r\n').encode()+body
+        return raw
+
+    def test_form_is_no_script_no_store_and_never_a_credential_url(self):
+        state=self.state();result=self.exchange(state,('GET / HTTP/1.1\r\nHost: '+state.host+'\r\n\r\n').encode())
+        self.assertIn(b'200 OK',result);self.assertIn(b'type="password"',result)
+        self.assertIn(b'action="/save"',result);self.assertNotIn(b'<script',result)
+        self.assertIn(b'Cache-Control: no-store',result);self.assertIn(b'Referrer-Policy: same-origin',result)
+        self.assertIn(b"default-src 'none'; form-action 'self'",result)
+        self.assertIn(b'HttpOnly; SameSite=Strict',result)
+        self.assertNotIn(b'Access-Control-Allow-Origin',result)
+
+    def test_origin_host_framing_and_crosssite_ambiguities_never_save(self):
+        from ariadne import theta_setup_browser as browser
+        changes=[lambda h:[(k,v) for k,v in h if k!='Origin'],
+            lambda h:[(k,'http://evil.invalid' if k=='Origin' else v) for k,v in h],
+            lambda h:[(k,'localhost:43187' if k=='Host' else v) for k,v in h],
+            lambda h:[(k,'127.0.0.1:43188' if k=='Host' else v) for k,v in h],
+            lambda h:h+[('Host','127.0.0.1:43187')],lambda h:h+[('Origin','http://127.0.0.1:43187')],
+            lambda h:h+[('Content-Length','1')],lambda h:h+[('Content-Type','application/x-www-form-urlencoded')],
+            lambda h:h+[('Transfer-Encoding','chunked')],lambda h:h+[('Expect','100-continue')],
+            lambda h:h+[('Sec-Fetch-Site','cross-site')],lambda h:h+[('Sec-Fetch-Mode','no-cors')],
+            lambda h:h+[('Sec-Fetch-Dest','iframe')]]
+        for change in changes:
+            with self.subTest(change=changes.index(change)):
+                state=self.state()
+                with patch.object(browser.terminal,'save_key') as save:
+                    result=self.exchange(state,self.post(state,headers=change))
+                save.assert_not_called();self.assertFalse(state.used);self.assertNotIn(b'303 See Other',result)
+
+    def test_invalid_form_cookie_and_duplicate_fields_never_save(self):
+        from ariadne import theta_setup_browser as browser
+        for kind in ('csrf','cookie','duplicate-key','extra-field','invalid-escape'):
+            with self.subTest(kind=kind):
+                state=self.state();raw=self.post(state)
+                if kind=='csrf':raw=self.post(state,fields=[('csrf','wrong'),('key',self.KEY)])
+                if kind=='cookie':raw=self.post(state,headers=lambda h:[(k,'wrong=wrong' if k=='Cookie' else v) for k,v in h])
+                if kind=='duplicate-key':raw=self.post(state,fields=[('key',self.KEY),('key',self.KEY)])
+                if kind=='extra-field':raw=self.post(state,fields=[('csrf',state.csrf),('key',self.KEY),('extra',self.KEY)])
+                if kind=='invalid-escape':raw=raw.replace(self.KEY.encode(),b'%GG'+self.KEY.encode()[3:])
+                with patch.object(browser.terminal,'save_key') as save:self.exchange(state,raw)
+                save.assert_not_called();self.assertFalse(state.used)
+
+    def test_uncertain_save_consumes_attempt_without_echo_or_replay(self):
+        from ariadne import theta_setup_browser as browser
+        state=self.state();raw=self.post(state)
+        with patch.object(browser.terminal,'save_key',side_effect=RuntimeError(self.KEY)) as save:
+            first=self.exchange(state,raw);second=self.exchange(state,raw)
+        self.assertEqual(save.call_count,1);self.assertTrue(state.used and state.failed and state.done)
+        self.assertIn(b'500 Internal Server Error',first);self.assertIn(b'410 Gone',second)
+
+    def test_success_redirect_has_only_fixed_location_and_cannot_save_twice(self):
+        from ariadne import theta_setup_browser as browser
+        state=self.state();raw=self.post(state)
+        with patch.object(browser.terminal,'save_key',return_value={'configured':True}) as save:
+            result=self.exchange(state,raw);self.exchange(state,raw)
+        self.assertEqual(save.call_count,1);self.assertTrue(state.saved)
+        self.assertIn(b'303 See Other',result);self.assertIn(b'Location: /done\r\n',result)
+        self.assertNotIn(b'Location: /done?',result)
+        done=self.exchange(state,('GET /done HTTP/1.1\r\nHost: '+state.host+'\r\n\r\n').encode())
+        self.assertIn(b'200 OK',done);self.assertIn(b'Theta key saved locally',done);self.assertTrue(state.done)
+
+    def test_malformed_parser_errors_do_not_reflect_key_or_log_it(self):
+        for raw in [b'GET /'+self.KEY.encode()+b' HTTP/garbage\r\n\r\n',
+                    self.KEY.encode()+b' / HTTP/1.1\r\nHost: wrong\r\n\r\n',
+                    b'GET / HTTP/1.1\r\nHost: wrong\r\n'+self.KEY.encode()+b'\r\n\r\n']:
+            with self.subTest(raw_length=len(raw)):self.exchange(self.state(),raw)
+
+    def test_absolute_expiry_closes_owned_connection_and_blocks_post(self):
+        from ariadne import theta_setup_browser as browser
+        state=self.state();raw=self.post(state);connection=self.MemoryConnection(b'')
+        state.active=connection;server=unittest.mock.Mock();state.expire(server)
+        self.assertTrue(state.expired and connection.closed and connection.shutdown_called)
+        server.socket.close.assert_called_once_with()
+        with patch.object(browser.terminal,'save_key') as save:self.assertEqual(self.exchange(state,raw),b'')
+        save.assert_not_called()
+
+    def test_observed_crosssite_top_level_initial_get_allows_only_display_then_strict_post(self):
+        from ariadne import theta_setup_browser as browser
+        state=self.state()
+        raw=('GET / HTTP/1.1\r\nHost: '+state.host+'\r\nSec-Fetch-Site: cross-site\r\nSec-Fetch-Mode: navigate\r\nSec-Fetch-Dest: document\r\n\r\n').encode()
+        with patch.object(browser.terminal,'save_key',return_value={'configured':True}) as save:
+            result=self.exchange(state,raw)
+            self.assertIn(b'200 OK',result);self.assertIn(b'type="password"',result)
+            save.assert_not_called();self.assertFalse(state.used)
+            result=self.exchange(state,self.post(state,headers=lambda h:h+[('Sec-Fetch-Site','same-origin'),('Sec-Fetch-Mode','navigate'),('Sec-Fetch-Dest','document')]))
+            self.assertIn(b'303 See Other',result);save.assert_called_once_with(state.data,self.KEY)
+
+    def test_crosssite_get_exception_refuses_noninitial_embedded_or_unproven_navigation(self):
+        cases=[('/',None,'cors','document'),('/',None,'no-cors','document'),('/',None,'navigate','iframe'),
+               ('/',None,None,'document'),('/',None,'navigate',None),('/?key=ignored',None,'navigate','document'),
+               ('/done',None,'navigate','document'),('/','same','navigate','document'),('/','http://evil.invalid','navigate','document')]
+        for path,origin,mode,dest in cases:
+            with self.subTest(path=path,origin=origin,mode=mode,dest=dest):
+                state=self.state();state.saved=path=='/done'
+                headers=[('Host',state.host),('Sec-Fetch-Site','cross-site')]
+                if origin is not None:headers.append(('Origin',state.origin if origin=='same' else origin))
+                if mode is not None:headers.append(('Sec-Fetch-Mode',mode))
+                if dest is not None:headers.append(('Sec-Fetch-Dest',dest))
+                raw=('GET '+path+' HTTP/1.1\r\n'+''.join(k+': '+v+'\r\n' for k,v in headers)+'\r\n').encode()
+                result=self.exchange(state,raw)
+                self.assertNotIn(b'200 OK',result);self.assertNotIn(b'type="password"',result)
+
+    def test_null_origin_post_stays_refused_with_otherwise_valid_same_origin_metadata(self):
+        from ariadne import theta_setup_browser as browser
+        state=self.state()
+        raw=self.post(state,headers=lambda h:[(k,'null' if k=='Origin' else v) for k,v in h]+[('Sec-Fetch-Site','same-origin'),('Sec-Fetch-Mode','navigate'),('Sec-Fetch-Dest','document')])
+        with patch.object(browser.terminal,'save_key') as save:result=self.exchange(state,raw)
+        save.assert_not_called();self.assertFalse(state.used);self.assertNotIn(b'303 See Other',result)
+
+    def test_crosssite_top_level_post_remains_refused_with_valid_origin_cookie_csrf(self):
+        from ariadne import theta_setup_browser as browser
+        state=self.state()
+        raw=self.post(state,headers=lambda h:h+[('Sec-Fetch-Site','cross-site'),('Sec-Fetch-Mode','navigate'),('Sec-Fetch-Dest','document')])
+        with patch.object(browser.terminal,'save_key') as save:result=self.exchange(state,raw)
+        save.assert_not_called();self.assertFalse(state.used);self.assertNotIn(b'303 See Other',result)
+
+    def test_setup_refuses_existing_or_environment_keys_before_listener(self):
+        from ariadne import theta_setup_browser as browser
+        data=unittest.mock.Mock();data._path.return_value.exists.return_value=True
+        with patch.object(browser,'_Server') as server:
+            with self.assertRaises(browser.ThetaSetupError):browser.serve(data,ready=lambda value:None)
+        server.assert_not_called()
+        data._path.return_value.exists.return_value=False
+        with patch.dict(os.environ,{'THETADATA_API_KEY':''}),patch.object(browser,'_Server') as server:
+            with self.assertRaises(browser.ThetaSetupError):browser.serve(data,ready=lambda value:None)
+        server.assert_not_called()
+
+
 if __name__=='__main__':unittest.main()

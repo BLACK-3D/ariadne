@@ -12,6 +12,18 @@ The supplied bootstrap JAR and portable Java have been staged locally. The downl
 
 ## Protect the API key locally
 
+Browser setup avoids a separate console input window. From the Ariadne project folder:
+
+```powershell
+.\runtime\python\python.exe -I -B scripts\theta_terminal.py setup-browser
+```
+
+Open the printed numeric loopback address in your browser. The temporary page accepts the key in a password field and saves it using the same Windows CurrentUser DPAPI store as console setup. It is local-only, bounded to five minutes and one submission, and refuses an existing key. It does not start or restart Ariadne, launch Java, enable Internet connectors or purchase a subscription. The address contains no key. An unrelated website cannot submit a key through its own origin. Browser extensions and other programs running as you remain outside these controls; this does not promise to erase clipboard or browser memory.
+
+On the signed-in [account API Key page](https://www.thetadata.net/portal/api_key), **No API key exists** means select **Create Key** first. Newly created key text may be shown only once. Copy it into the local password field and save. Do not regenerate an existing key merely to inspect it; that can invalidate a credential already in use.
+
+Console setup remains available:
+
 In PowerShell from the Ariadne project folder:
 
 ```powershell
@@ -19,7 +31,7 @@ In PowerShell from the Ariadne project folder:
 & '.\scripts\Set up Theta Terminal.cmd'
 ```
 
-Use the [account API Key page](https://www.thetadata.net/portal/api_key), linked directly from Theta's Getting Started guide. REST, Python, MCP and Excel are documentation/interface choices; they are not values to paste into the key prompt. The setup console asks for a Theta **API key**, not the account password. Enter it only in that hidden local prompt, never in chat, a command argument, GitHub, a screenshot, a CSV or an import manifest. Windows CurrentUser DPAPI protects the private store under `data/theta-terminal`. Setup itself performs no network request, subscription purchase or Terminal launch.
+Use the [account API Key page](https://www.thetadata.net/portal/api_key), linked directly from Theta's Getting Started guide. REST, Python, MCP and Excel are documentation/interface choices; they are not values to paste into the key prompt. Setup asks for a Theta **API key**, not the account password. Enter it only in the local password form or hidden local prompt, never in chat, a command argument, GitHub, a screenshot, a CSV or an import manifest. Windows CurrentUser DPAPI protects the private store under `data/theta-terminal`. Setup itself performs no outbound network request, subscription purchase or Terminal launch.
 
 An optional existing `THETADATA_API_KEY` process environment variable is accepted privately. Do not type its value into shell history. Exporting the project to another Windows user does not transfer DPAPI credentials; each owner performs their own setup.
 

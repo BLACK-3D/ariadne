@@ -15,12 +15,12 @@ from ariadne.theta_terminal import ThetaTerminalError
 
 class PrivateParser(argparse.ArgumentParser):
     def error(self, message):
-        raise ThetaTerminalError('Use setup, status or prepare with the documented local options. Never put an API key in command arguments.')
+        raise ThetaTerminalError('Use setup-browser, setup, status or prepare with the documented local options. Never put an API key in command arguments.')
 
 
 def parser():
     value = PrivateParser(description=__doc__)
-    value.add_argument('action',choices=('setup','status','prepare'))
+    value.add_argument('action',choices=('setup-browser','setup','status','prepare'))
     value.add_argument('--data-dir',default='data')
     value.add_argument('--workspace',default='data/workspace')
     value.add_argument('--online',action='store_true')
@@ -46,12 +46,15 @@ def run(args, *, root=ROOT, client_factory=None):
     if args.online and (os.environ.get('ARIADNE_OFFLINE') not in (None,'0')
                         or network_policy_status()['mode']=='offline'):
         raise ThetaTerminalError('Inherited or installed offline policy blocks preparation.')
-    if args.action in ('setup','status') and args.online:
+    if args.action in ('setup-browser','setup','status') and args.online:
         raise ThetaTerminalError('Setup and status are local-only and do not accept --online.')
     if args.action=='prepare' and not args.online:
         raise ThetaTerminalError('Application preparation requires explicit --online.')
     data,workspace = _guards(args,root)
     root_guard = object.__new__(ToolRegistry);root_guard.root = Path(root).resolve()
+    if args.action=='setup-browser':
+        from ariadne.theta_setup_browser import serve
+        return serve(data,ready=lambda url:print('Open this private, temporary local setup page: '+url,flush=True))
     if args.action=='setup':
         key = _hidden()
         try: return save_key(data,key)
