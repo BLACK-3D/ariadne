@@ -113,7 +113,8 @@ class BrowserSetupTests(unittest.TestCase):
         self.assertIn('HttpOnly',headers['Set-Cookie']);self.assertIn('SameSite=Strict',headers['Set-Cookie'])
         self.assertEqual(self.post(csrf,cookie)[0],303)
         # Refresh/repost cannot call key storage again, even before PRG GET.
-        self.assertEqual(self.post(csrf,cookie)[0],410);self.assertEqual(self.saved,[KEY])
+        # Windows may reset an unread rejected POST before delivering its 410.
+        self.assertIn(self.post(csrf,cookie)[0],(0,410));self.assertEqual(self.saved,[KEY])
         self.assertEqual(self.request(path='/done')[0],200);self.thread.join(3)
         self.assertIsNone(self.error);self.assertEqual(self.result['status'],'saved')
         self.assertTrue(self.result['configured']);self.assertEqual(self.result['outbound_network_requests'],0)

@@ -234,17 +234,17 @@ class DirectCLITests(unittest.TestCase):
         self.assertIsNone(Job.latest)
 
     def test_additional_reviewed_ordinal_preserves_its_identity(self):
-        self.profile['ordinal'] = 4
+        self.profile['ordinal'] = 5
         result = self.invoke()
-        self.assertEqual(Job.latest.command[-2:], ['4','staging/test/binding.json'])
+        self.assertEqual(Job.latest.command[-2:], ['5','staging/test/binding.json'])
         binding = json.loads((self.root/self.profile['binding']).read_bytes())
-        self.assertEqual(binding['ordinal'],4)
-        self.assertEqual(result['ordinal'],4)
+        self.assertEqual(binding['ordinal'],5)
+        self.assertEqual(result['ordinal'],5)
         self.assertFalse(result['automatic_retry'])
         self.assertFalse(result['worker_evidence_verified'])
 
     def test_unreviewed_ordinals_never_launch_a_worker(self):
-        for ordinal in (1,5,0,-1,True,'4'):
+        for ordinal in (1,6,0,-1,True,'5'):
             with self.subTest(ordinal=ordinal):
                 self.profile['ordinal'] = ordinal
                 with self.assertRaises(cli.SupervisionError):
