@@ -62,6 +62,7 @@ The [Threadline interface](docs/INTERFACE.md) brings observed system state, a di
 - [Document inbox, cited intake review and cross-client next actions](docs/CLIENT_INBOX.md)
 - [Options book review and liquidity checks](docs/OPTIONS_LIQUIDITY.md)
 - [Public account/API setup and local options paper trading](docs/PUBLIC_PAPER_TRADING.md)
+- [Free Theta history, private key setup and offline research imports](docs/THETA_HISTORY.md)
 - [ThetaData setup, Free-plan limits and local quote qualification](docs/THETA_PAPER_DATA.md)
 - [Alternative Alpaca quote qualification](docs/ALPACA_PAPER_DATA.md)
 - [Voice controls](docs/VOICE_CONVERSATION.md)

@@ -4,9 +4,13 @@ This connection is a **data-only, diagnostic bridge**, not an installed Terminal
 
 The existing shared **$25,000 total paper bankroll, no automatic top-ups**, remains unchanged. This connector has no ledger writer, broker order, account funding or policy-rebind operation. Older schema6/7 rules and receipts are retained exactly.
 
+## Historical research first
+
+The separate [free-history workflow](THETA_HISTORY.md) adds bounded EOD capture and hash-checked offline imports. It does not apply the live five-second admission rule to historical research, create a performance result or change the paper ledger. Start there before considering a paid live feed.
+
 ## What the FREE account can establish
 
-Theta's FREE access does not establish the fresh live quotes required by Ariadne's unchanged five-second liquidity gate. Existing historical-file research/import tools can inspect separately acquired free EOD observations; this snapshot connector does not implement an EOD download route. Retrieval now does not make a historical event clock current. Do not upgrade merely to make a test pass.
+Theta's FREE access does not establish the fresh live quotes required by Ariadne's unchanged five-second liquidity gate. The separate historical workflow supports EOD download/import; this snapshot connector remains dedicated to quote qualification. Retrieval now does not make a historical event clock current. Do not upgrade merely to make a test pass.
 
 Current advertised options Value access is $40/month. The stock add-on advertised at $80/month would make a combined options-plus-stock route $120/month, subject to current eligibility, entitlements and checkout terms. It is not the cheapest combined candidate compared with the $99/month Alpaca alternative. No purchase is authorized or performed by this guide. The existing FREE signup also does not establish whether any future paid checkout would require a phone number.
 
