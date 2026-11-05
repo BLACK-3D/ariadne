@@ -335,5 +335,142 @@ class ThetaTerminalTests(unittest.TestCase):
         for version in ('2026110','2026110501234','2026/1105','20261105.jar','../../20261105','２０２６１１０５','20261105?key'):
             with self.assertRaises(t.ThetaTerminalError):t._version(version)
 
+    def test_http_diagnostics_keep_only_status_and_no_error_body_or_reason(self):
+        os.environ['ARIADNE_OFFLINE']='0'
+        class HostileResponse(Response):
+            @property
+            def reason(self):raise AssertionError('Never access private reason '+KEY)
+        for code in (401,403,404,302):
+            response=HostileResponse(KEY.encode(),status=code,media=KEY,
+                headers={'Location':'https://invalid.example/'+KEY})
+            connection=Connection(response)
+            with patch.object(t,'install_network_policy',return_value={'mode':'online'}),patch.object(t.http.client,'HTTPSConnection',return_value=connection):
+                with self.assertRaises(t.ThetaTerminalUnavailable) as caught:t.ThetaBootstrapClient(KEY,online=True).version()
+            diagnostic=caught.exception.diagnostic
+            self.assertEqual(diagnostic['http_status'],code)
+            self.assertEqual(diagnostic['stage'],'http_status')
+            self.assertEqual(diagnostic['operation'],'version')
+            self.assertTrue(diagnostic['request_attempted']);self.assertTrue(diagnostic['request_dispatched'])
+            self.assertTrue(diagnostic['response_observed']);self.assertEqual(diagnostic['bytes_observed'],0)
+            self.assertIsNone(diagnostic['media_valid']);self.assertEqual(response.reads,0)
+            self.assertNotIn(KEY,json.dumps(diagnostic));self.assertNotIn(KEY,str(caught.exception))
+
+    def test_bad_media_encoding_and_version_are_classified_without_provider_text(self):
+        os.environ['ARIADNE_OFFLINE']='0'
+        for response,stage,flag in ((Response(KEY.encode(),media=KEY),'content_policy','media_valid'),
+                (Response(KEY.encode(),headers={'Content-Encoding':KEY}),'content_policy','encoding_valid'),
+                (Response(b'wrong-version'),'version_decode','version_valid')):
+            with patch.object(t,'install_network_policy',return_value={'mode':'online'}),patch.object(t.http.client,'HTTPSConnection',return_value=Connection(response)):
+                with self.assertRaises(t.ThetaTerminalUnavailable) as caught:t.ThetaBootstrapClient(KEY,online=True).version()
+            diagnostic=caught.exception.diagnostic
+            self.assertEqual(diagnostic['stage'],stage);self.assertIs(diagnostic[flag],False)
+            self.assertEqual(diagnostic['http_status'],200);self.assertTrue(diagnostic['response_observed'])
+            self.assertEqual(diagnostic['bytes_observed'],13 if flag=='version_valid' else 0)
+            self.assertNotIn(KEY,json.dumps(diagnostic));self.assertNotIn(KEY,str(caught.exception))
+
+    def test_transport_tls_and_uncertain_dispatch_are_not_reported_as_http(self):
+        os.environ['ARIADNE_OFFLINE']='0'
+        class BrokenDispatch(Connection):
+            def request(self,*args,**kwargs):raise t.ssl.SSLError('private '+KEY)
+        cases=((OSError('private '+KEY),None,'connect',False,False),
+            (t.ssl.SSLError('private '+KEY),None,'tls',False,False),
+            (None,BrokenDispatch(Response()),'tls',True,None))
+        for error,connection,stage,attempted,dispatched in cases:
+            seam=patch.object(t.http.client,'HTTPSConnection',side_effect=error) if error else patch.object(t.http.client,'HTTPSConnection',return_value=connection)
+            with patch.object(t,'install_network_policy',return_value={'mode':'online'}),seam:
+                with self.assertRaises(t.ThetaTerminalUnavailable) as caught:t.ThetaBootstrapClient(KEY,online=True).version()
+            diagnostic=caught.exception.diagnostic
+            self.assertEqual(diagnostic['stage'],stage);self.assertIs(diagnostic['request_attempted'],attempted)
+            self.assertIs(diagnostic['request_dispatched'],dispatched)
+            self.assertFalse(diagnostic['response_observed']);self.assertIsNone(diagnostic['http_status'])
+            self.assertNotIn(KEY,json.dumps(diagnostic));self.assertNotIn(KEY,str(caught.exception))
+
+    def test_diagnostic_sanitizer_never_formats_unknown_objects_or_accepts_bool_numbers(self):
+        class Hostile:
+            def __str__(self):raise AssertionError('No string conversion')
+            def __repr__(self):raise AssertionError('No repr')
+            def __eq__(self,other):raise AssertionError('No equality')
+        hostile=Hostile()
+        value=t.safe_diagnostic({'operation':hostile,'stage':hostile,'http_status':True,
+            'bytes_observed':True,'request_attempted':1,'response_observed':'true',
+            'request_dispatched':1,'media_valid':1,'encoding_valid':KEY,'size_valid':hostile,
+            'version_valid':[],'url':KEY,'secret':KEY})
+        self.assertEqual(value,t.safe_diagnostic());self.assertNotIn(KEY,json.dumps(value))
+        class HostileKey(Hostile):
+            def __hash__(self):return hash('operation')
+        self.assertEqual(t.safe_diagnostic({HostileKey():KEY}),t.safe_diagnostic())
+        for status in (-1,99,600,200.0,KEY):
+            value=t.safe_diagnostic({'http_status':status,'request_attempted':True,
+                'request_dispatched':True,'response_observed':True})
+            self.assertIsNone(value['http_status'])
+        for count in (-1,t.MAX_JAR_BYTES+2,1.0,KEY):self.assertEqual(t.safe_diagnostic({'bytes_observed':count})['bytes_observed'],0)
+        contradictory=t.safe_diagnostic({'http_status':200,'bytes_observed':12,'response_observed':True,'version_valid':True})
+        self.assertEqual(contradictory,t.safe_diagnostic())
+
+    def test_exception_diagnostic_copy_and_unknown_exception_properties_are_safe(self):
+        error=t.ThetaTerminalUnavailable('Safe failure',diagnostic={'operation':'version','stage':'http_status',
+            'http_status':403,'request_attempted':True,'request_dispatched':True,'response_observed':True,'secret':KEY})
+        copied=error.diagnostic;copied['http_status']=401;copied['url']=KEY
+        self.assertEqual(error.diagnostic['http_status'],403);self.assertNotIn(KEY,json.dumps(error.diagnostic))
+        class HostileError(OSError):
+            @property
+            def diagnostic(self):raise AssertionError('Never access untrusted properties')
+            def __str__(self):raise AssertionError('Never format unknown exception')
+        self.assertEqual(t.diagnostic_from_error(HostileError(KEY)),t.safe_diagnostic())
+        error._diagnostic={'operation':KEY,'stage':KEY,'http_status':True,'secret':KEY}
+        self.assertEqual(t.diagnostic_from_error(error),t.safe_diagnostic())
+        class HostileDict(dict):
+            def get(self,*args):raise AssertionError('Never invoke unknown dictionary overrides')
+        error.__dict__=HostileDict(error.__dict__)
+        self.assertEqual(t.diagnostic_from_error(error),t.safe_diagnostic())
+
+    def test_failure_receipt_persists_safe_http_diagnostic_and_never_replays(self):
+        os.environ['ARIADNE_OFFLINE']='0'
+        response=Response(KEY.encode(),status=404);connection=Connection(response)
+        with patch.dict(os.environ,{'THETADATA_API_KEY':KEY}),patch.object(t,'install_network_policy',return_value={'mode':'online'}),patch.object(t.http.client,'HTTPSConnection',return_value=connection):
+            with self.assertRaises(t.ThetaTerminalUnavailable):t.prepare(self.guard,self.data,check=lambda:'unchanged')
+        path=self.root/t.LIBRARY_PATH/'preparation-failed.json';before=path.read_bytes();receipt=json.loads(before)
+        self.assertEqual(receipt['diagnostic']['http_status'],404);self.assertEqual(receipt['diagnostic']['operation'],'version')
+        self.assertNotIn(KEY,before.decode());self.assertEqual(len(connection.calls),1)
+        with patch.object(t,'load_key',side_effect=AssertionError('No unlock/replay')):
+            with self.assertRaises(FileExistsError):self.prepare()
+        self.assertEqual(path.read_bytes(),before)
+        self.assertEqual(t.status(self.guard,self.data)['application_state'],'incomplete_preparation_held')
+
+    def test_local_failure_receipt_never_invokes_hostile_exception_property(self):
+        class HostileError(OSError):
+            @property
+            def diagnostic(self):raise AssertionError('Do not inspect unknown exception')
+        class BrokenClient(FakeClient):
+            def version(self):raise HostileError('private '+KEY)
+        with patch.dict(os.environ,{'THETADATA_API_KEY':KEY}):
+            with self.assertRaises(HostileError):t.prepare(self.guard,self.data,check=lambda:'same',client_factory=BrokenClient)
+        receipt=json.loads((self.root/t.LIBRARY_PATH/'preparation-failed.json').read_bytes())
+        self.assertEqual(receipt['diagnostic']['stage'],'local');self.assertIsNone(receipt['diagnostic']['http_status'])
+        self.assertFalse(receipt['diagnostic']['request_attempted']);self.assertNotIn(KEY,json.dumps(receipt))
+
+    def test_second_request_transport_failure_cannot_inherit_first_http_status(self):
+        os.environ['ARIADNE_OFFLINE']='0'
+        client=t.ThetaBootstrapClient(KEY,online=True)
+        with patch.object(t,'install_network_policy',return_value={'mode':'online'}),patch.object(t.http.client,'HTTPSConnection',return_value=Connection(Response(VERSION.encode()))):
+            self.assertEqual(client.version()['diagnostic']['http_status'],200)
+        with patch.object(t,'install_network_policy',return_value={'mode':'online'}),patch.object(t.http.client,'HTTPSConnection',side_effect=OSError('private '+KEY)):
+            with self.assertRaises(t.ThetaTerminalUnavailable) as caught:client.application(VERSION)
+        diagnostic=caught.exception.diagnostic
+        self.assertEqual(diagnostic['operation'],'application');self.assertEqual(diagnostic['stage'],'connect')
+        self.assertIsNone(diagnostic['http_status']);self.assertFalse(diagnostic['response_observed'])
+        self.assertNotIn(KEY,json.dumps(diagnostic))
+
+    def test_declared_content_length_must_match_completed_observed_body(self):
+        os.environ['ARIADNE_OFFLINE']='0'
+        for declared in ('8','10'):
+            response=Response(VERSION.encode(),headers={'Content-Length':declared})
+            with patch.object(t,'install_network_policy',return_value={'mode':'online'}),patch.object(t.http.client,'HTTPSConnection',return_value=Connection(response)):
+                with self.assertRaises(t.ThetaTerminalUnavailable) as caught:t.ThetaBootstrapClient(KEY,online=True).version()
+            diagnostic=caught.exception.diagnostic
+            self.assertEqual(diagnostic['stage'],'size');self.assertIs(diagnostic['size_valid'],False)
+            self.assertEqual(diagnostic['http_status'],200);self.assertEqual(diagnostic['bytes_observed'],len(VERSION))
+            self.assertIsNone(diagnostic['version_valid']);self.assertNotIn(KEY,json.dumps(diagnostic))
+
 
 if __name__=='__main__':unittest.main()

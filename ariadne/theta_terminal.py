@@ -44,12 +44,82 @@ _VERSION = re.compile(r'[0-9]{8,12}\Z')
 _MAIN = re.compile(r'[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*\Z')
 
 
+_DIAGNOSTIC_STAGES = frozenset({'local', 'policy', 'deadline', 'connect', 'tls',
+    'dispatch', 'response', 'http_status', 'content_policy', 'size', 'body',
+    'version_decode', 'artifact_inspection', 'credential_reflection', 'owner_policy'})
+_DIAGNOSTIC_FLAGS = ('media_valid', 'encoding_valid', 'size_valid', 'version_valid')
+
+
+def safe_diagnostic(value=None):
+    """Copy only fixed enums, strict numbers and booleans; never vendor text.
+
+    A request reservation is not proof of dispatch. ``request_attempted`` means
+    request() was entered; ``request_dispatched`` is None if it raised before
+    returning, and True only if it returned. Neither proves server processing.
+    """
+    # Filter key objects before lookups, so hostile unknown keys cannot run
+    # equality/formatting hooks while matching an allowlisted field name.
+    allowed = {'operation', 'stage', 'http_status', 'bytes_observed',
+        'request_attempted', 'request_dispatched', 'response_observed', *_DIAGNOSTIC_FLAGS}
+    value = {key: item for key, item in value.items() if type(key) is str and key in allowed} if type(value) is dict else {}
+    result = {'schema': 1,
+        'operation': value.get('operation') if type(value.get('operation')) is str and value.get('operation') in ('version', 'application') else None,
+        'stage': value.get('stage') if type(value.get('stage')) is str and value.get('stage') in _DIAGNOSTIC_STAGES else 'local',
+        'http_status': None, 'bytes_observed': 0, 'request_attempted': False,
+        'request_dispatched': False, 'response_observed': False,
+        **{name: None for name in _DIAGNOSTIC_FLAGS}}
+    status = value.get('http_status')
+    if type(status) is int and 100 <= status <= 599:
+        result['http_status'] = status
+    count = value.get('bytes_observed')
+    if type(count) is int and 0 <= count <= MAX_JAR_BYTES + 1:
+        result['bytes_observed'] = count
+    for name in ('request_attempted', 'response_observed'):
+        if type(value.get(name)) is bool:
+            result[name] = value[name]
+    dispatched = value.get('request_dispatched', False)
+    if dispatched is None or type(dispatched) is bool:
+        result['request_dispatched'] = dispatched
+    for name in _DIAGNOSTIC_FLAGS:
+        if type(value.get(name)) is bool:
+            result[name] = value[name]
+    # Reject inconsistent claims rather than deriving information from text.
+    if not result['request_attempted']:
+        result['request_dispatched'] = False
+        result['response_observed'] = False
+    if result['request_dispatched'] is not True:
+        result['response_observed'] = False
+    if not result['response_observed']:
+        result['http_status'] = None
+        result['bytes_observed'] = 0
+        for name in ('media_valid', 'encoding_valid', 'size_valid'):
+            result[name] = None
+        if result['version_valid'] is True:
+            result['version_valid'] = None
+    return result
+
+
 class ThetaTerminalError(ValueError):
-    """A bounded safe diagnostic, never containing credentials or source text."""
+    """A fixed public message with optional allowlisted machine diagnostics."""
+    def __init__(self, message, *, diagnostic=None):
+        super().__init__(message)
+        self._diagnostic = safe_diagnostic(diagnostic)
+
+    @property
+    def diagnostic(self):
+        return safe_diagnostic(self._diagnostic)
 
 
 class ThetaTerminalUnavailable(ThetaTerminalError):
     """Preparation is unavailable; no retry or target execution is performed."""
+
+
+def diagnostic_from_error(error):
+    """Do not invoke properties or formatting on unknown exception objects."""
+    if type(error) in (ThetaTerminalError, ThetaTerminalUnavailable):
+        attributes = error.__dict__
+        return safe_diagnostic(attributes.get('_diagnostic') if type(attributes) is dict else None)
+    return safe_diagnostic()
 
 
 def canonical(value):
@@ -230,84 +300,134 @@ class ThetaBootstrapClient:
         self._key = None
 
     def _http(self, operation, *, version=None):
+        diagnostic = safe_diagnostic({'operation': operation, 'stage': 'policy'})
         if operation == 'version' and version is None:
             route = '/bootstrap/current/' + quote(self._key or '', safe='')
             maximum = 128
             accepted = {'text/plain', 'application/octet-stream'}
         elif operation == 'application':
-            route = '/bootstrap/jars/' + _version(version)
+            try:
+                version = _version(version)
+            except ThetaTerminalError:
+                diagnostic.update(stage='version_decode', version_valid=False)
+                raise ThetaTerminalError('Vendor version must use eight to twelve ASCII digits; other path characters are refused.', diagnostic=diagnostic) from None
+            route = '/bootstrap/jars/' + version
             maximum = MAX_JAR_BYTES
             accepted = {'application/java-archive', 'application/octet-stream', 'application/zip', 'application/x-java-archive'}
         else:
-            raise ThetaTerminalError('Only fixed Theta version and application-download operations exist.')
+            raise ThetaTerminalError('Only fixed Theta version and application-download operations exist.', diagnostic=diagnostic)
         if (not self._online or os.environ.get('ARIADNE_OFFLINE') != '0'
                 or install_network_policy()['mode'] != 'online'):
-            raise ThetaTerminalUnavailable('Theta preparation requires explicit online mode and enabled process policy.')
+            raise ThetaTerminalUnavailable('Theta preparation requires explicit online mode and enabled process policy.', diagnostic=diagnostic)
         if self._key is None:
-            raise ThetaTerminalUnavailable('The private Theta preparation client is closed.')
+            raise ThetaTerminalUnavailable('The private Theta preparation client is closed.', diagnostic=diagnostic)
         if self._deadline is None:
             self._deadline = time.monotonic() + MAX_COLLECTION_SECONDS
         if time.monotonic() >= self._deadline:
-            raise ThetaTerminalUnavailable('Theta preparation deadline expired without retry.')
+            diagnostic['stage'] = 'deadline'
+            raise ThetaTerminalUnavailable('Theta preparation deadline expired without retry.', diagnostic=diagnostic)
         connection = response = None
         try:
+            diagnostic['stage'] = 'connect'
             connection = http.client.HTTPSConnection(HOST, port=443, timeout=min(10, self._deadline-time.monotonic()),
                                                       context=ssl.create_default_context())
             connection.set_debuglevel(0)
+            diagnostic.update(stage='dispatch', request_attempted=True, request_dispatched=None)
             connection.request('GET', route, headers={'Accept': ', '.join(sorted(accepted)),
                 'Accept-Encoding': 'identity', 'Connection': 'close', 'User-Agent': 'Ariadne-Theta-Preparation/1'})
+            diagnostic['request_dispatched'] = True
             if time.monotonic() >= self._deadline:
-                raise ThetaTerminalUnavailable('Theta preparation deadline expired without retry.')
+                diagnostic['stage'] = 'deadline'
+                raise ThetaTerminalUnavailable('Theta preparation deadline expired without retry.', diagnostic=diagnostic)
             if connection.sock is not None:
                 connection.sock.settimeout(min(10, self._deadline-time.monotonic()))
+            diagnostic['stage'] = 'response'
             response = connection.getresponse()
-            if response.status != 200:
-                raise ThetaTerminalUnavailable('Theta preparation request failed; verify access privately. No retry was attempted.')
-            media = response.getheader('Content-Type', '').split(';', 1)[0].strip().lower()
-            encoding = response.getheader('Content-Encoding', 'identity').strip().lower()
+            diagnostic.update(stage='http_status', response_observed=True)
+            status = response.status
+            if type(status) is int and 100 <= status <= 599:
+                diagnostic['http_status'] = status
+            if type(status) is not int or status != 200:
+                raise ThetaTerminalUnavailable('Theta preparation request failed; verify access privately. No retry was attempted.', diagnostic=diagnostic)
+            diagnostic['stage'] = 'content_policy'
+            raw_media = response.getheader('Content-Type', '')
+            raw_encoding = response.getheader('Content-Encoding', 'identity')
             length = response.getheader('Content-Length')
-            if media not in accepted or encoding not in ('', 'identity'):
-                raise ThetaTerminalUnavailable('Theta preparation returned unsupported content.')
-            if length is not None and (not length.isdigit() or int(length) > maximum):
-                raise ThetaTerminalUnavailable('Theta preparation content exceeds its bound.')
+            media = raw_media.split(';', 1)[0].strip().lower() if type(raw_media) is str and len(raw_media) <= 512 else None
+            encoding = raw_encoding.strip().lower() if type(raw_encoding) is str and len(raw_encoding) <= 64 else None
+            diagnostic['media_valid'] = media in accepted
+            diagnostic['encoding_valid'] = encoding in ('', 'identity')
+            if not diagnostic['media_valid'] or not diagnostic['encoding_valid']:
+                raise ThetaTerminalUnavailable('Theta preparation returned unsupported content.', diagnostic=diagnostic)
+            diagnostic['stage'] = 'size'
+            declared_size_valid = length is None or (type(length) is str
+                and re.fullmatch(r'[0-9]{1,20}', length) is not None and int(length) <= maximum)
+            if not declared_size_valid:
+                diagnostic['size_valid'] = False
+                raise ThetaTerminalUnavailable('Theta preparation content exceeds its bound.', diagnostic=diagnostic)
             raw = bytearray()
+            diagnostic['stage'] = 'body'
             while True:
                 remaining = self._deadline-time.monotonic()
                 if remaining <= 0:
-                    raise ThetaTerminalUnavailable('Theta preparation deadline expired without retry.')
+                    diagnostic['stage'] = 'deadline'
+                    raise ThetaTerminalUnavailable('Theta preparation deadline expired without retry.', diagnostic=diagnostic)
                 if connection.sock is not None:
                     connection.sock.settimeout(min(10, remaining))
                 block = response.read1(min(65536, maximum+1-len(raw)))
                 if not block: break
                 raw.extend(block)
+                diagnostic['bytes_observed'] = min(len(raw), MAX_JAR_BYTES+1)
                 if len(raw) > maximum:
-                    raise ThetaTerminalUnavailable('Theta preparation content exceeds its bound.')
+                    diagnostic.update(stage='size', size_valid=False)
+                    raise ThetaTerminalUnavailable('Theta preparation content exceeds its bound.', diagnostic=diagnostic)
+            if length is not None and len(raw) != int(length):
+                diagnostic.update(stage='size', size_valid=False)
+                raise ThetaTerminalUnavailable('Theta preparation content exceeds its bound.', diagnostic=diagnostic)
+            diagnostic['size_valid'] = True
             received = datetime.now(timezone.utc).isoformat()
             if self._key.encode('ascii') in raw:
-                raise ThetaTerminalUnavailable('Vendor response unexpectedly contains private credential material; it was not saved.')
-            return {'payload': bytes(raw), 'received_at': received}
+                diagnostic['stage'] = 'credential_reflection'
+                raise ThetaTerminalUnavailable('Vendor response unexpectedly contains private credential material; it was not saved.', diagnostic=diagnostic)
+            return {'payload': bytes(raw), 'received_at': received, 'diagnostic': safe_diagnostic(diagnostic)}
         except ThetaTerminalError:
             raise
+        except ssl.SSLError:
+            diagnostic['stage'] = 'tls'
+            raise ThetaTerminalUnavailable('Theta preparation transport failed without retry. No private diagnostic was emitted.', diagnostic=diagnostic) from None
         except (OSError, ValueError, http.client.HTTPException, OverflowError):
-            raise ThetaTerminalUnavailable('Theta preparation transport failed without retry. No private diagnostic was emitted.') from None
+            raise ThetaTerminalUnavailable('Theta preparation transport failed without retry. No private diagnostic was emitted.', diagnostic=diagnostic) from None
         finally:
-            if response is not None: response.close()
-            if connection is not None: connection.close()
+            # Cleanup must not replace the fixed failure with vendor/socket text.
+            for item in (response, connection):
+                if item is not None:
+                    try: item.close()
+                    except Exception: pass
 
     def version(self):
         result = self._http('version')
+        diagnostic = safe_diagnostic(result.get('diagnostic'))
+        diagnostic['stage'] = 'version_decode'
         try:
             version = _version(result['payload'].decode('ascii').strip())
         except (ValueError, UnicodeError):
-            raise ThetaTerminalUnavailable('Vendor version response does not match its documented bounded form.') from None
-        return {'version': version, 'received_at': result['received_at']}
+            diagnostic['version_valid'] = False
+            raise ThetaTerminalUnavailable('Vendor version response does not match its documented bounded form.', diagnostic=diagnostic) from None
+        diagnostic['version_valid'] = True
+        return {'version': version, 'received_at': result['received_at'], 'diagnostic': diagnostic}
 
     def application(self, version):
-        result = self._http('application', version=_version(version))
-        evidence = inspect_jar(result['payload'])
+        result = self._http('application', version=version)
+        diagnostic = safe_diagnostic(result.get('diagnostic'))
+        diagnostic['stage'] = 'artifact_inspection'
+        try:
+            evidence = inspect_jar(result['payload'])
+        except ThetaTerminalError:
+            raise ThetaTerminalError('Downloaded JAR is malformed, unsafe to inspect or lacks a bounded executable manifest.', diagnostic=diagnostic) from None
         if self._key.encode('ascii') in canonical(evidence):
-            raise ThetaTerminalUnavailable('Decoded application metadata unexpectedly contains private credential material; it was not saved.')
-        return {**result, 'evidence': evidence, 'sha256': hashlib.sha256(result['payload']).hexdigest()}
+            diagnostic['stage'] = 'credential_reflection'
+            raise ThetaTerminalUnavailable('Decoded application metadata unexpectedly contains private credential material; it was not saved.', diagnostic=diagnostic)
+        return {**result, 'diagnostic': diagnostic, 'evidence': evidence, 'sha256': hashlib.sha256(result['payload']).hexdigest()}
 
 
 def _pinned(root, path, expected, maximum):
@@ -375,23 +495,35 @@ def prepare(root, data, *, check, client_factory=None):
         with root._directory(library):
             publish_bytes(library/'preparation-started.json',canonical({'schema':1,'source_id':SOURCE_ID,
                 'status':'started','started_at':started,'application_launched':False,'paper_fills':0,'funding_added':'0'}))
+    phase = 'owner_policy'
+    operation = None
     try:
         if check() != policy:
-            raise ThetaTerminalUnavailable('Owner Internet or pause permission changed before preparation.')
+            raise ThetaTerminalUnavailable('Owner Internet or pause permission changed before preparation.', diagnostic={'stage': phase})
+        phase = 'local'
         client = factory(key,online=True)
+        operation = 'version'
         metadata = client.version()
+        phase = 'version_decode'
         version = _version(metadata['version'])
+        phase = 'owner_policy'
         if check() != policy:
-            raise ThetaTerminalUnavailable('Owner Internet or pause permission changed after metadata.')
+            raise ThetaTerminalUnavailable('Owner Internet or pause permission changed after metadata.', diagnostic={'stage': phase})
+        phase = 'local'
+        operation = 'application'
         result = client.application(version)
+        phase = 'owner_policy'
         if check() != policy:
-            raise ThetaTerminalUnavailable('Owner Internet or pause permission changed during preparation.')
+            raise ThetaTerminalUnavailable('Owner Internet or pause permission changed during preparation.', diagnostic={'stage': phase})
+        phase = 'artifact_inspection'
         payload = result['payload'];inspection = inspect_jar(payload)
         if key.encode('ascii') in canonical(inspection) or key.encode('ascii') in payload:
             raise ThetaTerminalError('Application evidence unexpectedly contains private credential material; it was not saved.')
         digest = hashlib.sha256(payload).hexdigest()
         if result.get('sha256') != digest or result.get('evidence') != inspection:
             raise ThetaTerminalError('Downloaded artifact evidence failed its actual-byte binding.')
+        phase = 'local'
+        operation = None
         artifact_path = LIBRARY_PATH+'/'+version+'.jar'
         manifest = {'schema':1,'kind':SOURCE_ID,'status':'prepared_for_static_review','version':version,
             'artifact':{'path':artifact_path,'bytes':len(payload),'sha256':digest,'inspection':inspection},
@@ -404,8 +536,10 @@ def prepare(root, data, *, check, client_factory=None):
             publish_bytes(root._path(artifact_path),payload)
             if _read(root,artifact_path,MAX_JAR_BYTES) != payload:
                 raise ThetaTerminalError('Application artifact readback failed.')
+        phase = 'owner_policy'
         if check() != policy:
-            raise ThetaTerminalUnavailable('Owner permission changed before manifest publication.')
+            raise ThetaTerminalUnavailable('Owner permission changed before manifest publication.', diagnostic={'stage': phase})
+        phase = 'local'
         with root._directory(manifest_path.parent):
             publish_bytes(manifest_path,canonical(manifest))
             if _read(root,APPLICATION_PATH,32768) != canonical(manifest):
@@ -415,11 +549,15 @@ def prepare(root, data, *, check, client_factory=None):
             'network_requests':2,'application_launched':False,'execution_allowed':False,
             'paper_fills':0,'funding_added':'0','automatic_topups':False,
             'publisher_checksum_independently_verified':False}
-    except Exception:
+    except Exception as error:
+        diagnostic = diagnostic_from_error(error)
+        if diagnostic['stage'] == 'local' and diagnostic['operation'] is None:
+            diagnostic = safe_diagnostic({'stage': phase, 'operation': operation})
         try:
             with root._directory(library):
                 publish_bytes(library/'preparation-failed.json',canonical({'schema':1,'status':'failed',
                     'note':'Preparation did not publish a qualified application manifest. Inspect local evidence before any new attempt.',
+                    'diagnostic': diagnostic,
                     'application_launched':False,'paper_fills':0,'funding_added':'0'}))
         except (OSError, ValueError):
             pass

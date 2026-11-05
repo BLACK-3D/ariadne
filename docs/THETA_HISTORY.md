@@ -47,6 +47,12 @@ On this installation, portable Temurin 21.0.13+9 was checksum-verified from its 
 
 Portable Java lives under `runtime/java21`; the JAR/application/log/temp paths belong inside the project. No global Java, PATH, registry, service, microphone or startup setting is changed by preparation. Actual vendor application confinement remains a separate review before launch.
 
+### If preparation stops
+
+A saved DPAPI container proves local storage, not a valid provider login or data entitlement. A failed preparation remains held; do not delete its directory, repeat the command, rotate the key, or switch authentication paths automatically. Inspect the retained receipts and obtain an explicit new continuation before another authenticated attempt.
+
+New failure receipts include bounded numeric HTTP status and fixed diagnostic categories when those observations are available. They distinguish an attempted request, a returned response, content validation and local preparation failures without retaining a private URL, response body, header values or exception text. A reserved request is not proof that dispatch completed. Older generic receipts remain unchanged and cannot retrospectively establish a rejection or its cause.
+
 ## Define the historical request before collection
 
 Create a workspace-relative `data/workspace/imports/theta-history-request.json`. The schema has exactly `schema`, `start_date`, `end_date` and `requests`. Each request is exactly `{kind:"stock",symbol:...}` or `{kind:"option",contract_id:...}`. Include the matching stock for each explicit option. At most four stock roots and sixty-four requests are supported; no universe/expiry/strike wildcard or outcome-based discovery is performed.
