@@ -4,6 +4,12 @@ Checked November 3, 2026 against primary vendor/exchange documentation. This is 
 
 **No checked source qualifies for all current requirements:** free, no account, permitted automated access, actual US stock/ETF option bid/ask and displayed sizes, and usable causal timestamps no more than five seconds old. This bounded finding is not a claim that a qualifying source can never exist. The matching machine-readable assessment is [options-feed-readiness-2026-11-03.json](../ariadne/resources/market/options-feed-readiness-2026-11-03.json); `qualified_source_ids` is empty.
 
+## November 5: phone-free signup candidates
+
+The November 3 assessment below retains its original **free, no-account** scope. The owner has since requested the cheapest usable account-bearing feed that avoids phone disclosure. The [November 5 comparison](../ariadne/resources/market/phone-free-options-2026-11-05.json) distinguishes initial signup evidence from unverified paid entitlement. No provider is yet qualified end-to-end as phone-free or live.
+
+ThetaData advertises $40/month for options snapshots, plus $80/month for its own real-time stock plan. Alpaca advertises a $99/month combined OPRA/SIP plan and documents email-only paper signup. Current source prepares [ThetaData local-terminal qualification](THETA_PAPER_DATA.md) and [Alpaca capture and paper-account-bound qualification](ALPACA_PAPER_DATA.md); neither performs ledger fills or migration. A lower-cost mixed-provider route remains unqualified. Never substitute free indicative or delayed quotes to force an entry.
+
 ## What the connection needs
 
 The [strict book gate](OPTIONS_LIQUIDITY.md) requires actual quote-event and receipt clocks, a matching contract identity and standard deliverable evidence, actual sides and sizes, and the dated stock/contract activity used for entry admission. Volume or open interest alone cannot establish available size. A website timestamp can describe page refresh, retrieval, last trade or a batch snapshot; it cannot silently become the BBO event clock.

@@ -62,6 +62,8 @@ The [Threadline interface](docs/INTERFACE.md) brings observed system state, a di
 - [Document inbox, cited intake review and cross-client next actions](docs/CLIENT_INBOX.md)
 - [Options book review and liquidity checks](docs/OPTIONS_LIQUIDITY.md)
 - [Public account/API setup and local options paper trading](docs/PUBLIC_PAPER_TRADING.md)
+- [ThetaData setup, Free-plan limits and local quote qualification](docs/THETA_PAPER_DATA.md)
+- [Alternative Alpaca quote qualification](docs/ALPACA_PAPER_DATA.md)
 - [Voice controls](docs/VOICE_CONVERSATION.md)
 - [Architecture](docs/ARCHITECTURE.md) · [Project direction](docs/PROJECT_DIRECTION.md)
 - [MIT license for original source](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)
@@ -73,6 +75,12 @@ Current application source: **0.37.0**. Starter packaging prepares the core; it 
 Current source adds a [Public market-data connection and setup guide](docs/PUBLIC_PAPER_TRADING.md). Create your own eligible Public account, generate a secret in its API settings, then use the local hidden-input setup command. Windows protects the saved credential with CurrentUser DPAPI; secrets and captured data stay outside public source exports. The connection restricts its own endpoints to authentication, explicit account discovery and market data, and provides no real-order interface. This software restriction does not turn a broadly capable Public secret into a broker-enforced read-only key.
 
 Paper trading uses the existing shared **$25,000 total bankroll with no automatic top-ups**, explicit reviewed migration, dated liquidity checks and durable cash/inventory/depth controls. Setup does not migrate an account, clear owner holds, activate recurrence or start real trading. Missing Public evidence still blocks a fill. Authentication, entitlement and actual quote freshness require owner setup and a qualified capture; offline tests cannot certify them. This source addition is not included in the last packaged 0.37.0 starter. Read the guide for current account fees, personal-use restrictions, commands and offline limits.
+### Inspect an alternative options feed without a brokerage connection
+
+Current source prepares [ThetaData local-terminal qualification](docs/THETA_PAPER_DATA.md) and an alternative [Alpaca OPRA/SIP connection](docs/ALPACA_PAPER_DATA.md), using the existing five-second liquidity gate. ThetaData advertises $40/month for real-time options; its Free plan is historical EOD and its own live-stock add-on raises the package to $120/month. Alpaca advertises a $99/month combined OPRA/SIP plan. Initial phone-free signup does not prove paid-access requirements; actual entitlement and live data remain unverified. No subscription is purchased by setup.
+
+This addition captures data and checks admission against the existing paper account; it does **not** execute paper fills, migrate the account, add funding or enable unattended polling. The free indicative options feed is refused. Missing credentials, fresh event clocks, liquidity metadata or compatible account permissions remain explicit blockers. The last downloadable starter predates this source addition.
+
 ### From a saved intake to a delivery project
 
 In **Service desk**, open a saved intake and choose **Plan delivery project**, or open **Project Kits** from the system directory. Inspect the complete admitted source snapshot and its limitations, then explicitly prepare an immutable local pack. Review its exact workflow instructions and checks before adopting it into Workroom. Adoption saves a plan and two local-only workflows; source review and starting a bounded cycle are separate owner actions.

@@ -1,0 +1,70 @@
+{
+  "schema": 1,
+  "checked_client_date": "2026-11-05",
+  "scope": "Primary-documentation comparison; no account created, subscription bought or live authenticated quote captured.",
+  "qualified_source_ids": [],
+  "current_capital": {
+    "bankroll": "25000",
+    "automatic_topups": false,
+    "funding_added": "0",
+    "paper_only": true
+  },
+  "providers": [
+    {
+      "id": "theta",
+      "options_monthly_usd": "40",
+      "own_realtime_stock_addon_monthly_usd": "80",
+      "own_combined_monthly_usd": "120",
+      "initial_signup_phone": "No phone field in public signup form and served form module",
+      "paid_entitlement_phone": "unverified",
+      "quote_clock": "One NBBO-message timestamp; not independent side-event timestamps",
+      "qualification": "candidate_only",
+      "urls": [
+        "https://www.thetadata.net/pricing",
+        "https://www.thetadata.net/signup",
+        "https://thetadata.net/docs/operations/option_snapshot_quote.html",
+        "https://thetadata.net/docs/Articles/Getting-Started/Subscriptions.html"
+      ]
+    },
+    {
+      "id": "alpaca",
+      "combined_monthly_usd": "99",
+      "plan": "AlgoTrader Plus; real OPRA options and consolidated SIP stock data",
+      "initial_signup_phone": "Official paper-only documentation describes email-only registration; no brokerage account opening is required for paper signup",
+      "paid_entitlement_phone": "unverified; stop if a phone field is required",
+      "quote_clock": "One RFC3339 nanosecond NBBO-message timestamp, actual prices and sizes; no separate side clocks",
+      "free_feed": "Modified indicative options; not admissible as actual OPRA quotes",
+      "qualification": "prepared_not_activated",
+      "urls": [
+        "https://docs.alpaca.markets/us/docs/about-market-data-api",
+        "https://docs.alpaca.markets/us/docs/paper-trading",
+        "https://app.alpaca.markets/signup",
+        "https://docs.alpaca.markets/us/reference/optionlatestquotes",
+        "https://docs.alpaca.markets/us/docs/real-time-option-data",
+        "https://forum.alpaca.markets/t/paper-trading-options-pricing/17795"
+      ]
+    },
+    {
+      "id": "massive",
+      "realtime_options_monthly_usd": "199",
+      "stock_addon_included": false,
+      "initial_signup_phone": "unverified",
+      "paid_entitlement_phone": "unverified; published OPRA terms alone do not prove signup fields",
+      "qualification": "not_selected",
+      "urls": [
+        "https://www.massive.com/pricing?product=options",
+        "https://massive.com/legal/market-data-terms-of-service"
+      ]
+    },
+    {
+      "id": "marketdata",
+      "qualification": "excluded_phone_required",
+      "urls": [
+        "https://www.marketdata.app/docs/account/data-policies/account-verification/"
+      ]
+    }
+  ],
+  "decision": "Prepare ThetaData local-terminal capture for existing account owners, plus Alpaca as the lowest-priced documented single-provider OPRA/SIP package among these candidates. Theta is cheaper options-only; its Free plan is historical EOD. Neither paid phone-free onboarding nor live entitlement is verified.",
+  "cost_limits": "Published monthly retail prices before tax and any unverified subscriber charges; not an exhaustive market minimum or spending authorization. A mixed Theta/free-stock route could cost less but is unqualified.",
+  "integration": "Data capture and current-account-bound admission diagnostics only. No financial migration, automatic collection, durable execution or strategy promotion."
+}

@@ -496,6 +496,7 @@ class OptionsWorkflow(HandoffDesk):
         with self.database() as db:
             bankroll = self.bankroll.snapshot(db,clock,account,hold) if account and account["state"].get("schema") in (5,6) else None
             public_paper = self.public_paper.snapshot(db,account)
+        from .options_feed_qualification import readiness_view
         return {"schema": 1, "revision": revision, "config": cfg, "rule": RULE, "rule_sha256": RULE_SHA256,
                 "quality": quality, "data_sha256": data["sha256"] if data else None,
                 "forward_quality": eod.get("quality") if account and account["state"].get("schema") in (3,4,5,6,7) else forward["quality"] if forward else None,
@@ -508,6 +509,8 @@ class OptionsWorkflow(HandoffDesk):
                 "feed": feed,
                 "eod": eod,
                 "paper_readiness": readiness, "bankroll": bankroll, "public_paper":public_paper,
+                "data_feed_connection": readiness_view(),
+                "theta_feed_connection": readiness_view(source_id="theta_terminal_v3"),
                 "research": researched,
                 "vix": vix,
                 "scope": ("Simulated options only. One $25000 total bankroll including retained capital; no automatic topups. Shared monthly gross commitment ceiling25000, all-in entry min(1000,4%equity,cash,unused commitment), actual integer-contract sizes. Entire bankroll can be lost; this ceiling is not a drawdown stop. Missing exits hold the ledger. No real orders or proven profitability."

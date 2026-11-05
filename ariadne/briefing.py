@@ -759,6 +759,8 @@ class BriefingService:
                 lines.append("- Recorded paper event: "+_md(json.dumps(event, ensure_ascii=False)))
             lines += ["- Historical backtests are research, not evidence of future profit. Cash distributions use modeled ex-date credit, not actual payment dates."]
         options = report.get("options_paper", {})
+        from .alpaca_brief import markdown as alpaca_markdown
+        lines.extend(alpaca_markdown(options))
         from .options_public_brief import view as public_view, markdown as public_markdown
         if public_view(options) and options.get("config", {}).get("enabled"):
             lines.extend(public_markdown(options))
