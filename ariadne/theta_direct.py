@@ -58,12 +58,25 @@ _CODES = frozenset(('invalid_input', 'invalid_assets', 'offline', 'closed',
     'authentication_transport', 'authentication_tls_setup',
     'authentication_media', 'authentication_encoding', 'authentication_length',
     'authentication_json', 'authentication_session', 'authentication_user',
-    'authentication_email', 'authentication_assignment', 'rpc_refused', 'rpc_transport', 'invalid_response',
+    'authentication_email', 'authentication_assignment', 'capture_internal', 'rpc_refused', 'rpc_transport', 'invalid_response',
     'response_limit', 'secret_reflection', 'publication_limit', 'native_unavailable'))
 _AUTH_VALIDATION_CODES = frozenset(('authentication_shape','authentication_media',
     'authentication_encoding','authentication_length','authentication_json',
     'authentication_session','authentication_user','authentication_email','authentication_assignment'))
 _PARTIAL_OWNER = object()
+_CAPTURE_STAGES = frozenset(('native_setup','authentication_reservation','authentication',
+    'eod_reservation','eod_stream','message_decode','row_validation','evidence_commit',
+    'coverage_finalize','serialization','publication_guard','owner_check'))
+_EXCEPTION_CATEGORIES = frozenset(('direct_error','type','value','key','index','attribute',
+    'overflow','memory','filesystem','timeout','database','other'))
+_EXCEPTION_TYPES = ((TypeError,'type'),(ValueError,'value'),(KeyError,'key'),
+    (IndexError,'index'),(AttributeError,'attribute'),(OverflowError,'overflow'),
+    (MemoryError,'memory'),(TimeoutError,'timeout'),(OSError,'filesystem'),
+    (FileNotFoundError,'filesystem'),(PermissionError,'filesystem'),
+    (IsADirectoryError,'filesystem'),(NotADirectoryError,'filesystem'),
+    (BlockingIOError,'filesystem'))
+_SQLITE_EXCEPTION_NAMES = ('Error','DatabaseError','OperationalError','IntegrityError',
+    'InternalError','ProgrammingError','NotSupportedError','DataError','InterfaceError')
 _ROUTING_HOST_KEYS = frozenset(('host','server','mddshost','mddsserver'))
 _ROUTING_PORT_KEYS = frozenset(('port','mddsport'))
 # Finite exact aliases, not a substring match over arbitrary account fields.
@@ -80,11 +93,13 @@ _RPC_CODES = frozenset(('OK', 'CANCELLED', 'UNKNOWN', 'INVALID_ARGUMENT',
 class DirectError(ValueError):
     """Fixed diagnostics only; partial_capture never contains authentication."""
     def __init__(self, code='invalid_response', *, http_status=None, rpc_status=None,
-                 partial_capture=None):
+                 partial_capture=None, capture_stage=None, exception_category=None):
         self.code = code if type(code) is str and code in _CODES else 'invalid_response'
         self.http_status = http_status if type(http_status) is int and 100 <= http_status <= 599 else None
         self.rpc_status = rpc_status if type(rpc_status) is str and rpc_status in _RPC_CODES else None
         self.partial_capture = partial_capture
+        self.capture_stage = capture_stage if type(capture_stage) is str and capture_stage in _CAPTURE_STAGES else None
+        self.exception_category = exception_category if type(exception_category) is str and exception_category in _EXCEPTION_CATEGORIES else None
         self._partial_owner = None
         super().__init__('Theta direct research stopped: ' + self.code + '. No retry was attempted.')
 
@@ -96,6 +111,24 @@ def _error_state(error):
     except Exception:return None
     if type(state) is not dict or any(type(key) is not str for key in state):return None
     return state
+
+
+
+def _exception_category(error):
+    """Exact known types only: no dynamic class names, hooks or exception text."""
+    kind = type(error)
+    if kind is DirectError:return 'direct_error'
+    for expected,category in _EXCEPTION_TYPES:
+        if kind is expected:return category
+    # Owner checks already use stdlib sqlite3. Inspect an existing module's
+    # exact plain dictionary rather than importing any native dependency here.
+    database = sys.modules.get('sqlite3')
+    if type(database) is types.ModuleType:
+        state = object.__getattribute__(database,'__dict__')
+        if type(state) is dict and all(type(key) is str for key in state):
+            for name in _SQLITE_EXCEPTION_NAMES:
+                if kind is state.get(name):return 'database'
+    return 'other'
 
 
 def _market_prefix_available(state):
@@ -114,12 +147,16 @@ def diagnostic_from_error(error):
     state = _error_state(error)
     if state is None:
         return {'code':'policy_stopped','http_status':None,'rpc_status':None,
-            'retry_attempted':False,'partial_market_evidence_available':False}
+            'retry_attempted':False,'partial_market_evidence_available':False,
+            'capture_stage':None,'exception_category':None}
     code,http_status,rpc_status = (state.get(key) for key in ('code','http_status','rpc_status'))
+    stage,category = state.get('capture_stage'),state.get('exception_category')
     return {'code':code if type(code) is str and code in _CODES else 'invalid_response',
         'http_status':http_status if type(http_status) is int and 100 <= http_status <= 599 else None,
         'rpc_status':rpc_status if type(rpc_status) is str and rpc_status in _RPC_CODES else None,
-        'retry_attempted':False,'partial_market_evidence_available':_market_prefix_available(state)}
+        'retry_attempted':False,'partial_market_evidence_available':_market_prefix_available(state),
+        'capture_stage':stage if type(stage) is str and stage in _CAPTURE_STAGES else None,
+        'exception_category':category if type(category) is str and category in _EXCEPTION_CATEGORIES else None}
 
 
 def _require(condition, code='invalid_input'):
@@ -567,7 +604,8 @@ class _NativeTransport:
         except DirectError as error:
             if type(error) is not DirectError:raise DirectError('authentication_transport') from None
             details = diagnostic_from_error(error)
-            safe = DirectError(details['code'],http_status=details['http_status'],rpc_status=details['rpc_status'])
+            safe = DirectError(details['code'],http_status=details['http_status'],rpc_status=details['rpc_status'],
+                capture_stage=details['capture_stage'],exception_category=details['exception_category'])
             if observed_http_200 and safe.code in _AUTH_VALIDATION_CODES:safe.http_status = 200
             raise safe from None
         except http.client.IncompleteRead:
@@ -682,11 +720,19 @@ class DirectEODClient:
             'source_report_clock_basis':'Provider EOD report generation, documented17:15ET; not quote-event time.',
             'submillisecond_semantics':'Raw epoch_ms/nanos/zone/precision retained; no reconstructed epoch_ns.'}
         secrets = [api_key.encode('ascii')];native = self.transport is None
+        stage = 'native_setup'
+        def owner_error(error):
+            details = diagnostic_from_error(error)
+            code = details['code'] if type(error) is DirectError else 'policy_stopped'
+            return DirectError(code,http_status=details['http_status'],rpc_status=details['rpc_status'],
+                capture_stage='owner_check',exception_category=_exception_category(error))
         def guard():
             self._allowed();_require(time.monotonic() < deadline,'deadline')
             try:check()
-            except DirectError:raise
-            except Exception:raise DirectError('policy_stopped') from None
+            except Exception as error:raise owner_error(error) from None
+        def reserve(operation):
+            try:before_operation(operation)
+            except Exception as error:raise owner_error(error) from None
         def expire():
             self.expired = True
             if self.transport is not None:self.transport.close()
@@ -695,42 +741,55 @@ class DirectEODClient:
         try:
             guard()
             if native:self.transport = _NativeTransport()
-            guard();before_operation('authentication');result['operations']['authentication'] = 1
+            stage = 'authentication_reservation'
+            guard();reserve('authentication');result['operations']['authentication'] = 1
+            stage = 'authentication'
             session = self.transport.authenticate(api_key, deadline, guard)
             _require(type(session) is _Session, 'authentication_session')
             _require(_plain(session.token,512), 'authentication_session')
             _require(_plain(session.email,320), 'authentication_email')
             secrets.extend((session.token.encode('ascii'),session.email.encode('ascii')))
             guard();result['transport']['provider_authenticated'] = native
-            before_operation('eod_rpc');result['operations']['eod_rpc'] = 1
+            stage = 'eod_reservation'
+            reserve('eod_rpc');result['operations']['eod_rpc'] = 1
+            stage = 'eod_stream'
             for raw in self.transport.eod(session, selected, contract, deadline, guard):
                 guard();_require(len(result['responses']) < MAX_MESSAGES, 'response_limit')
                 _require(type(raw) is bytes and len(raw) <= MAX_RPC_BYTES-total_bytes, 'response_limit')
                 received = datetime.now(timezone.utc);received_ms = int((received-datetime(1970,1,1,tzinfo=timezone.utc))//timedelta(milliseconds=1))
+                stage = 'message_decode'
                 current, values, detail = _decode(raw, MAX_DECODED_BYTES-decoded_bytes, self.transport.decompress, secrets)
                 _require(headers is None or current == headers, 'invalid_response');headers = current
+                stage = 'row_validation'
                 admitted = [_row(value, selected, contract, received_ms) for value in values]
                 _require(len(result['rows'])+len(admitted) <= MAX_ROWS, 'response_limit')
                 for row in admitted:
                     day = row['report_day'];_require(day not in seen and (previous is None or day > previous), 'invalid_response')
                     seen.add(day);previous = day
+                stage = 'evidence_commit'
                 guard();total_bytes += len(raw);decoded_bytes += detail['decoded_bytes']
                 result['responses'].append({'received_at':received.isoformat(),'payload_base64':base64.b64encode(raw).decode('ascii'),
                     'sha256':hashlib.sha256(raw).hexdigest(),'bytes':len(raw),'rows':len(admitted),**detail})
                 result['rows'].extend(admitted)
-            guard();result['status'] = 'completed';result['completed_at'] = datetime.now(timezone.utc).isoformat()
+                stage = 'eod_stream'
+            guard();stage = 'coverage_finalize';result['status'] = 'completed';result['completed_at'] = datetime.now(timezone.utc).isoformat()
             result['missing_report_sessions'] = [d.isoformat() for d in session_dates(date.fromisoformat(selected['start_date']),date.fromisoformat(selected['end_date'])) if d.isoformat() not in seen]
             result['payload_bytes'],result['decoded_bytes'] = total_bytes,decoded_bytes
             result['empty_response'] = not result['rows']
+            stage = 'serialization'
             output = canonical(result);_require(len(output) <= MAX_CAPTURE_BYTES,'publication_limit');_scan(output,secrets)
+            stage = 'publication_guard'
             guard();return result
         except Exception as error:
             details = diagnostic_from_error(error)
-            safe = DirectError(details['code'],http_status=details['http_status'],rpc_status=details['rpc_status'])
+            code = details['code'] if type(error) is DirectError else 'capture_internal'
+            safe = DirectError(code,http_status=details['http_status'],rpc_status=details['rpc_status'],
+                capture_stage=details['capture_stage'] or stage,
+                exception_category=details['exception_category'] or _exception_category(error))
             result['status'] = 'failed';result['completed_at'] = datetime.now(timezone.utc).isoformat()
             result['failure_code'] = safe.code
             failure = DirectError(safe.code,http_status=safe.http_status,rpc_status=safe.rpc_status,
-                partial_capture=result)
+                partial_capture=result,capture_stage=safe.capture_stage,exception_category=safe.exception_category)
             failure._partial_owner = _PARTIAL_OWNER
             failure._admitted_market_rows = len(result['rows'])
             failure._admitted_market_responses = sum(item['rows'] > 0 for item in result['responses'])

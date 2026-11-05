@@ -119,7 +119,7 @@ def supervise(profile, *, root=ROOT):
         'protocol_amendment', 'protocol_amendment_sha256', 'python_sha256',
         'selection', 'allowed_symbols', 'research_window', 'registered_at', 'owner_policy_sha256'}
     if (type(profile) is not dict or set(profile) != fields
-            or type(profile['ordinal']) is not int or profile['ordinal'] not in (2, 3)):
+            or type(profile['ordinal']) is not int or profile['ordinal'] not in (2, 3, 4)):
         raise SupervisionError()
     box = _guard(root)
     for key in ('worker', 'binding', 'home', 'protocol_amendment'):

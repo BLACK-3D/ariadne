@@ -48,6 +48,27 @@ class Job:
         self.closed = True
 
 
+class TriggeredTimer:
+    """Fire on another thread while a tested operation is definitely blocked."""
+    latest = None
+    def __init__(self, interval, callback):
+        TriggeredTimer.latest = self
+        self.callback = callback
+        self.gate = threading.Event()
+        self.fired = threading.Event()
+        self.cancelled = threading.Event()
+        self.thread = threading.Thread(target=self._run,daemon=True)
+    def _run(self):
+        if self.gate.wait(2) and not self.cancelled.is_set():
+            self.callback()
+            self.fired.set()
+    def start(self):self.thread.start()
+    def cancel(self):self.cancelled.set();self.gate.set()
+    def join(self):self.thread.join(2)
+    @property
+    def ident(self):return self.thread.ident
+
+
 class DirectCLITests(unittest.TestCase):
     def setUp(self):
         parent = ROOT/'runtime/tmp'
@@ -163,10 +184,11 @@ class DirectCLITests(unittest.TestCase):
             nonlocal calls
             calls += 1
             if calls == 2:
-                threading.Event().wait(0.12)
+                TriggeredTimer.latest.gate.set()
+                self.assertTrue(TriggeredTimer.latest.fired.wait(2))
                 self.assertEqual(Job.latest.closed_handles,[1])
             original(box,values)
-        with patch.object(cli,'MAX_SECONDS',0.04),patch.object(cli,'_pins',blocked), \
+        with patch.object(cli.threading,'Timer',TriggeredTimer),patch.object(cli,'_pins',blocked), \
                 self.assertRaises(cli.SupervisionError):
             self.invoke()
         self.assertTrue(Job.latest.closed)
@@ -176,10 +198,11 @@ class DirectCLITests(unittest.TestCase):
     def test_independent_watchdog_expires_during_blocked_launch(self):
         original = Job.popen
         def blocked(job, command, **kwargs):
-            threading.Event().wait(0.12)
+            TriggeredTimer.latest.gate.set()
+            self.assertTrue(TriggeredTimer.latest.fired.wait(2))
             self.assertEqual(job.closed_handles,[1])
             return original(job,command,**kwargs)
-        with patch.object(cli,'MAX_SECONDS',0.04),patch.object(Job,'popen',blocked), \
+        with patch.object(cli.threading,'Timer',TriggeredTimer),patch.object(Job,'popen',blocked), \
                 self.assertRaises(cli.SupervisionError):
             self.invoke()
         self.assertTrue(Job.latest.closed)
@@ -209,6 +232,24 @@ class DirectCLITests(unittest.TestCase):
         with self.assertRaises(cli.SupervisionError):
             self.invoke()
         self.assertIsNone(Job.latest)
+
+    def test_additional_reviewed_ordinal_preserves_its_identity(self):
+        self.profile['ordinal'] = 4
+        result = self.invoke()
+        self.assertEqual(Job.latest.command[-2:], ['4','staging/test/binding.json'])
+        binding = json.loads((self.root/self.profile['binding']).read_bytes())
+        self.assertEqual(binding['ordinal'],4)
+        self.assertEqual(result['ordinal'],4)
+        self.assertFalse(result['automatic_retry'])
+        self.assertFalse(result['worker_evidence_verified'])
+
+    def test_unreviewed_ordinals_never_launch_a_worker(self):
+        for ordinal in (1,5,0,-1,True,'4'):
+            with self.subTest(ordinal=ordinal):
+                self.profile['ordinal'] = ordinal
+                with self.assertRaises(cli.SupervisionError):
+                    self.invoke()
+                self.assertIsNone(Job.latest)
 
     def test_paused_owner_prevents_launch(self):
         with closing(sqlite3.connect(self.root/'data/ariadne.sqlite3')) as db:

@@ -289,6 +289,121 @@ class DirectTests(unittest.TestCase):
         self.assertFalse(d.diagnostic_from_error(error)['partial_market_evidence_available'])
 
 
+    def test_owner_check_after_valid_prefix_has_fixed_stage_and_exact_safe_category(self):
+        import sqlite3
+        for exception,category in ((PermissionError(KEY),'filesystem'),(sqlite3.OperationalError(KEY),'database')):
+            transport=FakeTransport();transport.after_prefix=False
+            original=transport.eod
+            def stream(*args):
+                yield from original(*args)
+                transport.after_prefix=True
+            transport.eod=stream
+            def check():
+                if transport.after_prefix:raise exception
+            error=self.failure(transport,check=check)
+            diagnostic=d.diagnostic_from_error(error)
+            self.assertEqual(diagnostic['code'],'policy_stopped')
+            self.assertEqual(diagnostic['capture_stage'],'owner_check')
+            self.assertEqual(diagnostic['exception_category'],category)
+            self.assertTrue(diagnostic['partial_market_evidence_available'])
+            self.assertNotIn(KEY,str(diagnostic))
+
+    def test_unexpected_stream_error_after_valid_prefix_is_internal_not_policy(self):
+        error=self.failure(FakeTransport([packet()],failure=ValueError(KEY)))
+        diagnostic=d.diagnostic_from_error(error)
+        self.assertEqual(diagnostic['code'],'capture_internal')
+        self.assertEqual(diagnostic['capture_stage'],'eod_stream')
+        self.assertEqual(diagnostic['exception_category'],'value')
+        self.assertTrue(diagnostic['partial_market_evidence_available'])
+
+    def test_unexpected_decode_error_preserves_only_the_previous_admitted_frame(self):
+        original=d._decode;calls=[]
+        def decode(*args):
+            calls.append(1)
+            if len(calls)>1:raise TypeError(KEY)
+            return original(*args)
+        with patch.object(d,'_decode',side_effect=decode):
+            error=self.failure(FakeTransport([packet([values('2026-11-03')]),packet()]))
+        diagnostic=d.diagnostic_from_error(error)
+        self.assertEqual((diagnostic['code'],diagnostic['capture_stage'],diagnostic['exception_category']),
+            ('capture_internal','message_decode','type'))
+        self.assertEqual(len(error.partial_capture['responses']),1)
+        self.assertTrue(diagnostic['partial_market_evidence_available'])
+
+    def test_unexpected_row_error_has_fixed_row_stage_and_no_exception_text(self):
+        original=d._row;calls=[]
+        def row(*args):
+            calls.append(1)
+            if len(calls)>1:raise KeyError(KEY)
+            return original(*args)
+        with patch.object(d,'_row',side_effect=row):
+            error=self.failure(FakeTransport([packet([values('2026-11-03')]),packet()]))
+        diagnostic=d.diagnostic_from_error(error)
+        self.assertEqual((diagnostic['code'],diagnostic['capture_stage'],diagnostic['exception_category']),
+            ('capture_internal','row_validation','key'))
+        self.assertEqual(len(error.partial_capture['rows']),1);self.assertNotIn(KEY,str(diagnostic))
+
+    def test_unexpected_coverage_error_is_separate_from_policy_or_decoding(self):
+        transport=FakeTransport();original=d.session_dates
+        def sessions(*args):
+            if transport.rpc_calls:raise OverflowError(KEY)
+            return original(*args)
+        with patch.object(d,'session_dates',side_effect=sessions):error=self.failure(transport)
+        diagnostic=d.diagnostic_from_error(error)
+        self.assertEqual((diagnostic['code'],diagnostic['capture_stage'],diagnostic['exception_category']),
+            ('capture_internal','coverage_finalize','overflow'))
+        self.assertTrue(diagnostic['partial_market_evidence_available'])
+
+    def test_unexpected_final_serialization_error_reports_no_provider_or_traceback_data(self):
+        original=d.canonical
+        def canonical(value):
+            if type(value) is dict and value.get('kind')=='theta_direct_eod_capture':raise TypeError(KEY)
+            return original(value)
+        with patch.object(d,'canonical',side_effect=canonical):error=self.failure(FakeTransport())
+        diagnostic=d.diagnostic_from_error(error)
+        self.assertEqual((diagnostic['code'],diagnostic['capture_stage'],diagnostic['exception_category']),
+            ('capture_internal','serialization','type'))
+        self.assertTrue(diagnostic['partial_market_evidence_available']);self.assertNotIn(KEY,str(diagnostic))
+
+    def test_existing_direct_error_status_code_and_stages_are_preserved(self):
+        error=self.failure(FakeTransport([packet()],failure=d.DirectError('rpc_refused',http_status=200,rpc_status='UNAVAILABLE')))
+        diagnostic=d.diagnostic_from_error(error)
+        self.assertEqual(diagnostic['code'],'rpc_refused');self.assertEqual(diagnostic['http_status'],200)
+        self.assertEqual(diagnostic['rpc_status'],'UNAVAILABLE')
+        self.assertEqual(diagnostic['capture_stage'],'eod_stream');self.assertEqual(diagnostic['exception_category'],'direct_error')
+        malformed=self.failure(FakeTransport([packet()+field(99,b'unknown')]))
+        self.assertEqual(d.diagnostic_from_error(malformed)['code'],'invalid_response')
+        self.assertEqual(d.diagnostic_from_error(malformed)['capture_stage'],'message_decode')
+
+    def test_hostile_exception_hooks_are_never_used_to_classify_internal_failure(self):
+        class Hostile(Exception):
+            def __getattribute__(self,name):raise AssertionError(KEY)
+            def __str__(self):raise AssertionError(KEY)
+            def __repr__(self):raise AssertionError(KEY)
+        exception=BaseException.__new__(Hostile)
+        error=self.failure(FakeTransport([packet()],failure=exception))
+        diagnostic=d.diagnostic_from_error(error)
+        self.assertEqual(diagnostic['code'],'capture_internal')
+        self.assertEqual(diagnostic['exception_category'],'other')
+        self.assertEqual(diagnostic['capture_stage'],'eod_stream');self.assertNotIn(KEY,str(diagnostic))
+
+    def test_unapproved_or_hostile_diagnostic_field_values_are_not_echoed(self):
+        class HostileString(str):
+            def __hash__(self):raise AssertionError(KEY)
+            def __str__(self):raise AssertionError(KEY)
+        error=d.DirectError('invalid_response',capture_stage=[],exception_category={})
+        error.capture_stage=HostileString('serialization');error.exception_category=HostileString('type')
+        diagnostic=d.diagnostic_from_error(error)
+        self.assertIsNone(diagnostic['capture_stage']);self.assertIsNone(diagnostic['exception_category'])
+        class HostileDict(dict):
+            def get(self,*args,**kwargs):raise AssertionError(KEY)
+        error.__dict__=HostileDict(error.__dict__)
+        diagnostic=d.diagnostic_from_error(error)
+        self.assertIsNone(diagnostic['capture_stage']);self.assertIsNone(diagnostic['exception_category'])
+        self.assertFalse(diagnostic['partial_market_evidence_available'])
+
+
+
 class WireAndAssetsTests(unittest.TestCase):
     def test_authentication_opaque_token_no_guessed_subscription_or_uuid_enum(self):
         raw=json.dumps({'sessionId':TOKEN,'user':{'email':EMAIL,'optionsSubscription':{'unknown':'provider-shape'}}}).encode()

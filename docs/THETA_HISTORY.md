@@ -41,6 +41,10 @@ The reviewed supervisor places only its new worker in a Windows lifetime job, us
 
 A completed direct capture retains secret-free validated source-message bytes and hashes, exact integer price/scaling fields, raw timestamp milliseconds/nanoseconds/zone/precision, actual receipt clocks and explicit missing sessions. Unknown submillisecond interpretation remains unknown. It is a separate evidence schema from Terminal JSON captures; the Terminal importer below does not convert or authenticate it automatically. Failed prefixes remain failed research evidence and cannot be adopted as completed work or fills.
 
+Collection diagnostics distinguish a failed owner-check callback from an unexpected local processing failure. Fixed `capture_stage` and `exception_category` fields identify the operation without retaining exception text, arbitrary class names, tracebacks, credentials or query values. An internal processing failure is not evidence of a provider permission rejection. These diagnostics apply to future captures; they do not recover the origin of older generic receipts.
+
+A nonempty validated-prefix flag means some rows passed validation in memory before failure. It does not establish a completed file, full history, usable import or paper fill. When the caller discards failed prefixes, neither their payload nor coverage can be recovered from that flag. Preserve the failed reservation and require explicit new authority before another provider operation.
+
 ## Protect the API key locally
 
 Browser setup avoids a separate console input window. From the Ariadne project folder:
