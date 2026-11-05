@@ -139,7 +139,7 @@ class ThetaTerminalDiagnosticReview(unittest.TestCase):
                 self.assertEqual(value['stage'],'content_policy');self.assertEqual(response.reads,0)
 
     def test_version_decode_failure_is_distinct_from_http_rejection(self):
-        for raw in (b'"20261105"',b'not-an-assigned-version',b'\xff'):
+        for raw in (b'"20261105x"',b'not-an-assigned-version',b'\xff'):
             with self.subTest(byte_count=len(raw)):
                 value=self.error(Connection(Response(raw)))
                 self.assertEqual(value['http_status'],200);self.assertEqual(value['stage'],'version_decode')

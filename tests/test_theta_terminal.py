@@ -472,5 +472,60 @@ class ThetaTerminalTests(unittest.TestCase):
             self.assertEqual(diagnostic['http_status'],200);self.assertEqual(diagnostic['bytes_observed'],len(VERSION))
             self.assertIsNone(diagnostic['version_valid']);self.assertNotIn(KEY,json.dumps(diagnostic))
 
+    def test_metadata_negotiation_advertises_json_without_retrying_406(self):
+        os.environ['ARIADNE_OFFLINE']='0'
+        class JsonNegotiatingConnection(Connection):
+            def request(self,*args,**kwargs):
+                super().request(*args,**kwargs)
+                self.response.status=200 if 'application/json' in kwargs['headers']['Accept'].split(', ') else 406
+        response=Response(('"'+VERSION+'"').encode(),media='application/json')
+        connection=JsonNegotiatingConnection(response)
+        with patch.object(t,'install_network_policy',return_value={'mode':'online'}),patch.object(t.http.client,'HTTPSConnection',return_value=connection):
+            value=t.ThetaBootstrapClient(KEY,online=True).version()
+        self.assertEqual(value['version'],VERSION);self.assertEqual(len(connection.calls),1)
+        self.assertTrue(value['diagnostic']['media_valid']);self.assertTrue(value['diagnostic']['version_valid'])
+        self.assertNotIn(KEY,json.dumps(value))
+        response=Response(KEY.encode(),status=406,media='application/json');connection=Connection(response)
+        with patch.object(t,'install_network_policy',return_value={'mode':'online'}),patch.object(t.http.client,'HTTPSConnection',return_value=connection):
+            with self.assertRaises(t.ThetaTerminalUnavailable) as caught:t.ThetaBootstrapClient(KEY,online=True).version()
+        self.assertEqual(caught.exception.diagnostic['http_status'],406)
+        self.assertEqual(response.reads,0);self.assertEqual(len(connection.calls),1)
+
+    def test_metadata_accepts_plain_digits_and_literal_json_digit_strings_only(self):
+        os.environ['ARIADNE_OFFLINE']='0'
+        for version in ('20261105',VERSION,'202611050123'):
+            for raw,media in ((version.encode(),'text/plain'),(('"'+version+'"').encode(),'application/json')):
+                response=Response(raw,media=media);connection=Connection(response)
+                with patch.object(t,'install_network_policy',return_value={'mode':'online'}),patch.object(t.http.client,'HTTPSConnection',return_value=connection):
+                    value=t.ThetaBootstrapClient(KEY,online=True).version()
+                self.assertEqual(value['version'],version);self.assertTrue(value['diagnostic']['version_valid'])
+                self.assertEqual(value['diagnostic']['bytes_observed'],len(raw))
+        invalid=(b'{}',b'[]',b'true',b'false',b'null',b'20261105.0',b'2.0261105e7',
+            b'"20261105" "20261106"',b'"20261105" trailing',b'"2026110"',b'"2026110501234"',
+            b'"20261105',b'20261105"',b'"../20261105"',b'"2026/1105"',
+            b'"2026110\\u0035"',b'"20261105\\n"',b'{"version":"20261105"}',
+            '"２０２６１１０５"'.encode('utf-8'),b'"'+KEY.encode()+b'"')
+        for raw in invalid:
+            response=Response(raw,media='application/json');connection=Connection(response)
+            with patch.object(t,'install_network_policy',return_value={'mode':'online'}),patch.object(t.http.client,'HTTPSConnection',return_value=connection):
+                with self.assertRaises(t.ThetaTerminalUnavailable) as caught:t.ThetaBootstrapClient(KEY,online=True).version()
+            diagnostic=caught.exception.diagnostic
+            self.assertIn(diagnostic['stage'],('version_decode','credential_reflection'))
+            self.assertNotIn(KEY,json.dumps(diagnostic));self.assertNotIn(KEY,str(caught.exception))
+
+    def test_metadata_json_reflection_and_truncation_preserve_wire_evidence(self):
+        os.environ['ARIADNE_OFFLINE']='0'
+        cases=((b'"'+KEY.encode()+b'"',None,'credential_reflection'),
+            (b'"20261105"','11','size'),(b'"20261105','10','size'))
+        for raw,length,stage in cases:
+            headers={} if length is None else {'Content-Length':length}
+            response=Response(raw,media='application/json',headers=headers);connection=Connection(response)
+            with patch.object(t,'install_network_policy',return_value={'mode':'online'}),patch.object(t.http.client,'HTTPSConnection',return_value=connection):
+                with self.assertRaises(t.ThetaTerminalUnavailable) as caught:t.ThetaBootstrapClient(KEY,online=True).version()
+            diagnostic=caught.exception.diagnostic
+            self.assertEqual(diagnostic['stage'],stage);self.assertEqual(diagnostic['http_status'],200)
+            self.assertTrue(diagnostic['media_valid']);self.assertEqual(diagnostic['bytes_observed'],len(raw))
+            self.assertIsNone(diagnostic['version_valid']);self.assertNotIn(KEY,json.dumps(diagnostic))
+
 
 if __name__=='__main__':unittest.main()

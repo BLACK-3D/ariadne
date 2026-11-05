@@ -1,12 +1,29 @@
 # Theta Terminal: use the existing account without changing the paper bankroll
 
-This connection is a **data-only, diagnostic bridge**, not an installed Terminal or an activated paper strategy. This guide supports existing Theta FREE accounts. Ariadne does not sign in, upgrade an account, install software, launch a Terminal/JVM or request a phone number.
+The Terminal snapshot connection described here is a **data-only, diagnostic bridge**, not an activated paper strategy. A separate direct historical connection supports research without Java or a running Terminal. This guide supports existing Theta FREE accounts; neither path authorizes a subscription upgrade, account funding or trading.
 
 The existing shared **$25,000 total paper bankroll, no automatic top-ups**, remains unchanged. This connector has no ledger writer, broker order, account funding or policy-rebind operation. Older schema6/7 rules and receipts are retained exactly.
 
 ## Historical research first
 
 The separate [free-history workflow](THETA_HISTORY.md) adds bounded EOD capture and hash-checked offline imports. It does not apply the live five-second admission rule to historical research, create a performance result or change the paper ledger. Start there before considering a paid live feed.
+
+## Direct historical connection and local inspection
+
+Theta's [official Python getting-started guide](https://thetadata.net/docs/Python-Library/Getting-Started.html) supports direct HTTPS authentication and gRPC requests without Terminal. Ariadne implements a narrow historical-EOD client using reviewed official protocol definitions and pinned optional assets under `runtime/theta-direct`. The current optional native pack targets Windows x64 with CPython 3.13, reuses the existing protected key, and does not require the SDK's dataframe/discovery client.
+
+The local inspection CLI reads no credentials and makes no provider request:
+
+```powershell
+.\runtime\python\python.exe -I -B scripts\theta_direct.py status
+.\runtime\python\python.exe -I -B scripts\theta_direct.py preview --symbol F --start 2026-11-03 --end 2026-11-04
+```
+
+Replace the example dates with prior completed sessions in the actual last-twelve-month window. See [the direct-history guide](THETA_HISTORY.md#direct-history-access-without-terminal) for explicit option previews, runtime-pack checks, protected-key setup and the supervised acquisition contract. Missing optional assets require the reviewed matching pack; inspection does not install them.
+
+Direct authentication, account entitlement and returned twelve-month coverage require a **completed local qualification receipt on each installation**; the source and offline tests do not establish them. A reviewed worker must reserve against the existing global setup allowance before loading the protected key. Its single authentication and single EOD request do not renew that allowance or bypass a prior failure. The worker has a finite Windows job lifetime, source/asset pins and owner-permission checks; native gRPC is not confined by Python's offline socket hook. This historical route creates no quote-qualification result or paper fill.
+
+Free EOD is delayed research data. `created` records the provider's EOD report generation, described as 17:15 Eastern; `last_trade` is separate, and neither is an actual NBBO-event timestamp. Raw precision and missing evidence are retained. Such saved reports can support offline analysis, while the unchanged live liquidity gate still requires qualified fresh quotes and the other independent metadata.
 
 ## What the FREE account can establish
 

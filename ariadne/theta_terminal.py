@@ -304,7 +304,7 @@ class ThetaBootstrapClient:
         if operation == 'version' and version is None:
             route = '/bootstrap/current/' + quote(self._key or '', safe='')
             maximum = 128
-            accepted = {'text/plain', 'application/octet-stream'}
+            accepted = {'text/plain', 'application/octet-stream', 'application/json'}
         elif operation == 'application':
             try:
                 version = _version(version)
@@ -409,7 +409,12 @@ class ThetaBootstrapClient:
         diagnostic = safe_diagnostic(result.get('diagnostic'))
         diagnostic['stage'] = 'version_decode'
         try:
-            version = _version(result['payload'].decode('ascii').strip())
+            text = result['payload'].decode('ascii').strip()
+            # Some metadata handlers negotiate application/json. Accept only
+            # a literal quoted digit string: no general JSON coercion/escapes.
+            if re.fullmatch(r'"[0-9]{8,12}"', text):
+                text = text[1:-1]
+            version = _version(text)
         except (ValueError, UnicodeError):
             diagnostic['version_valid'] = False
             raise ThetaTerminalUnavailable('Vendor version response does not match its documented bounded form.', diagnostic=diagnostic) from None
