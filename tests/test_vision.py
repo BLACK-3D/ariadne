@@ -286,6 +286,22 @@ class VisionTests(unittest.TestCase):
 
 
 class DecoderBoundaryTests(unittest.TestCase):
+    def test_camera_monikers_cannot_add_audio_or_change_input_grammar(self):
+        from ariadne import _vision_worker as worker
+        valid = "@device_pnp_usb#vid_0000&pid_0001#camera"
+        class Inventory:
+            def __init__(self, identity):
+                self.stderr = io.BytesIO(('[dshow @ 0] "USB Camera" (video)\n[dshow @ 0] Alternative name "'+identity+'"\n').encode())
+            def wait(self, timeout=None): return 1
+            def poll(self): return 1
+            def kill(self): pass
+        for identity in (valid, valid+":audio=Other", valid+"=Other", valid+'"Other', valid+"'Other", valid+"\x7f"):
+            with self.subTest(identity=identity), mock.patch.object(worker.os,"name","nt"), mock.patch.object(worker,"_popen",return_value=Inventory(identity)):
+                if identity == valid:
+                    self.assertEqual(len(worker.camera_inventory("sealed-ffmpeg")),1)
+                else:
+                    with self.assertRaises(ValueError):worker.camera_inventory("sealed-ffmpeg")
+
     def test_container_headers_reject_playlist_even_with_video_extension(self):
         from ariadne._vision_worker import container_header
         for raw in (b"#EXTM3U\nhttp://host/file", b"ffconcat version 1.0", b"http://host/video", b"file:E:/secrets"):

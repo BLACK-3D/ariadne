@@ -104,7 +104,10 @@ def camera_inventory(executable):
                 identity = alternate.group(1)
                 # Alternative names are adapter-generated monikers, never URLs
                 # or arbitrary owner-supplied FFmpeg input expressions.
-                if any(ord(char) < 32 for char in identity):
+                # DirectShow's input grammar tokenizes ':' and '=' even in a
+                # single argv value. Reject those delimiters before admitting
+                # a moniker so metadata cannot request an audio input.
+                if any(ord(char) < 32 or ord(char) == 127 or char in ":=\"'" for char in identity):
                     raise ValueError("Camera has an invalid DirectShow alternative name.")
                 if not identity.startswith("@device_pnp_") or "usb#" not in identity.lower():
                     pending = None
