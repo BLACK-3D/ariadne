@@ -25,8 +25,10 @@ from ariadne import __version__
 SOURCE_DIRS = ("ariadne", "scripts", "tests")
 SOURCE_FILES = {"LICENSE", "README.md", "THIRD_PARTY_NOTICES.md", "pyproject.toml", "Dockerfile", "compose.yaml",
     "compose.provision.yaml", "Start Ariadne.cmd", "Stop Ariadne.cmd", "Backup Ariadne.cmd", "Setup Ariadne.cmd", "Check Ariadne.cmd", "Prepare Offline Copy.cmd", "START_HERE.html", "start.ps1", "start.sh", ".gitignore", ".dockerignore", ".gitattributes"}
+SOURCE_FILES.add("Enable Vision.cmd")
 CONFIG_FILES = {"engineering-assets.json", "knowledge-model-assets.json", "knowledge-wheels-manifest.json", "ocr-wheels-manifest.json",
     "production-assets.json", "production-blender-assets.json", "mcp.example.json", "connectors.example.json", "box-profiles.json", "public-models.json", "speech-assets.json", "repository-watchlist.json"}
+CONFIG_FILES.add("vision-assets.json")
 DOCS = {"ARCHITECTURE.md", "ANALYTICS_0_3.md", "OCR_0_3.md", "MCP_0_3.md", "KNOWLEDGE_0_4.md", "MEDIA_0_4.md", "PRODUCTION_0_4.md", "PORTABLE_0_4.md", "DELIVERY_0_4.md",
     "DIFFERENTIAL_REVIEW_0_4_SHARED.md", "REVIEW_0_4_EXTENSIONS.md", "REVIEW_PORTABLE_PYTHON_0_4.md", "SURVIVAL_0_5.md", "SURVIVAL-SOURCES.md", "WORKFLOWS_0_5.md", "AGENTS_0_6.md", "DAILY-BRIEFING.md", "WAKE_VOICE.md", "INTERNET.md", "COMMAND_CENTER_0_8.md", "OFFLINE_ROUTINES_0_9.md", "OFFLINE_AUTONOMY_0_10.md", "FAST_VOICE_0_11.md", "BUILD_FROM_SOURCE.md", "GITHUB_SOURCE.md"}
 DOCS.update({"SIGNAL_ROOM_0_12.md", "INDEPENDENT_HOST_0_12.md", "DAILY_SIGNAL_0_12.md"})
@@ -35,6 +37,7 @@ DOCS.add("REPOSITORY_WATCH_0_14.md")
 DOCS.update({"BUSINESS_OPS_0_15.md", "MARKET_RESEARCH_0_15.md", "LOCAL_CONTROLS_0_15.md", "OPERATIONS_0_15.md"})
 DOCS.update({"PORTABLE_0_16.md", "AUTONOMOUS_OPERATIONS_0_16.md"})
 DOCS.add("PERCEPTION_RECORDINGS.md")
+DOCS.add("VISION_LOCAL.md")
 EXAMPLE_FILES = {"business-erpnext-demo.json", "business-quote-demo.json", "market-demo.csv", "market-demo.json",
                  "control-connectors.json", "control-home-assistant.json", "control-states-demo.json"}
 RUNTIME_DIRS = ("runtime/python", "runtime/ollama", "runtime/whisper", "runtime/ocr/models", "runtime/ocr/wheels", "runtime/ocr/notices",
@@ -46,6 +49,7 @@ RUNTIME_DIRS = ("runtime/python", "runtime/ollama", "runtime/whisper", "runtime/
     "runtime/production/7zip", "runtime/production/lessmsi", "runtime/production/libreoffice", "runtime/production/freecad",
     "runtime/production/kicad", "runtime/production/qgis", "runtime/production/ffmpeg", "runtime/automation/python",
     "runtime/automation/wheels", "runtime/automation/node-red", "runtime/automation/browsers", "data/voice")
+RUNTIME_DIRS += ("runtime/vision/python", "runtime/vision/models", "runtime/vision/wheels", "runtime/vision/notices", "runtime/vision/ffmpeg", "runtime/vision/sources")
 EXCLUDED = ["All owner databases, pairing/API tokens, credentials, MCP/HTTP registrations and automation owner applications",
     "Missions, events, memories, imported documents, semantic indexes, schedules, source-folder registrations and workspace artifacts",
     "Backups, logs, screenshots, browser user profiles, private ERP configuration, caches, temporary files and the development virtualenv",
@@ -53,7 +57,7 @@ EXCLUDED = ["All owner databases, pairing/API tokens, credentials, MCP/HTTP regi
     "Unknown/custom model tags, unreferenced model blobs and unreviewed model metadata; only the pinned public-model catalog is exported",
     "Generated native extraction logs and local pip direct_url metadata from Ariadne-installed optional package environments"]
 OPTIONAL_PACKAGE_BINS = frozenset(prefix + "/bin" for prefix in ("runtime/knowledge/python", "runtime/media/python",
-    "runtime/media/flux-python", "runtime/media/piper-python", "runtime/production/python", "runtime/production/blender-python", "runtime/automation/python"))
+    "runtime/media/flux-python", "runtime/media/piper-python", "runtime/production/python", "runtime/production/blender-python", "runtime/automation/python", "runtime/vision/python"))
 PUBLIC_MODEL_TAGS = frozenset({"qwen3.5:9b", "qwen3:8b", "qwen3:4b"})
 SPEECH_CATALOG_SHA256 = "e73b1d43373b2916e167773fee99d9b69128213bfcf3d978a48b8a1cab146873"
 NOTICE_ASSETS = frozenset({"ollama/LICENSE", "whisper/LICENSE.whisper.cpp", "whisper/LICENSE.llama.cpp",
@@ -63,7 +67,8 @@ RUNTIME_MANIFESTS = {"runtime/media": {"wheel-manifest.json", "flux-wheel-manife
     "runtime/knowledge": {"kiwix-manifest.json", "layout-manifest.json", "model-manifest.json"},
     "runtime/ocr": {"wheels-manifest.json"},
     "runtime/production": {"installed.json", "wheels-lock.json", "blender-wheels-lock.json", "ffmpeg-source.json"},
-    "runtime/automation": {"node-lock.json", "playwright-lock.json"}}
+    "runtime/automation": {"node-lock.json", "playwright-lock.json"},
+    "runtime/vision": {"manifest.json"}}
 
 
 def _regular(path):
@@ -334,8 +339,14 @@ def inventory(root=ROOT):
     for approved, _ in (_public_model_files(root), _runtime_notice_files(root)):
         files.update(approved)
     for relative in SOURCE_DIRS + RUNTIME_DIRS:
+        if relative.startswith("runtime/vision/"):
+            continue  # Vision exports use a closed, hash-checked public inventory below.
         for name, path, size in _walk(root, relative):
             files[name] = (path, size)
+    if (root / "runtime/vision/manifest.json").exists():
+        from scripts.provision_vision import verified_files
+        for name, (path, _) in verified_files(root).items():
+            files[name] = (path, _regular(path).st_size)
     automation = _allowed_path(root / "runtime/automation")
     if automation.exists():
         for candidate in automation.iterdir():
@@ -400,6 +411,9 @@ def plan(root=ROOT):
     profiles = write_template(root)
     files = inventory(root)
     pinned = {**_public_model_files(root)[1], **_runtime_notice_files(root)[1], **_speech_pins(root, profiles)}
+    if (root / "runtime/vision/manifest.json").exists():
+        from scripts.provision_vision import verified_files
+        pinned.update({name: sha for name, (_, sha) in verified_files(root).items()})
     missing = [name for name in ("runtime/python/python.exe", "runtime/python/PORTABLE-MANIFEST.json", "runtime/ollama/ollama.exe")
         if not (root / name).is_file()]
     portable = root / "runtime/python/PORTABLE-MANIFEST.json"

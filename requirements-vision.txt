@@ -1,0 +1,4 @@
+# Optional isolated CPU vision pack: Windows x64 CPython 3.13.
+# Provision with scripts/provision_vision.py; do not install these into the core environment.
+numpy==2.5.4 --hash=sha256:8b4d2fd2d34e5f8c9235ee787de5631a37a28402b15cb80814df973d2be54129
+opencv-python-headless==5.0.0.93 --hash=sha256:829717b6a95554f273e49e357cee3b3a2a26b6f4842fbc1bed2b45bdd8f87e0e

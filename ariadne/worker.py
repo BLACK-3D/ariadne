@@ -18,9 +18,14 @@ from .config import _allowed_path
 
 _SLOTS = threading.BoundedSemaphore(2)
 _ALLOWED = {"_mcp_worker.py", "_ocr_worker.py", "_analytics_worker.py",
-            "_production_worker.py", "_knowledge_worker.py", "_media_worker.py", "_automation_worker.py"}
-_CHILD_WORKERS = {"_production_worker.py", "_knowledge_worker.py", "_media_worker.py", "_automation_worker.py"}
+            "_production_worker.py", "_knowledge_worker.py", "_media_worker.py", "_automation_worker.py", "_vision_worker.py"}
+_CHILD_WORKERS = {"_production_worker.py", "_knowledge_worker.py", "_media_worker.py", "_automation_worker.py", "_vision_worker.py"}
 _LIMITS = None
+
+
+def worker_process_limit(name):
+    """Vision owns one decoder child; other fixed workers retain their limits."""
+    return 2 if name == "_vision_worker.py" else 8 if name in _CHILD_WORKERS else 1
 
 
 class WorkerError(ValueError):
@@ -115,7 +120,7 @@ def run_worker(script: Path, payload: bytes, *, timeout: float, memory_bytes: in
     script = _allowed_path(script)
     if script.parent != Path(__file__).resolve().parent or script.name not in _ALLOWED:
         raise WorkerError("Only fixed internal capability workers may execute.")
-    if type(process_limit) is not int or not 1 <= process_limit <= (8 if script.name in _CHILD_WORKERS else 1):
+    if type(process_limit) is not int or not 1 <= process_limit <= worker_process_limit(script.name):
         raise WorkerError("This worker cannot launch the requested number of processes.")
     info = script.stat()
     if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:

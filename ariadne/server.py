@@ -26,6 +26,7 @@ from .handoff import HandoffConflict, HandoffDesk
 from .client_handoff import ClientHandoffDesk
 from .workroom import WorkroomConflict
 from .perception import PerceptionConflict
+from .vision import VisionConflict
 
 
 class HTTPError(Exception):
@@ -68,6 +69,9 @@ class Application:
         from .perception import Perception
         self.perception = Perception(self.engine.tools, self.store)
         self.engine.tools.perception.bind(self.perception_read)
+        from .vision import Vision
+        self.vision = Vision(self.engine.tools, self.store)
+        self.engine.tools.vision.bind(self.vision_read)
         from .internet import InternetService
         self.internet = InternetService(settings, self.store, self.engine.tools)
         self.engine.internet_provider = self.internet_call
@@ -128,6 +132,33 @@ class Application:
             raise ValueError("This recording exceeds the agent read window; inspect its verified dashboard detail.")
         return result
 
+    def vision_read(self, action, job_id=None):
+        """No acquisition or lease renewal; return bounded provenance and labels."""
+        if action == "status":
+            result = self.vision.status()
+            for field in ("sessions", "recordings"):
+                rows = result[field]
+                result[field] = rows[:5]
+                result[field+"_total"] = len(rows)
+                result[field+"_omitted"] = max(0, len(rows)-5)
+        else:
+            result = self.vision.detail(job_id)
+            evidence = result.get("evidence")
+            if evidence is not None:
+                evidence = dict(evidence)
+                frames = evidence.get("frames", [])
+                evidence["frames"] = frames[-8:]
+                evidence["frames_total"] = len(frames)
+                evidence["frames_omitted"] = max(0, len(frames)-8)
+                recording = evidence.get("recording")
+                if type(recording) is dict:
+                    evidence["recording"] = {k:v for k,v in recording.items() if k != "observations"}
+                    evidence["recording"]["observations_total"] = len(recording.get("observations", []))
+                result = {**result, "evidence":evidence}
+        if len(json.dumps(result, ensure_ascii=False).encode("utf-8")) > 60_000:
+            raise ValueError("This result exceeds the agent read window; inspect the local Vision desk.")
+        return result
+
     def start_services(self):
         self.briefing.start()
         self.warm_voice()
@@ -186,15 +217,18 @@ class Application:
 
     def stop_services(self):
         try:
-            self.wake_voice.stop()
+            self.vision.close()
         finally:
             try:
-                self.briefing.stop()
+                self.wake_voice.stop()
             finally:
                 try:
-                    self.internet.stop()
+                    self.briefing.stop()
                 finally:
-                    self.voice.close()
+                    try:
+                        self.internet.stop()
+                    finally:
+                        self.voice.close()
 
     def internet_call(self, action, arguments):
         """Supply compact, dated public evidence to the local model."""
@@ -335,6 +369,8 @@ class Application:
                           "/static/project_kits.css": ("project_kits.css", "text/css"),
                           "/static/perception.js": ("perception.js", "text/javascript"),
                           "/static/perception.css": ("perception.css", "text/css"),
+                          "/static/vision.js": ("vision.js", "text/javascript"),
+                          "/static/vision.css": ("vision.css", "text/css"),
                           "/static/venture.css": ("venture.css", "text/css"),
                           "/static/venture.js": ("venture.js", "text/javascript"),
                           "/static/handoff.js": ("handoff.js", "text/javascript"),
@@ -366,6 +402,8 @@ class Application:
         except WorkroomConflict as error:
             status, payload, mime = 409, {"error": str(error), "revision": error.revision}, "application/json"
         except PerceptionConflict as error:
+            status, payload, mime = 409, {"error": str(error)}, "application/json"
+        except VisionConflict as error:
             status, payload, mime = 409, {"error": str(error)}, "application/json"
         except KeyError:
             status, payload, mime = 404, {"error": "Not found"}, "application/json"
@@ -476,6 +514,8 @@ class Application:
             raise ValueError("Project Kits accepts no query parameters; use its explicit reviewed actions.")
         if parts and parts[0] == "perception" and env.get("QUERY_STRING", ""):
             raise ValueError("Perception accepts no query parameters; use explicit saved recording actions.")
+        if parts and parts[0] == "vision" and env.get("QUERY_STRING", ""):
+            raise ValueError("Vision accepts no query parameters; use the explicit source and session actions.")
         if parts == ["status"] and method == "GET":
             with self.status_lock:
                 if time.monotonic() - self.status_at > 5 or self.status_cache is None:
@@ -491,6 +531,30 @@ class Application:
             from .network_policy import network_policy_status
             result["network_policy"] = network_policy_status()
             result["internet"] = self.internet.status()
+        elif parts == ["vision"] and method == "GET":
+            result = self.vision.status()
+        elif parts == ["vision", "cameras"] and method == "GET":
+            result = self.vision.discover_cameras()
+        elif len(parts) == 3 and parts[:2] == ["vision", "jobs"] and method == "GET":
+            result = self.vision.detail(parts[2])
+        elif len(parts) == 3 and parts[:2] == ["vision", "snapshots"] and method == "GET":
+            image = self.vision.snapshot(parts[2])
+            if image is None:
+                raise HTTPError(404, "This job has no opted-in retained thumbnail.")
+            return 200, image, "image/jpeg"
+        elif parts and parts[0] == "vision" and method == "POST":
+            handlers = {("inspect",):self.vision.inspect_source,
+                        ("video",):self.vision.analyze_video,
+                        ("camera", "start"):self.vision.start_camera,
+                        ("camera", "stop"):self.vision.stop_camera,
+                        ("camera", "lease"):self.vision.touch_camera,
+                        ("acknowledge",):self.vision.acknowledge_failure}
+            action = handlers.get(tuple(parts[1:]))
+            if action is None:
+                raise HTTPError(404, "Unknown local Vision action")
+            if parts[1:] != ["camera", "stop"] and self.engine.is_paused():
+                raise HTTPError(409, "Autonomy is paused; Vision work is held. Camera stop remains available.")
+            result = action(self.client_handoff_body(env, limit=16*1024))
         elif parts == ["perception"] and method == "GET":
             result = {"catalog": self.perception.catalog(), **self.perception.status()}
         elif len(parts) == 3 and parts[:2] == ["perception", "recordings"] and method == "GET":

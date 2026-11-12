@@ -1,0 +1,386 @@
+{
+  "assets": [
+    {
+      "bytes": 3659407,
+      "path": "runtime/vision/models/yolox_nano.onnx",
+      "sha256": "c789161ed43c8269fcd4e67c67eeeb4e80c622da2eb296a20bc6007bd18a0b7d",
+      "url": "https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_nano.onnx"
+    },
+    {
+      "bytes": 11371,
+      "path": "runtime/vision/notices/LICENSE.YOLOX",
+      "sha256": "0ec3668d3274bcf29e8a29e9576d5a2cd96fc78d3c5bec4387355a796e5d9088",
+      "url": "https://raw.githubusercontent.com/Megvii-BaseDetection/YOLOX/6ddff4824372906469a7fae2dc3206c7aa4bbaee/LICENSE"
+    },
+    {
+      "bytes": 3177,
+      "path": "runtime/vision/notices/YOLOX_ONNX_MODEL_CARD.md",
+      "sha256": "587068c99b5685a27c8b3460bb28b21a2ac51b3de0a157c9e087241f03d51b35",
+      "url": "https://raw.githubusercontent.com/Megvii-BaseDetection/YOLOX/6ddff4824372906469a7fae2dc3206c7aa4bbaee/demo/ONNXRuntime/README.md"
+    },
+    {
+      "bytes": 27,
+      "license": "Upstream source and notices corresponding to the LGPL OpenCV FFmpeg plugin; component terms preserved in archives",
+      "path": "runtime/vision/sources/opencv-ffmpeg-664c0098dcb47b361f20c1d6a518653c23f5f2b5/.gitignore",
+      "sha256": "e89481e25fea5cb233a99ffc10e9453fd89fd094db3bf700aa6c99639486c8ac",
+      "url": "https://raw.githubusercontent.com/opencv/opencv_3rdparty/664c0098dcb47b361f20c1d6a518653c23f5f2b5/.gitignore"
+    },
+    {
+      "bytes": 71,
+      "license": "Upstream source and notices corresponding to the LGPL OpenCV FFmpeg plugin; component terms preserved in archives",
+      "path": "runtime/vision/sources/opencv-ffmpeg-664c0098dcb47b361f20c1d6a518653c23f5f2b5/.gitmodules",
+      "sha256": "f367fa24031548bff1498b091cf7339fdb2f1e297adcd957410212b9663e5e70",
+      "url": "https://raw.githubusercontent.com/opencv/opencv_3rdparty/664c0098dcb47b361f20c1d6a518653c23f5f2b5/.gitmodules"
+    },
+    {
+      "bytes": 2780,
+      "license": "Upstream source and notices corresponding to the LGPL OpenCV FFmpeg plugin; component terms preserved in archives",
+      "path": "runtime/vision/sources/opencv-ffmpeg-664c0098dcb47b361f20c1d6a518653c23f5f2b5/build_update.sh",
+      "sha256": "16fbec0553e281295ed685d504adb820fbded41b1355a771974594638f4ae410",
+      "url": "https://raw.githubusercontent.com/opencv/opencv_3rdparty/664c0098dcb47b361f20c1d6a518653c23f5f2b5/build_update.sh"
+    },
+    {
+      "bytes": 1169,
+      "license": "Upstream source and notices corresponding to the LGPL OpenCV FFmpeg plugin; component terms preserved in archives",
+      "path": "runtime/vision/sources/opencv-ffmpeg-664c0098dcb47b361f20c1d6a518653c23f5f2b5/ffmpeg/archive_src.sh",
+      "sha256": "20c5a48f3447d1a8de5449fdff1f05dda6a6118f3022faa6ad14b4456790cfb6",
+      "url": "https://raw.githubusercontent.com/opencv/opencv_3rdparty/664c0098dcb47b361f20c1d6a518653c23f5f2b5/ffmpeg/archive_src.sh"
+    },
+    {
+      "bytes": 603,
+      "license": "Upstream source and notices corresponding to the LGPL OpenCV FFmpeg plugin; component terms preserved in archives",
+      "path": "runtime/vision/sources/opencv-ffmpeg-664c0098dcb47b361f20c1d6a518653c23f5f2b5/ffmpeg/build_via_docker.sh",
+      "sha256": "0ad8cfc8bd3b8e28120eee19654a4d0a784033869ef50f56fafd6c2ad64331c3",
+      "url": "https://raw.githubusercontent.com/opencv/opencv_3rdparty/664c0098dcb47b361f20c1d6a518653c23f5f2b5/ffmpeg/build_via_docker.sh"
+    },
+    {
+      "bytes": 3666,
+      "license": "Upstream source and notices corresponding to the LGPL OpenCV FFmpeg plugin; component terms preserved in archives",
+      "path": "runtime/vision/sources/opencv-ffmpeg-664c0098dcb47b361f20c1d6a518653c23f5f2b5/ffmpeg/build_videoio_plugin.sh",
+      "sha256": "d9d6a15cfdb90eebc3136bad76eea3eb5d26cec97bd7b04c4063ac26f8cfde02",
+      "url": "https://raw.githubusercontent.com/opencv/opencv_3rdparty/664c0098dcb47b361f20c1d6a518653c23f5f2b5/ffmpeg/build_videoio_plugin.sh"
+    },
+    {
+      "bytes": 738,
+      "license": "Upstream source and notices corresponding to the LGPL OpenCV FFmpeg plugin; component terms preserved in archives",
+      "path": "runtime/vision/sources/opencv-ffmpeg-664c0098dcb47b361f20c1d6a518653c23f5f2b5/ffmpeg/docker/Dockerfile",
+      "sha256": "31dc0f663053c80e63967b624f9e90efb6ed1f014d66fe094544ec5c599a8242",
+      "url": "https://raw.githubusercontent.com/opencv/opencv_3rdparty/664c0098dcb47b361f20c1d6a518653c23f5f2b5/ffmpeg/docker/Dockerfile"
+    },
+    {
+      "bytes": 185,
+      "license": "Upstream source and notices corresponding to the LGPL OpenCV FFmpeg plugin; component terms preserved in archives",
+      "path": "runtime/vision/sources/opencv-ffmpeg-664c0098dcb47b361f20c1d6a518653c23f5f2b5/ffmpeg/docker/entry.sh",
+      "sha256": "34ef720bdeca44e8871cfae03deb5757429d7d3c7e603ea86dd827dae84141c4",
+      "url": "https://raw.githubusercontent.com/opencv/opencv_3rdparty/664c0098dcb47b361f20c1d6a518653c23f5f2b5/ffmpeg/docker/entry.sh"
+    },
+    {
+      "bytes": 974,
+      "license": "Upstream source and notices corresponding to the LGPL OpenCV FFmpeg plugin; component terms preserved in archives",
+      "path": "runtime/vision/sources/opencv-ffmpeg-664c0098dcb47b361f20c1d6a518653c23f5f2b5/ffmpeg/download_src.sh",
+      "sha256": "f1edcbbb1ac3e621a5854f2c5fa13c2124988df8e9442ecae0f7af164a822b01",
+      "url": "https://raw.githubusercontent.com/opencv/opencv_3rdparty/664c0098dcb47b361f20c1d6a518653c23f5f2b5/ffmpeg/download_src.sh"
+    },
+    {
+      "bytes": 138,
+      "license": "Upstream source and notices corresponding to the LGPL OpenCV FFmpeg plugin; component terms preserved in archives",
+      "path": "runtime/vision/sources/opencv-ffmpeg-664c0098dcb47b361f20c1d6a518653c23f5f2b5/ffmpeg/dump_versions.sh",
+      "sha256": "8136820a53e0322caa36363dcdfba4268252c8258058fa78555d576422514ed1",
+      "url": "https://raw.githubusercontent.com/opencv/opencv_3rdparty/664c0098dcb47b361f20c1d6a518653c23f5f2b5/ffmpeg/dump_versions.sh"
+    },
+    {
+      "bytes": 286,
+      "license": "Upstream source and notices corresponding to the LGPL OpenCV FFmpeg plugin; component terms preserved in archives",
+      "path": "runtime/vision/sources/opencv-ffmpeg-664c0098dcb47b361f20c1d6a518653c23f5f2b5/ffmpeg/ffmpeg_version.cmake",
+      "sha256": "8e8cfc1f90cf947458cc4c4f4d4ee538667feae3807f6966d81aa6d02bac8fae",
+      "url": "https://raw.githubusercontent.com/opencv/opencv_3rdparty/664c0098dcb47b361f20c1d6a518653c23f5f2b5/ffmpeg/ffmpeg_version.cmake"
+    },
+    {
+      "bytes": 5984,
+      "license": "Upstream source and notices corresponding to the LGPL OpenCV FFmpeg plugin; component terms preserved in archives",
+      "path": "runtime/vision/sources/opencv-ffmpeg-664c0098dcb47b361f20c1d6a518653c23f5f2b5/ffmpeg/make_mingw.sh",
+      "sha256": "ec344c47ba8d6bc72f7147b171b9b347b4e8352224cc0852eac6ef4a6d8de6d8",
+      "url": "https://raw.githubusercontent.com/opencv/opencv_3rdparty/664c0098dcb47b361f20c1d6a518653c23f5f2b5/ffmpeg/make_mingw.sh"
+    },
+    {
+      "bytes": 461,
+      "license": "Upstream source and notices corresponding to the LGPL OpenCV FFmpeg plugin; component terms preserved in archives",
+      "path": "runtime/vision/sources/opencv-ffmpeg-664c0098dcb47b361f20c1d6a518653c23f5f2b5/ffmpeg/mingw-toolchain-i686.cmake",
+      "sha256": "f4e407e61fe818a12f88e74eac5b91a901361abc1cbfc1d20578aeef841c88f3",
+      "url": "https://raw.githubusercontent.com/opencv/opencv_3rdparty/664c0098dcb47b361f20c1d6a518653c23f5f2b5/ffmpeg/mingw-toolchain-i686.cmake"
+    },
+    {
+      "bytes": 466,
+      "license": "Upstream source and notices corresponding to the LGPL OpenCV FFmpeg plugin; component terms preserved in archives",
+      "path": "runtime/vision/sources/opencv-ffmpeg-664c0098dcb47b361f20c1d6a518653c23f5f2b5/ffmpeg/mingw-toolchain-x86_64.cmake",
+      "sha256": "687a0f7d6919a76305dbeb70c5216835ff562c2f8ddc8ff93bb5b93e661e8597",
+      "url": "https://raw.githubusercontent.com/opencv/opencv_3rdparty/664c0098dcb47b361f20c1d6a518653c23f5f2b5/ffmpeg/mingw-toolchain-x86_64.cmake"
+    },
+    {
+      "bytes": 1089,
+      "license": "Upstream source and notices corresponding to the LGPL OpenCV FFmpeg plugin; component terms preserved in archives",
+      "path": "runtime/vision/sources/opencv-ffmpeg-664c0098dcb47b361f20c1d6a518653c23f5f2b5/ffmpeg/opencv_ffmpeg.rc",
+      "sha256": "b7025cdf3c0da112e70b51f0a03f95971a9d030bc3b908208f39d90d3d4c68e6",
+      "url": "https://raw.githubusercontent.com/opencv/opencv_3rdparty/664c0098dcb47b361f20c1d6a518653c23f5f2b5/ffmpeg/opencv_ffmpeg.rc"
+    },
+    {
+      "bytes": 6776,
+      "license": "Upstream source and notices corresponding to the LGPL OpenCV FFmpeg plugin; component terms preserved in archives",
+      "path": "runtime/vision/sources/opencv-ffmpeg-664c0098dcb47b361f20c1d6a518653c23f5f2b5/ffmpeg/openh264_wrapper/wels/codec_api.h",
+      "sha256": "aae2da0eaf4c2ed020e8bec02e2d650d8bac4e80fa5d51905a392df4a42f1ce6",
+      "url": "https://raw.githubusercontent.com/opencv/opencv_3rdparty/664c0098dcb47b361f20c1d6a518653c23f5f2b5/ffmpeg/openh264_wrapper/wels/codec_api.h"
+    },
+    {
+      "bytes": 409,
+      "license": "Upstream source and notices corresponding to the LGPL OpenCV FFmpeg plugin; component terms preserved in archives",
+      "path": "runtime/vision/sources/opencv-ffmpeg-664c0098dcb47b361f20c1d6a518653c23f5f2b5/ffmpeg/openh264_wrapper/wels/openh264_wrapper.c",
+      "sha256": "af0c1b0d4fbec2b2c582eb31f4fcda9339d91d24b09cf4141198833c0ad1330d",
+      "url": "https://raw.githubusercontent.com/opencv/opencv_3rdparty/664c0098dcb47b361f20c1d6a518653c23f5f2b5/ffmpeg/openh264_wrapper/wels/openh264_wrapper.c"
+    },
+    {
+      "bytes": 27393,
+      "license": "Upstream source and notices corresponding to the LGPL OpenCV FFmpeg plugin; component terms preserved in archives",
+      "path": "runtime/vision/sources/opencv-ffmpeg-664c0098dcb47b361f20c1d6a518653c23f5f2b5/license.txt",
+      "sha256": "1f9d4168b4a9a2bdd1851023735a41d0ab09ffa5fcc1a721a99ebc1d7d35a9c5",
+      "url": "https://raw.githubusercontent.com/opencv/opencv_3rdparty/664c0098dcb47b361f20c1d6a518653c23f5f2b5/license.txt"
+    },
+    {
+      "bytes": 2467,
+      "license": "Upstream source and notices corresponding to the LGPL OpenCV FFmpeg plugin; component terms preserved in archives",
+      "path": "runtime/vision/sources/opencv-ffmpeg-664c0098dcb47b361f20c1d6a518653c23f5f2b5/readme.txt",
+      "sha256": "26e4734e7ac1e72adac7a06a747ac9a997ee3714bc2ed8b745ff27dee35a2ad9",
+      "url": "https://raw.githubusercontent.com/opencv/opencv_3rdparty/664c0098dcb47b361f20c1d6a518653c23f5f2b5/readme.txt"
+    },
+    {
+      "bytes": 4422784,
+      "license": "Upstream source and notices corresponding to the LGPL OpenCV FFmpeg plugin; component terms preserved in archives",
+      "path": "runtime/vision/sources/opencv-ffmpeg-664c0098dcb47b361f20c1d6a518653c23f5f2b5/sources/build/aom/aom-src-v3.14.1.tar.xz",
+      "sha256": "f3dbb5ee8367f948ae4c90f09e8fac703dc064ab4529bf854e208633a4e9e3c7",
+      "url": "https://raw.githubusercontent.com/opencv/opencv_3rdparty/664c0098dcb47b361f20c1d6a518653c23f5f2b5/sources/build/aom/aom-src-v3.14.1.tar.xz"
+    },
+    {
+      "bytes": 10771472,
+      "license": "Upstream source and notices corresponding to the LGPL OpenCV FFmpeg plugin; component terms preserved in archives",
+      "path": "runtime/vision/sources/opencv-ffmpeg-664c0098dcb47b361f20c1d6a518653c23f5f2b5/sources/build/ffmpeg/ffmpeg-src-n7.1.tar.xz",
+      "sha256": "65dcebb9ab64dea97f37bdd25a1b43dba807cb8d7c67e9a111729d836354fd8c",
+      "url": "https://raw.githubusercontent.com/opencv/opencv_3rdparty/664c0098dcb47b361f20c1d6a518653c23f5f2b5/sources/build/ffmpeg/ffmpeg-src-n7.1.tar.xz"
+    },
+    {
+      "bytes": 4389728,
+      "license": "Upstream source and notices corresponding to the LGPL OpenCV FFmpeg plugin; component terms preserved in archives",
+      "path": "runtime/vision/sources/opencv-ffmpeg-664c0098dcb47b361f20c1d6a518653c23f5f2b5/sources/build/libvpx/libvpx-src-v1.16.0.tar.xz",
+      "sha256": "60ea79ec7a99e5e7750482c1288b3a3015b4824df45be13bb208f3bd35dde003",
+      "url": "https://raw.githubusercontent.com/opencv/opencv_3rdparty/664c0098dcb47b361f20c1d6a518653c23f5f2b5/sources/build/libvpx/libvpx-src-v1.16.0.tar.xz"
+    },
+    {
+      "bytes": 32,
+      "license": "Upstream source and notices corresponding to the LGPL OpenCV FFmpeg plugin; component terms preserved in archives",
+      "path": "runtime/vision/sources/opencv-ffmpeg-664c0098dcb47b361f20c1d6a518653c23f5f2b5/sources/build/openh264/openh264-api-headers-v2.5.0.tar.xz",
+      "sha256": "0040f94d11d0039505328a90b2ff48968db873e9e7967307631bf40ef5679275",
+      "url": "https://raw.githubusercontent.com/opencv/opencv_3rdparty/664c0098dcb47b361f20c1d6a518653c23f5f2b5/sources/build/openh264/openh264-api-headers-v2.5.0.tar.xz"
+    },
+    {
+      "bytes": 37176,
+      "license": "Upstream source and notices corresponding to the LGPL OpenCV FFmpeg plugin; component terms preserved in archives",
+      "path": "runtime/vision/sources/opencv-ffmpeg-664c0098dcb47b361f20c1d6a518653c23f5f2b5/sources/opencv/opencv-videoio-ffmpeg.tar.xz",
+      "sha256": "8ca839350bbf7be6bf10c82f538303d59718ebf71aef32644c60132bd142f893",
+      "url": "https://raw.githubusercontent.com/opencv/opencv_3rdparty/664c0098dcb47b361f20c1d6a518653c23f5f2b5/sources/opencv/opencv-videoio-ffmpeg.tar.xz"
+    },
+    {
+      "bytes": 16956,
+      "license": "Upstream source and notices corresponding to the LGPL OpenCV FFmpeg plugin; component terms preserved in archives",
+      "path": "runtime/vision/sources/opencv-ffmpeg-664c0098dcb47b361f20c1d6a518653c23f5f2b5/sources/opencv_ffmpeg.tar.xz",
+      "sha256": "b8ed5b293311441de369160f047f277b606452fb604f5c35a7ea1edcb3ba6539",
+      "url": "https://raw.githubusercontent.com/opencv/opencv_3rdparty/664c0098dcb47b361f20c1d6a518653c23f5f2b5/sources/opencv_ffmpeg.tar.xz"
+    },
+    {
+      "bytes": 12040788,
+      "license": "LGPL-2.1-or-later; complete upstream source includes separately identified GPL parts that are disabled in this build",
+      "path": "runtime/vision/sources/ffmpeg-9.0.2.tar.xz",
+      "role": "source",
+      "sha256": "8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e",
+      "url": "https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz"
+    }
+  ],
+  "decoder": {
+    "bytes": 7145472,
+    "license": "LGPL-2.1-or-later",
+    "path": "ffmpeg/ffmpeg.exe",
+    "sha256": "d4bc3afcd8bda52f27fd42183152b3343e0ed08a8f257f4d2a1b80a9f2f0ba19",
+    "version": "9.0.2"
+  },
+  "decoder_build": {
+    "compiled_network_support": false,
+    "compiler_release": "20261104",
+    "decoders": [
+      "h263",
+      "h264",
+      "hevc",
+      "mjpeg",
+      "mpeg4",
+      "msmpeg4v3",
+      "rawvideo",
+      "vp8",
+      "vp9"
+    ],
+    "demuxers": [
+      "avi",
+      "matroska",
+      "mov"
+    ],
+    "ffmpeg_version": "9.0.2",
+    "filters_required": [
+      "select",
+      "showinfo",
+      "scale",
+      "pad",
+      "format",
+      "fps"
+    ],
+    "inputs": [
+      {
+        "bytes": 12040788,
+        "license": "LGPL-2.1-or-later; complete upstream source includes separately identified GPL parts that are disabled in this build",
+        "path": "runtime/vision/sources/ffmpeg-9.0.2.tar.xz",
+        "role": "source",
+        "sha256": "8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e",
+        "url": "https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz"
+      },
+      {
+        "bytes": 191037046,
+        "license": "Compiler/build tools only; not redistributed in the vision pack",
+        "path": "runtime/vision/build-cache/llvm-mingw-20261104-ucrt-x86_64.zip",
+        "role": "compiler",
+        "sha256": "552191b5754c49a5a20723276a6fc56541ea1922c4c50b7b669022333fc1b40f",
+        "url": "https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/llvm-mingw-20261104-ucrt-x86_64.zip"
+      }
+    ],
+    "pe_timestamp": 0,
+    "protocols": [
+      "fd",
+      "pipe"
+    ],
+    "recipe": "scripts/build_vision_decoder.sh",
+    "recipe_sha256": "2e4e55d261d6a8f718df65981cb55979656fbece44c612439578df413b90e6b6",
+    "source_modifications": "none",
+    "source_notice": "Ariadne optional local vision decoder\n\nThis software uses code of FFmpeg 9.0.2 under LGPL version 2.1 or later.\nCopyright (c) 2000-2026 the FFmpeg developers.\nThe complete corresponding, unmodified official source is included in this\nsame pack at runtime/vision/sources/ffmpeg-9.0.2.tar.xz.\nSource URL: https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz\nSource SHA-256: 8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e\n\nThe complete configure/build recipe is scripts/build_vision_decoder.sh and\nscripts/build_vision_decoder.py; exact upstream input hashes are recorded in\nconfig/vision-assets.json. No FFmpeg source modifications were made.\nThe PE timestamp is disabled by the build recipe for stable executable bytes.\nThe adapter is a separate executable communicating over subprocess pipes.\nIt is built without networking, GPL components or external codec libraries.\nOnly fd/pipe protocols and AVI/Matroska/MOV demuxers are enabled.\n\nBuilt using LLVM-MinGW 20261104 (Clang 23.1.5), UCRT x86_64 target.\nLLVM runtime notices and MinGW-w64 runtime notices are included beside this\nfile. Compiler, make and shell executables are development tools and are not\nincluded in the vision pack. FFmpeg is not covered by Ariadne's MIT license.\nReverse engineering or rebuilding these LGPL components is not prohibited.\n"
+  },
+  "model": {
+    "bytes": 3659407,
+    "id": "yolox-nano-0.1.1rc0",
+    "license": "Apache-2.0",
+    "path": "models/yolox_nano.onnx",
+    "sha256": "c789161ed43c8269fcd4e67c67eeeb4e80c622da2eb296a20bc6007bd18a0b7d"
+  },
+  "native_files": [
+    {
+      "bytes": 26517,
+      "path": "ffmpeg/COPYING.LGPLv2.1",
+      "sha256": "246041b6ecf9bc32d718a62c57877c78b5eb397b6467e74ed7ae2626ab189c30"
+    },
+    {
+      "bytes": 12155,
+      "path": "ffmpeg/COPYING.MinGW-w64-runtime.txt",
+      "sha256": "1db8da07b436c68833c0673ffee3d9fcb2526047f3820b81661865dfedc79a1f"
+    },
+    {
+      "bytes": 15141,
+      "path": "ffmpeg/LICENSE.LLVM.txt",
+      "sha256": "8d85c1057d742e597985c7d4e6320b015a9139385cff4cbae06ffc0ebe89afee"
+    },
+    {
+      "bytes": 4346,
+      "path": "ffmpeg/LICENSE.md",
+      "sha256": "2e1d16c72fd74e12063776371da757322f8b77589386532f4fd8634bde7de1af"
+    },
+    {
+      "bytes": 1322,
+      "path": "ffmpeg/SOURCE.txt",
+      "sha256": "d4155bf5e384759bd4ab9c7ea2051b79200bba244ccc45cdae7b76e95d49686e"
+    },
+    {
+      "bytes": 7145472,
+      "path": "ffmpeg/ffmpeg.exe",
+      "sha256": "d4bc3afcd8bda52f27fd42183152b3343e0ed08a8f257f4d2a1b80a9f2f0ba19"
+    }
+  ],
+  "opencv_ffmpeg_source": {
+    "binary_commit": "06dc20cad65dc7fcf784f70c95d46750520889a7",
+    "license": "LGPL-2.1-or-later; AOM/VPX and wrapper terms retained",
+    "plugin_md5_matched_upstream_cmake": "a821a1135251859655090c795af05789",
+    "plugin_path": "python/cv2/opencv_videoio_ffmpeg500_64.dll",
+    "plugin_sha256": "7aabff029d1fa47cf56ede4dbbe05dc62da3208f07cd16471d4c966a33f9aa31",
+    "source_assets": 25,
+    "source_bytes": 19693830,
+    "source_commit": "664c0098dcb47b361f20c1d6a518653c23f5f2b5",
+    "used_for_runtime_video_decode": false
+  },
+  "platform": "win_amd64",
+  "preprocessing": {
+    "channel_order": "BGR",
+    "input_shape": [
+      1,
+      3,
+      416,
+      416
+    ],
+    "letterbox": "top-left, padding 114",
+    "output_shape": [
+      1,
+      3549,
+      85
+    ],
+    "pixel_scale": "float32 0..255, no normalization",
+    "strides": [
+      8,
+      16,
+      32
+    ]
+  },
+  "python": "3.13",
+  "qualification_fixture": [
+    {
+      "bytes": 132826,
+      "path": "runtime/vision/qualification/basketball1.png",
+      "sha256": "ba06f6701f7260998b430c39b6557f775497e6ce7b1a74f0b7ea6af371bf54a6",
+      "url": "https://raw.githubusercontent.com/opencv/opencv/4.12.0/samples/data/basketball1.png"
+    },
+    {
+      "bytes": 11358,
+      "path": "runtime/vision/qualification/LICENSE.OpenCV",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "url": "https://raw.githubusercontent.com/opencv/opencv/4.12.0/LICENSE"
+    }
+  ],
+  "runtime_network": false,
+  "schema": 1,
+  "source_commit": "6ddff4824372906469a7fae2dc3206c7aa4bbaee",
+  "source_links": {
+    "model": "https://github.com/Megvii-BaseDetection/YOLOX/releases/tag/0.1.1rc0",
+    "model_card": "https://github.com/Megvii-BaseDetection/YOLOX/blob/6ddff4824372906469a7fae2dc3206c7aa4bbaee/demo/ONNXRuntime/README.md",
+    "numpy_wheel": "https://pypi.org/project/numpy/2.5.4/",
+    "opencv_wheel": "https://pypi.org/project/opencv-python-headless/5.0.0.93/"
+  },
+  "wheels": [
+    {
+      "bytes": 12566113,
+      "filename": "numpy-2.5.4-cp313-cp313-win_amd64.whl",
+      "license": "BSD-3-Clause; bundled components retain their licenses",
+      "name": "numpy",
+      "path": "runtime/vision/wheels/numpy-2.5.4-cp313-cp313-win_amd64.whl",
+      "sha256": "8b4d2fd2d34e5f8c9235ee787de5631a37a28402b15cb80814df973d2be54129",
+      "url": "https://files.pythonhosted.org/packages/90/8c/140a40398a66b4471211be1affdb6ed24c486d581bd28d07b7f2fcb69540/numpy-2.5.4-cp313-cp313-win_amd64.whl",
+      "version": "2.5.4"
+    },
+    {
+      "bytes": 43825962,
+      "filename": "opencv_python_headless-5.0.0.93-cp37-abi3-win_amd64.whl",
+      "license": "Apache-2.0; bundled components retain their licenses",
+      "name": "opencv-python-headless",
+      "path": "runtime/vision/wheels/opencv_python_headless-5.0.0.93-cp37-abi3-win_amd64.whl",
+      "sha256": "829717b6a95554f273e49e357cee3b3a2a26b6f4842fbc1bed2b45bdd8f87e0e",
+      "url": "https://files.pythonhosted.org/packages/b8/88/763b967f7efd7226b82c9fae16d560cba049b1f0c036647e65c610fd636e/opencv_python_headless-5.0.0.93-cp37-abi3-win_amd64.whl",
+      "version": "5.0.0.93"
+    }
+  ]
+}

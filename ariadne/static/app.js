@@ -130,7 +130,7 @@ const state = {
 };
 const activeStatuses = new Set(["queued", "running", "waiting_approval", "awaiting_approval", "pending", "waiting", "verifying"]);
 const isActive = run => Boolean(run && activeStatuses.has(run.status));
-const viewTitles = {missions:"Command center", operations:"Operations", workroom:"Project Workroom", "project-kits":"Project Kits", venture:"Venture Lab", handoff:"Service desk", agents:"Agents", briefing:"Daily brief", perception:"Awareness", internet:"Internet", workflows:"Workflows", knowledge:"Knowledge", survival:"Survival", memory:"Memory", schedules:"Schedules", files:"Workspace", connectors:"Capabilities", settings:"Settings & setup"};
+const viewTitles = {missions:"Command center", operations:"Operations", workroom:"Project Workroom", "project-kits":"Project Kits", venture:"Venture Lab", handoff:"Service desk", agents:"Agents", briefing:"Daily brief", vision:"Awareness", perception:"Awareness", internet:"Internet", workflows:"Workflows", knowledge:"Knowledge", survival:"Survival", memory:"Memory", schedules:"Schedules", files:"Workspace", connectors:"Capabilities", settings:"Settings & setup"};
 const executionLabel = run => run?.status === "completed" ? "Execution finished" : humanize(run?.status);
 
 function toast(message, error = false) {
@@ -149,7 +149,7 @@ async function api(path, options = {}) {
   }
   let response;
   try {
-    response = await fetch(`/api${path}`, {method:options.method || "GET", headers, body, cache:"no-store", credentials:"omit", signal:options.signal});
+    response = await fetch(`/api${path}`, {method:options.method || "GET", headers, body, cache:"no-store", credentials:"omit", signal:options.signal, keepalive:options.keepalive === true});
   } catch (error) {
     if (error.name === "AbortError") throw error;
     throw new Error("Cannot reach the local server. Check that Ariadne is running, then try again.");
@@ -227,6 +227,7 @@ function renderStatus(status) {
   window.ariadneOptionsReview?.status(status);
   window.ariadneRevenue?.status(status);
   window.ariadnePerception?.status(status);
+  window.ariadneVision?.status(status);
   window.ariadneHandoff?.status(status);
   window.ariadneClientHandoff?.status(status);
 }
@@ -294,6 +295,7 @@ async function connect() {
   } finally { connectButton.disabled = false; }
 }
 function lockSession(message = "") {
+  window.ariadneVision?.locking();
   state.navigationGeneration = (state.navigationGeneration || 0) + 1;
   internetGeneration += 1;
   state.pairingGeneration += 1;
@@ -335,6 +337,7 @@ function lockSession(message = "") {
   window.ariadneOptionsReview?.locked();
   window.ariadneRevenue?.locked();
   window.ariadnePerception?.locked();
+  window.ariadneVision?.locked();
   window.ariadneHandoff?.locked();
   window.ariadneClientHandoff?.locked();
   $("#access-token").focus();
@@ -364,6 +367,7 @@ async function showView(view) {
   if (changedView && state.view === "workroom") window.ariadneWorkroom?.leave();
   if (changedView && state.view === "project-kits") window.ariadneProjectKits?.leave();
   if (changedView && state.view === "perception") window.ariadnePerception?.leave();
+  if (changedView && state.view === "vision") window.ariadneVision?.leave();
   if (changedView && state.view === "venture") { window.ariadneRevenue?.detach(); window.ariadneOptionsReview?.detach(); }
   state.view = view;
   for (const item of $$(".view")) item.hidden = item.id !== `view-${view}`;
@@ -390,6 +394,7 @@ async function loadView(view) {
   if (view === "workroom") { await window.ariadneWorkroom?.load(); return; }
   if (view === "project-kits") { await window.ariadneProjectKits?.load(); return; }
   if (view === "perception") { await window.ariadnePerception?.load(); return; }
+  if (view === "vision") { await window.ariadneVision?.load(); return; }
   if (view === "venture") {
     await window.ariadneVenture?.load(); if (state.view !== view) return;
     await window.ariadneRevenue?.load(); if (state.view !== view) return;
@@ -3060,6 +3065,7 @@ window.ariadneOptions?.attach({state, api, node, button, openArtifact, confirmAc
 window.ariadneOptionsReview?.attach({state, api, node, button, openArtifact});
 window.ariadneRevenue?.attach({state, api, node, button, openArtifact, confirmAction, toast});
 window.ariadnePerception?.attach({state, api, node, button});
+window.ariadneVision?.attach({state, api, node, button});
 window.ariadneHandoff?.attach({state, api, node, button, openArtifact, downloadArtifact, showView, confirmAction, toast});
 window.ariadneClientHandoff?.attach({state, api, node, button, openArtifact, downloadArtifact, confirmAction, toast,
   openProjectKit:id => openLinkedView("project-kits", () => window.ariadneProjectKits?.selectIntake(id))});
@@ -3088,4 +3094,5 @@ $("#handoff-demo-mode").addEventListener("click", () => selectServiceDesk("demo"
 if (typeof location !== "undefined" && new URLSearchParams(location.search).get("view") === "handoff") showView("handoff");
 if (typeof location !== "undefined" && new URLSearchParams(location.search).get("view") === "workroom") showView("workroom");
 if (typeof location !== "undefined" && new URLSearchParams(location.search).get("view") === "project-kits") showView("project-kits");
+if (typeof location !== "undefined" && ["vision", "perception"].includes(new URLSearchParams(location.search).get("view"))) showView(new URLSearchParams(location.search).get("view"));
 if (state.token) connect(); else $("#access-token").focus();

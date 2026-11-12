@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="/static/options.css">
   <link rel="stylesheet" href="/static/revenue.css">
   <link rel="stylesheet" href="/static/perception.css">
+  <link rel="stylesheet" href="/static/vision.css">
   <script src="/static/command.js" defer></script>
   <script src="/static/routines.js" defer></script>
   <script src="/static/operations.js" defer></script>
@@ -32,6 +33,7 @@
   <script src="/static/options_review.js" defer></script>
   <script src="/static/revenue.js" defer></script>
   <script src="/static/perception.js" defer></script>
+  <script src="/static/vision.js" defer></script>
   <script src="/static/app.js" defer></script>
 </head>
 <body class="command-console threadline-console">
@@ -44,7 +46,7 @@
         <button class="nav-item active" data-view="missions" aria-current="page"><span data-icon="orbit"></span><span>Command center<small>Direct Ariadne and inspect the work</small></span></button>
         <button class="nav-item" data-view="agents"><span data-icon="sparkles"></span><span>Agents<small>Specialists, voice and autonomy</small></span></button>
         <button class="nav-item" data-view="briefing"><span data-icon="eye"></span><span>Daily brief<small>Regional intelligence and activity</small></span></button>
-        <button class="nav-item" data-view="perception"><span data-icon="eye"></span><span>Awareness<small>Recorded zones, uncertainty and provenance</small></span></button>
+        <button class="nav-item" data-view="vision"><span data-icon="eye"></span><span>Awareness<small>Camera, video and recorded evidence</small></span></button>
         <button class="nav-item" data-view="internet"><span data-icon="globe"></span><span>Internet<small>Public reading and saved evidence</small></span></button>
         <button class="nav-item" data-view="workflows"><span data-icon="workflow"></span><span>Workflows<small>Repeatable operations and reports</small></span></button>
         <button class="nav-item" data-view="operations"><span data-icon="server"></span><span>Operations<small>Business, markets and local controls</small></span></button>
@@ -103,8 +105,14 @@
 <button class="workspace-portal" data-view="briefing"><span class="portal-icon" data-icon="eye"></span><span><small>04 / INTELLIGENCE</small><strong>Daily brief</strong><em>Your activity, in perspective.</em></span><span data-icon="arrow-up-right"></span></button></div></section>
           <section class="command-mission-log" id="command-mission-log" aria-label="Mission ledger"><div class="ledger-heading"><div><span class="eyebrow">WORK / CONTINUITY</span><h2>Recorded work.</h2></div><div><span id="command-log-count">—</span><button class="icon-button" id="refresh-runs" title="Refresh missions" aria-label="Refresh missions"><span data-icon="refresh"></span></button></div></div><div class="recent-runs" id="recent-runs"><p class="sidebar-empty">Your missions will appear here.</p></div><div class="ledger-actions"><button class="text-button" id="command-log-toggle" hidden>Show all missions</button><button class="text-button" id="command-new-mission"><span data-icon="plus"></span> New direction</button></div></section>
         </section>
+        <section class="view content-view vision-desk" id="view-vision" hidden aria-label="Vision awareness desk">
+          <div class="page-heading"><div><span class="eyebrow">AWARENESS / VISUAL EVIDENCE</span><h1>Vision</h1><p>Local camera and video analysis, with explicit capture and traceable samples.</p></div><button class="button button-secondary" type="button" id="refresh-vision">Refresh Vision status</button></div>
+          <nav class="awareness-tabs" aria-label="Awareness sources"><button class="button button-secondary active" type="button" data-view="vision" aria-current="page">Camera / Video</button><button class="button button-secondary" type="button" data-view="perception">JSON recordings</button></nav>
+          <div id="vision-content"><p>Connect to inspect local Vision status.</p></div>
+        </section>
         <section class="view content-view perception-desk" id="view-perception" hidden aria-label="Recording awareness desk">
           <div class="page-heading"><div><span class="eyebrow">PERCEPTION / RECORDING FIRST</span><h1>Awareness</h1><p>A local desk for recorded zone evidence, uncertainty and source integrity.</p></div><button class="button button-secondary" type="button" id="refresh-perception">Refresh saved evidence</button></div>
+          <nav class="awareness-tabs" aria-label="Awareness sources"><button class="button button-secondary" type="button" data-view="vision">Camera / Video</button><button class="button button-secondary active" type="button" data-view="perception" aria-current="page">JSON recordings</button></nav>
           <div id="perception-content"><p>Connect to inspect your saved recordings.</p></div>
         </section>
         <section class="view content-view" id="view-knowledge" hidden>

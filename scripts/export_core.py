@@ -88,22 +88,25 @@ def ollama_files(root):
     return files
 
 
-def inventory(root):
+def inventory(root, *, with_vision=False):
     root=_allowed_path(root)
     files=source_files(root)
     for name,digest in core_runtime.sealed_files(root).items():files[name]=(root/name,digest)
     files.update(ollama_files(root));files.update(model_files(root))
+    if with_vision:
+        from scripts.provision_vision import verified_files
+        files.update(verified_files(root))
     # No install cache, databases, tokens, schedules, logs or owner profiles.
     return files
 
 
-def export(destination,*,root=ROOT):
+def export(destination,*,root=ROOT,with_vision=False):
     root=_allowed_path(root);destination=_allowed_path(destination)
     if not destination.is_relative_to(root) or destination.suffix.lower()!=".zip":raise ValueError("Export must stay inside this Ariadne folder.")
     partial=_allowed_path(destination.with_suffix(".zip.partial"))
     sidecars=[destination,destination.with_suffix(".zip.sha256"),destination.with_suffix(".zip.receipt.json"),partial]
     if any(path.exists() for path in sidecars):raise FileExistsError("An export/partial/receipt exists. Inspect it; choose a new output name.")
-    files=inventory(root)
+    files=inventory(root,with_vision=with_vision)
     destination.parent.mkdir(parents=True,exist_ok=True)
     guard=object.__new__(ToolRegistry);rows=[]
     with guard._directory(destination.parent):
@@ -123,12 +126,12 @@ def export(destination,*,root=ROOT):
                                 if (before.st_ino,before.st_size,before.st_mtime_ns)!=(after.st_ino,after.st_size,after.st_mtime_ns) or size!=before.st_size:raise ValueError("Export source changed while streaming.")
                 if digest.hexdigest()!=expected:raise ValueError("Export file hash mismatch: "+name)
                 rows.append({"path":name,"bytes":size,"sha256":expected})
-            manifest={"schema":1,"profile":"ariadne-offline-core-v1","default_model":"qwen3.5:9b","private_state_included":False,"files":rows}
+            manifest={"schema":1,"profile":"ariadne-offline-core-v1","default_model":"qwen3.5:9b","private_state_included":False,"optional_packs":["vision"] if with_vision else [],"files":rows}
             archive.writestr("CORE-MANIFEST.json",json.dumps(manifest,sort_keys=True,indent=2)+"\n")
             archive.close();outer.flush();os.fsync(outer.fileno())
         commit_staged(partial,destination)
         digest=core_runtime.sha(destination)
-        receipt={"schema":1,"status":"completed","archive":destination.name,"profile":"ariadne-offline-core-v1","bytes":destination.stat().st_size,"sha256":digest,"files":len(rows)+1,"private_state_included":False,"launch":"Start Ariadne.cmd","setup_required":False,"internet_required_for_local_use":False}
+        receipt={"schema":1,"status":"completed","archive":destination.name,"profile":"ariadne-offline-core-v1","optional_packs":["vision"] if with_vision else [],"bytes":destination.stat().st_size,"sha256":digest,"files":len(rows)+1,"private_state_included":False,"launch":"Start Ariadne.cmd","setup_required":False,"internet_required_for_local_use":False}
         publish_bytes(destination.with_suffix(".zip.sha256"),(digest+"  "+destination.name+"\n").encode())
         publish_bytes(destination.with_suffix(".zip.receipt.json"),(json.dumps(receipt,indent=2)+"\n").encode())
     return receipt
@@ -136,9 +139,10 @@ def export(destination,*,root=ROOT):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument("--output",type=Path)
+    parser.add_argument("--with-vision",action="store_true",help="Include the fully verified optional local CPU vision pack")
     args=parser.parse_args()
     path=args.output or ROOT/"dist"/("ariadne-offline-core-"+time.strftime("%Y%m%dT%H%M%SZ",time.gmtime())+".zip")
-    try:print(json.dumps(export(path),indent=2));return 0
+    try:print(json.dumps(export(path,with_vision=args.with_vision),indent=2));return 0
     except (OSError,ValueError,KeyError,zipfile.BadZipFile) as error:
         print("Offline copy stopped: "+str(error)+". No automatic retry; inspect any partial archive.",file=sys.stderr);return 1
 if __name__=="__main__":raise SystemExit(main())

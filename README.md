@@ -2,6 +2,8 @@
 
 An AI assistant that runs on your PC, opens in your browser and keeps its workspace on your disk. Use it for conversations, files, business drafts, a client service desk, research and controlled local workflows. Prepare it once online, then use its installed local capabilities without Internet or Codex.
 
+Version 0.39 adds optional **local vision**: object/person detection in selected recordings and explicitly started, bounded USB-camera sessions. The CPU detector uses pinned Apache-2.0 YOLOX-Nano weights and makes no model/API calls. Run **Enable Vision.cmd** after Setup for explicit one-time provisioning, or install the matching prepared offline vision add-on with its checksum and shipped seal. Camera input stays off until started. See [vision setup, portable packaging and limits](docs/VISION_LOCAL.md).
+
 **[Download the Windows starter](https://github.com/BLACK-3D/ariadne/releases/latest/download/ariadne-windows-starter.zip)** · **[Full fresh-PC setup guide](docs/GET_STARTED.md)** · **[Source ZIP](https://github.com/BLACK-3D/ariadne/archive/refs/heads/main.zip)**
 
 ## Start on a fresh Windows PC

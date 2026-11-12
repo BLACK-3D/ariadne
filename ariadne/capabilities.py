@@ -140,6 +140,8 @@ def catalog(app):
     production = engine.tools.production.status()
     knowledge = engine.tools.knowledge.status()
     media = engine.tools.media.status()
+    from .vision import vision_assets
+    local_vision = vision_assets()
     automation = engine.tools.automation.status()
     capabilities = [
         group("workspace", "Local workspace", "Inspect, search, calculate and create files within the box.", "Files", {"file_list", "file_read", "file_write", "workspace_search", "calculate"}),
@@ -156,6 +158,9 @@ def catalog(app):
         group("perception_recordings", "Recording-first awareness", "Import and replay bounded saved sensor observations with zone evidence, timelines and verified provenance.", "Local awareness", {"perception_read"},
               ready=getattr(getattr(engine.tools, "perception", None), "_reader", None) is not None,
               details="Offline deterministic replay only; no sensor capture, camera detector, model inference, RuView connection or physical action. Synthetic origin and original observation clocks remain explicit. Missing or conflicting evidence stays unknown. RuView is a future adapter, not an installed live radar."),
+        group("vision_local", "Local camera and video vision", "CPU object/person detection and separate motion evidence from owner-selected video or explicit bounded USB camera sessions.", "Local awareness", {"vision_read"},
+              ready=bool(getattr(app, "vision", None)) and local_vision["ready"],
+              details="Optional hash-pinned local detector and FD-only decoder. Native Windows USB selection, no audio, no auto-start and short owner leases. Agents read results only; no identity, calibrated probability or action authority. Runtime status is not physical camera qualification. " + (local_vision.get("reason") or "Open Awareness → Camera / Video to select the source.")),
         group("python_runner", "Isolated Python runner", "Run workspace scripts in a restricted, networkless Docker snapshot.", "Execution", {"run_python"}, ready=bool(settings.enable_docker and shutil.which("docker")), details="Disabled by default. Requires a separately configured Docker daemon and pre-pulled image; no host shell tool is available."),
     ]
     desk = getattr(app, "client_handoff", None)
