@@ -143,6 +143,35 @@ class SourceRefreshTests(unittest.TestCase):
         self.assert_unpublished()
         self.assertTrue(self.output.with_suffix(".zip.partial").exists())
 
+    def test_perception_source_refresh_includes_public_fixture_ui_and_guide_without_owner_data(self):
+        public = {
+            "ariadne/perception.py": b"# public deterministic replay\n",
+            "ariadne/static/perception.js": b"// public recording review\n",
+            "ariadne/resources/perception/demo.json": b'{"fictional":true,"observations":[]}\n',
+            "docs/PERCEPTION_RECORDINGS.md": b"Public recording guide.\n",
+        }
+        self.write_source({**self.source_members, **public})
+        self.run_refresh()
+        with zipfile.ZipFile(self.output) as archive:
+            rows = {row["path"]: row for row in json.loads(archive.read("BOX-MANIFEST.json"))["files"]}
+            for name, raw in public.items():
+                self.assertEqual(archive.read(name), raw)
+                self.assertEqual(rows[name]["sha256"], digest(raw))
+            for name, raw in self.base_members.items():
+                if refresh._runtime_member(name):
+                    self.assertEqual(archive.read(name), raw)
+            self.assertFalse(any(name.startswith("data/perception/") for name in archive.namelist()))
+
+    def test_perception_owner_recordings_cannot_be_admitted_as_source_or_runtime(self):
+        for name in ("data/perception/recordings/owner.json", "data/perception/reports/replay.json",
+                     "data/workspace/imports/recording.json"):
+            self.assertFalse(refresh._source_member(name))
+            self.assertFalse(refresh._runtime_member(name))
+            self.write_source({**self.source_members, name: b"PRIVATE_RECORDING_SENTINEL"})
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, "non-source replacement"):
+                self.run_refresh()
+            self.assert_unpublished()
+
     def test_corrupt_same_size_retained_native_is_rejected_during_stream(self):
         name = "runtime/ollama/ollama.exe"
         self.rewrite_base(member_mutator=lambda members: members.update({name: b"X" * len(members[name])}))

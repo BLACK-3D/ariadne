@@ -134,7 +134,17 @@ class AgentTests(unittest.TestCase):
 
     def test_explicit_specialist_receives_its_tools_without_discovery_keywords(self):
         run = self.store.new_run("Create the requested artifact", agent_id="mechanical")
-        self.process(run)
+        # Exercise profile filtering independently of optional native engines.
+        # A clean portable source checkout need not have CAD/render assets.
+        offered = self.engine.tools.schemas()
+        installed = {schema["function"]["name"] for schema in offered}
+        for name in ("cad_part", "render_product"):
+            if name not in installed:
+                offered.append({"type": "function", "function": {"name": name,
+                    "description": "Synthetic schema for profile filtering; never executed.",
+                    "parameters": {"type": "object", "properties": {}, "additionalProperties": False}}})
+        with patch.object(self.engine.tools, "schemas", return_value=offered):
+            self.process(run)
         names = {s["function"]["name"] for s in self.model.calls[0]["tools"]}
         self.assertIn("cad_part", names)
         self.assertIn("render_product", names)

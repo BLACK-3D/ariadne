@@ -34,6 +34,7 @@ DOCS.update({"CHECKED_BACKUPS_0_13.md", "GET_STARTED.md"})
 DOCS.add("REPOSITORY_WATCH_0_14.md")
 DOCS.update({"BUSINESS_OPS_0_15.md", "MARKET_RESEARCH_0_15.md", "LOCAL_CONTROLS_0_15.md", "OPERATIONS_0_15.md"})
 DOCS.update({"PORTABLE_0_16.md", "AUTONOMOUS_OPERATIONS_0_16.md"})
+DOCS.add("PERCEPTION_RECORDINGS.md")
 EXAMPLE_FILES = {"business-erpnext-demo.json", "business-quote-demo.json", "market-demo.csv", "market-demo.json",
                  "control-connectors.json", "control-home-assistant.json", "control-states-demo.json"}
 RUNTIME_DIRS = ("runtime/python", "runtime/ollama", "runtime/whisper", "runtime/ocr/models", "runtime/ocr/wheels", "runtime/ocr/notices",

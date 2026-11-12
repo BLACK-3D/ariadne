@@ -165,6 +165,7 @@ class ToolRegistry:
         from .local_controls import LocalControls, NAMES as control_names
         from .service_desk_tools import ServiceDeskReadTools, NAMES as service_desk_names
         from .workroom_tools import WorkroomReadTools, NAMES as workroom_names
+        from .perception_tools import PerceptionReadTools, NAMES as perception_names
         self.production = ProductionTools(self)
         self.knowledge = KnowledgeTools(self)
         self.media = MediaTools(self)
@@ -179,9 +180,10 @@ class ToolRegistry:
         self.local_controls = LocalControls(self)
         self.service_desk = ServiceDeskReadTools(self)
         self.workroom = WorkroomReadTools(self)
-        self.extensions = (self.production, self.knowledge, self.media, self.automation, self.business, self.survival, self.references, self.procedures, self.business_ops, self.market_research, self.etf_research, self.local_controls, self.service_desk, self.workroom)
+        self.perception = PerceptionReadTools(self)
+        self.extensions = (self.production, self.knowledge, self.media, self.automation, self.business, self.survival, self.references, self.procedures, self.business_ops, self.market_research, self.etf_research, self.local_controls, self.service_desk, self.workroom, self.perception)
         self._extension_names = {}
-        for provider, names in zip(self.extensions, (production_names, knowledge_names, media_names, automation_names, business_names, survival_names, reference_names, procedure_names, business_ops_names, market_names, etf_names, control_names, service_desk_names, workroom_names)):
+        for provider, names in zip(self.extensions, (production_names, knowledge_names, media_names, automation_names, business_names, survival_names, reference_names, procedure_names, business_ops_names, market_names, etf_names, control_names, service_desk_names, workroom_names, perception_names)):
             for name in names:
                 if name in self._extension_names:
                     raise ToolError("Duplicate extension tool name.")

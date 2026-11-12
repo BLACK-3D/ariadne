@@ -117,6 +117,16 @@ class Store:
 
     def set_setting(self, key, value):
         with self.connect() as db:
+            if key == "paused":
+                # Revoke in-flight perception publication even if an owner
+                # pauses and resumes between two acquisition checkpoints.
+                # Keep the fence and pause value in one serialized transaction.
+                db.execute("BEGIN IMMEDIATE")
+                row = db.execute("SELECT value FROM settings WHERE key='perception_revision'").fetchone()
+                revision = json.loads(row[0]) if row else 0
+                if type(revision) is not int or revision < 0:
+                    raise ValueError("Invalid perception control revision; inspect owner state.")
+                db.execute("INSERT OR REPLACE INTO settings VALUES (?,?)", ("perception_revision", json.dumps(revision + 1)))
             db.execute("INSERT OR REPLACE INTO settings VALUES (?,?)", (key, json.dumps(value)))
 
     def recover(self):

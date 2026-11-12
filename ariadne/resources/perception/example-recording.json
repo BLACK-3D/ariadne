@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "recording_id": "example-owner-reviewed-recording",
+  "title": "Synthetic example of owner-reviewed observations",
+  "started_at": "2026-01-01T12:00:00Z",
+  "duration_ms": 1000,
+  "zones": ["study"],
+  "sensors": [
+    {"registered_sensor_alias": "selected-camera-recording", "modality": "camera", "producer_revision": "owner-annotation-1", "zone_id": "study"}
+  ],
+  "observations": [
+    {"event_id": "example-1", "registered_sensor_alias": "selected-camera-recording", "producer_boot_id": "annotation-session-1", "capture_origin": "synthetic", "observed_at": "2026-01-01T12:00:00Z", "sequence": 1, "replay_offset_ms": 0, "presence": "present", "motion": "detected", "upstream_source_state": "available", "objects": [{"label": "chair", "count": 1}]},
+    {"event_id": "example-2", "registered_sensor_alias": "selected-camera-recording", "producer_boot_id": "annotation-session-1", "capture_origin": "synthetic", "observed_at": "2026-01-01T12:00:01Z", "sequence": 2, "replay_offset_ms": 1000, "presence": "present", "motion": "detected", "upstream_source_state": "available", "objects": [{"label": "chair", "count": 1}]}
+  ]
+}

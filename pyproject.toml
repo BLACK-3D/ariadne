@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ariadne-box"
-version = "0.37.0"
+version = "0.38.0"
 description = "A local AI workspace with bounded autonomy, durable memory and explicit tool authority"
 requires-python = ">=3.11"
 dependencies = []
@@ -23,4 +23,4 @@ ariadne = "ariadne.__main__:main"
 include = ["ariadne*"]
 
 [tool.setuptools.package-data]
-ariadne = ["static/*", "resources/survival/*.json", "resources/survival/cards/*.md", "resources/survival/documents/*", "resources/briefing/*", "resources/market/*", "resources/operations/*", "resources/handoff/*.json", "resources/vix/*.json"]
+ariadne = ["static/*", "resources/survival/*.json", "resources/survival/cards/*.md", "resources/survival/documents/*", "resources/briefing/*", "resources/market/*", "resources/operations/*", "resources/handoff/*.json", "resources/vix/*.json", "resources/perception/*.json"]

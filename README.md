@@ -40,8 +40,9 @@ Already using an installation? Use **Start**, not **Setup**. Keep its data and m
 | Project Workroom | Projects with dependencies, reviewed execution budgets, existing agent workflows, zero-model procedures and checked evidence handoffs. Completion and owner attestations remain distinct. |
 | Project Kits | Turn a saved Service desk intake into a frozen source pack and a reviewed delivery project with two local-only draft/review workflows. Preparation uses no model; starting work remains separate. |
 | Venture Lab | Business ideas, evidence, tasks and print-on-demand/service comparisons. Hypothetical scenarios remain distinct from actual customer/cash evidence. |
-| Trading research | Local-file research and paper-account tools. Current source also adds [strict options-book review](docs/OPTIONS_LIQUIDITY.md) of imported prices, sizes and dated liquidity evidence; this CLI is not in the last packaged 0.37.0 starter. New data needs a qualified feed; no broker or real trading is enabled by setup. |
+| Trading research | Local-file research and paper-account tools. The 0.38.0 starter includes [strict options-book review](docs/OPTIONS_LIQUIDITY.md) source for imported prices, sizes and dated liquidity evidence. New data needs a qualified feed; no broker or real trading is enabled by setup. |
 | Daily brief | Saved activity and source reports; fresh weather/news needs Internet and regional configuration. Scheduling is opt-in. |
+| Perception recordings | Explicit local recording import and deterministic replay, with a fictional demo. No camera or microphone capture is enabled. See [recording-first perception](docs/PERCEPTION_RECORDINGS.md). |
 | Voice, cameras and connected systems | Optional packs and explicit device/connector setup. The core starter does not activate a microphone, camera or device. |
 | References and specialist tools | Bundled references plus separately prepared OCR, semantic search, media and engineering packs. **Capabilities** shows what is actually ready. |
 
@@ -56,6 +57,7 @@ The fresh-PC route keeps its Python runtime and prepared model assets inside the
 The [Threadline interface](docs/INTERFACE.md) brings observed system state, a directive workbench, review controls and direct business/workflow routes into one local environment.
 
 - [Fresh-PC setup, first use, offline check and troubleshooting](docs/GET_STARTED.md)
+- [Recording-first perception: demo, import, replay and evidence limits](docs/PERCEPTION_RECORDINGS.md)
 - [Existing-installation launcher repair](docs/LAUNCHER_REPAIR.md)
 - [Advanced manual setup and optional packs](docs/BUILD_FROM_SOURCE.md)
 - [Service desk workflow](docs/SERVICE_DESK_0_20.md)
@@ -69,18 +71,18 @@ The [Threadline interface](docs/INTERFACE.md) brings observed system state, a di
 - [Architecture](docs/ARCHITECTURE.md) · [Project direction](docs/PROJECT_DIRECTION.md)
 - [MIT license for original source](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
-Current application source: **0.37.0**. Starter packaging prepares the core; it does not include every optional pack. Historical full-appliance version **0.16.1** is a separate local artifact and is not the current downloadable starter.
+Current application source: **0.38.0**. Starter packaging prepares the core; it does not include every optional pack. Historical full-appliance version **0.16.1** is a separate local artifact and is not the current downloadable starter.
 
 ### Connect Public data to local paper trading
 
 Current source adds a [Public market-data connection and setup guide](docs/PUBLIC_PAPER_TRADING.md). Create your own eligible Public account, generate a secret in its API settings, then use the local hidden-input setup command. Windows protects the saved credential with CurrentUser DPAPI; secrets and captured data stay outside public source exports. The connection restricts its own endpoints to authentication, explicit account discovery and market data, and provides no real-order interface. This software restriction does not turn a broadly capable Public secret into a broker-enforced read-only key.
 
-Paper trading uses the existing shared **$25,000 total bankroll with no automatic top-ups**, explicit reviewed migration, dated liquidity checks and durable cash/inventory/depth controls. Setup does not migrate an account, clear owner holds, activate recurrence or start real trading. Missing Public evidence still blocks a fill. Authentication, entitlement and actual quote freshness require owner setup and a qualified capture; offline tests cannot certify them. This source addition is not included in the last packaged 0.37.0 starter. Read the guide for current account fees, personal-use restrictions, commands and offline limits.
+Paper trading uses the existing shared **$25,000 total bankroll with no automatic top-ups**, explicit reviewed migration, dated liquidity checks and durable cash/inventory/depth controls. Setup does not migrate an account, clear owner holds, activate recurrence or start real trading. Missing Public evidence still blocks a fill. Authentication, entitlement and actual quote freshness require owner setup and a qualified capture; offline tests cannot certify them. The 0.38.0 starter includes this source, with external access configured separately. Read the guide for current account fees, personal-use restrictions, commands and offline limits.
 ### Inspect an alternative options feed without a brokerage connection
 
 Current source prepares [ThetaData local-terminal qualification](docs/THETA_PAPER_DATA.md) and an alternative [Alpaca OPRA/SIP connection](docs/ALPACA_PAPER_DATA.md), using the existing five-second liquidity gate. ThetaData advertises $40/month for real-time options; its Free plan is historical EOD and its own live-stock add-on raises the package to $120/month. Alpaca advertises a $99/month combined OPRA/SIP plan. Initial phone-free signup does not prove paid-access requirements; actual entitlement and live data remain unverified. No subscription is purchased by setup.
 
-This addition captures data and checks admission against the existing paper account; it does **not** execute paper fills, migrate the account, add funding or enable unattended polling. The free indicative options feed is refused. Missing credentials, fresh event clocks, liquidity metadata or compatible account permissions remain explicit blockers. The last downloadable starter predates this source addition.
+This addition captures data and checks admission against the existing paper account; it does **not** execute paper fills, migrate the account, add funding or enable unattended polling. The free indicative options feed is refused. Missing credentials, fresh event clocks, liquidity metadata or compatible account permissions remain explicit blockers. The 0.38.0 starter includes the qualification source; optional external services and their runtimes remain separate setup.
 
 ### From a saved intake to a delivery project
 

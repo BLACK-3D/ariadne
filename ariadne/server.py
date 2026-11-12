@@ -25,6 +25,7 @@ from .venture_lab import VentureConflict
 from .handoff import HandoffConflict, HandoffDesk
 from .client_handoff import ClientHandoffDesk
 from .workroom import WorkroomConflict
+from .perception import PerceptionConflict
 
 
 class HTTPError(Exception):
@@ -64,6 +65,9 @@ class Application:
         self.workroom = self.engine.workroom
         from .operations import OperationsDesk
         self.operations = OperationsDesk(self.engine.tools, self.store)
+        from .perception import Perception
+        self.perception = Perception(self.engine.tools, self.store)
+        self.engine.tools.perception.bind(self.perception_read)
         from .internet import InternetService
         self.internet = InternetService(settings, self.store, self.engine.tools)
         self.engine.internet_provider = self.internet_call
@@ -97,6 +101,32 @@ class Application:
         if settings.host not in {"0.0.0.0", "::"}:
             self.allowed_hosts.add(settings.host.lower())
         self.allowed_hosts.update(x.strip().lower() for x in os.environ.get("ARIADNE_ALLOWED_HOSTS", "").split(",") if x.strip())
+
+    def perception_read(self, action, recording_id=None):
+        """Saved evidence only; no device, network, scheduler or model entrypoint."""
+        if action == "status":
+            result = self.perception.status()
+            records = result["recordings"]
+            result.update(recordings=records[:5], recordings_total=len(records), recordings_omitted=max(0, len(records)-5))
+            return result
+        detail = self.perception.detail(recording_id)
+        evidence = detail.get("evidence")
+        if evidence is None:
+            return detail
+        # Return useful bounded facts, not hundreds of duplicate frame payloads.
+        # Full retained evidence remains available in the authenticated desk.
+        latest = {}
+        for observation in evidence["observations"]:
+            latest[observation["registered_sensor_alias"]] = observation
+        result = {"receipt": detail["receipt"], "current_zones": detail["current_zones"],
+                  "recording": {key: evidence[key] for key in
+                      ("recording_id", "title", "started_at", "duration_ms", "processing_mode", "capture_origins", "source_sha256", "freshness_reference", "live_available", "local_qualification_status", "authority")},
+                  "recorded_zones": evidence["zones"], "latest_recorded_observations": list(latest.values()),
+                  "timeline": evidence["timeline"][-8:], "timeline_total": len(evidence["timeline"]),
+                  "timeline_omitted": max(0, len(evidence["timeline"])-8), "observations_total": len(evidence["observations"])}
+        if len(json.dumps(result, ensure_ascii=False).encode("utf-8")) > 60_000:
+            raise ValueError("This recording exceeds the agent read window; inspect its verified dashboard detail.")
+        return result
 
     def start_services(self):
         self.briefing.start()
@@ -303,6 +333,8 @@ class Application:
                           "/static/workroom.css": ("workroom.css", "text/css"),
                           "/static/project_kits.js": ("project_kits.js", "text/javascript"),
                           "/static/project_kits.css": ("project_kits.css", "text/css"),
+                          "/static/perception.js": ("perception.js", "text/javascript"),
+                          "/static/perception.css": ("perception.css", "text/css"),
                           "/static/venture.css": ("venture.css", "text/css"),
                           "/static/venture.js": ("venture.js", "text/javascript"),
                           "/static/handoff.js": ("handoff.js", "text/javascript"),
@@ -333,6 +365,8 @@ class Application:
             status, payload, mime = 409, {"error": str(error), "revision": error.revision}, "application/json"
         except WorkroomConflict as error:
             status, payload, mime = 409, {"error": str(error), "revision": error.revision}, "application/json"
+        except PerceptionConflict as error:
+            status, payload, mime = 409, {"error": str(error)}, "application/json"
         except KeyError:
             status, payload, mime = 404, {"error": "Not found"}, "application/json"
         except FileNotFoundError:
@@ -440,6 +474,8 @@ class Application:
         result, status = None, 200
         if parts and parts[0] == "project-kits" and env.get("QUERY_STRING", ""):
             raise ValueError("Project Kits accepts no query parameters; use its explicit reviewed actions.")
+        if parts and parts[0] == "perception" and env.get("QUERY_STRING", ""):
+            raise ValueError("Perception accepts no query parameters; use explicit saved recording actions.")
         if parts == ["status"] and method == "GET":
             with self.status_lock:
                 if time.monotonic() - self.status_at > 5 or self.status_cache is None:
@@ -455,6 +491,27 @@ class Application:
             from .network_policy import network_policy_status
             result["network_policy"] = network_policy_status()
             result["internet"] = self.internet.status()
+        elif parts == ["perception"] and method == "GET":
+            result = {"catalog": self.perception.catalog(), **self.perception.status()}
+        elif len(parts) == 3 and parts[:2] == ["perception", "recordings"] and method == "GET":
+            result = self.perception.detail(parts[2])
+        elif parts and parts[0] == "perception" and method == "POST":
+            if len(parts) != 2 or parts[1] not in {"import", "replay", "demo"}:
+                raise HTTPError(404, "Unknown saved-perception action")
+            if self.engine.is_paused():
+                raise HTTPError(409, "Autonomy is paused; perception imports and replays are held.")
+            data = self.client_handoff_body(env, limit=8 * 1024)
+            required = {"request_id", "expected_revision"}
+            required |= {"path"} if parts[1] == "import" else {"recording_id"} if parts[1] == "replay" else set()
+            if set(data) != required:
+                raise ValueError("Use only the selected saved-perception action's exact fields.")
+            revision = venture_revision(data)
+            if parts[1] == "import":
+                result = self.perception.import_bundle(data["path"], data["request_id"], expected_revision=revision)
+            elif parts[1] == "replay":
+                result = self.perception.replay(data["recording_id"], data["request_id"], expected_revision=revision)
+            else:
+                result = self.perception.synthetic_demo(data["request_id"], expected_revision=revision)
         elif parts == ["project-kits"] and method == "GET":
             result = self.project_kits.status()
         elif parts == ["project-kits", "catalog"] and method == "GET":

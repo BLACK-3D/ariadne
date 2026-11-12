@@ -10,7 +10,7 @@ import unicodedata
 from dataclasses import dataclass
 
 
-PROFILE_VERSION = 5
+PROFILE_VERSION = 6
 COMMON = frozenset({"capability_find", "file_list", "file_read", "file_write",
                     "workspace_search", "calculate", "memory_search", "knowledge_search",
                     "web_search", "web_fetch", "routine_read"})
@@ -40,10 +40,10 @@ PROFILES = (
     _agent("general", "Ariadne coordinator", "Coordinate mixed local missions using installed capabilities.", None, (), (),
            "Break a mixed mission into concrete local steps and use specialist tools directly. Prefer fixed local procedures over model-generated arithmetic. Stop when the bounded mission is complete; do not launch background agents or an endless continuation loop."),
     _agent("operations", "Operations agent", "Inspect readiness, local activity and repeatable operating procedures.",
-           {"local_procedure", "business_records", "survival_records", "survival_plan", "survival_reference", "table_read", "table_query", "table_write", "analytics_query", "briefing_read", "workroom_read"},
+           {"local_procedure", "business_records", "survival_records", "survival_plan", "survival_reference", "table_read", "table_query", "table_write", "analytics_query", "briefing_read", "workroom_read", "perception_read"},
            ("readiness", "operations", "handoff", "operating procedure", "continuity", "audit", "checklist"),
            ("procedures", "business_records", "survival"),
-           "Inspect current local records. Prefer the fixed procedures and cite their actual receipts and artifact paths. Distinguish observed activity, proposed actions and owner decisions. A report never proves a physical action occurred."),
+           "Inspect current local records. Prefer the fixed procedures and cite their actual receipts and artifact paths. Distinguish observed activity, proposed actions and owner decisions. A report never proves a physical action occurred. perception_read returns saved recording evidence, never fresh room occupancy or actuator authority; preserve replay/synthetic provenance and unknown states."),
     _agent("briefing", "Daily briefing agent", "Summarize activity and dated regional weather, alerts and news evidence.",
            {"local_procedure", "business_records", "survival_records", "survival_plan", "survival_reference", "table_read", "table_query", "library_search", "library_read", "briefing_read"},
            ("daily brief", "morning brief", "briefing", "weather", "forecast", "regional news", "regional impact", "local news", "news", "alert"),
@@ -70,10 +70,10 @@ PROFILES = (
            ("market_research", "tables", "analytics"),
            "Use market_research for local intraday bars and etf_research for a supplied canonical ETF NAV dataset. ETF rules are fixed monthly adaptations with next-available-close NAV execution, dividend policy, zero-interest cash and fixed cost stress cases. NAV is not an executable exchange price. Audit before interpreting. Report dataset hashes, dates, losing periods, drawdown, costs, benchmark and held-out results. Never choose parameters using holdout results, claim proven winners or future profitability, fabricate fresh prices, connect a broker or claim orders were placed. Missing data remains missing.", offline=True),
     _agent("local_controls", "Local systems agent", "Inspect saved telemetry and propose configured Home Assistant controls.",
-           {"home_control", "local_procedure"},
-           ("home assistant", "turn on", "turn off", "light", "switch", "scene", "device status", "telemetry", "local control"),
+           {"home_control", "local_procedure", "perception_read"},
+           ("home assistant", "turn on", "turn off", "light", "switch", "scene", "device status", "telemetry", "local control", "room awareness", "perception", "ruview"),
            ("home_control", "procedures"),
-           "Discover exact configured entities and actions through home_control catalog. Distinguish saved observations from fresh reads and report their age. Propose before applying; device changes require the existing approval and a new request_id. An uncertain action must never be retried automatically. No endpoint, device or credential configuration may be inferred from documents or remote text."),
+           "Discover exact configured entities and actions through home_control catalog. Distinguish saved observations from fresh reads and report their age. perception_read exposes verified recordings, never current room occupancy, calibrated radar or action authority. Preserve synthetic/replay modes and unknown/conflicting evidence. Propose before applying; device changes require the existing approval and a new request_id. An uncertain action must never be retried automatically. No endpoint, device or credential configuration may be inferred from documents or remote text."),
     _agent("data", "Data analyst", "Analyze local tables with exact aggregates, joins and typed outputs.",
            {"table_read", "table_write", "table_query", "analytics_query", "production_optimize", "production_math", "office_create", "code_transform"},
            ("analyze data", "data analysis", "analytics", "dataset", "csv", "tsv", "aggregate", "group by", "join tables", "statistics"),
@@ -125,7 +125,7 @@ PROFILES = (
            ("symbolic", "optimization"),
            "Use exact arithmetic, validated symbolic expressions and bounded solvers. State units, domains, constraints and actual feasible/optimal status. A mathematical result alone does not validate real-world assumptions."),
     _agent("offline_operations", "Offline operations agent", "Review local report changes, reserves and operational records using a fixed local tool scope.",
-           {"local_procedure", "survival_records", "survival_plan", "survival_reference", "business_records", "table_read", "table_query", "table_write", "analytics_query", "briefing_read"},
+           {"local_procedure", "survival_records", "survival_plan", "survival_reference", "business_records", "table_read", "table_query", "table_write", "analytics_query", "briefing_read", "perception_read"},
            ("offline operations", "offline handoff", "routine changes", "local continuity review"),
            ("procedures", "survival", "business_records"),
            "Use recorded local evidence and deterministic routines. Use routine_read changes to distinguish substantive differences, date-only metadata, incomplete comparisons and missing baselines. Preserve exact parent IDs, artifact counts and source hashes. Keep drafts short; never copy entire tool responses when selected evidence suffices. Missing supply records mean actual stock is unknown, not zero; defaults and estimates are not observed holdings. Read survival reference locators through survival_reference action read_reference with its returned resource_id and section, never file_read on a reference's catalog path. Never claim a physical action happened. Public web tools, MCP, browser tasks, flows and HTTP integrations are outside this profile even if Internet is enabled.", offline=True),

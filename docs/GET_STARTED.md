@@ -71,6 +71,8 @@ The first reply can include model-loading time. Try another question after the m
 
 Next, add a reference under **Knowledge**, save a note under **Memory**, or inspect **Workflows**. Review a workflow's inputs, expected outputs and approvals before enabling recurrence. A model's completion claim is distinct from a verified output or a correct business result.
 
+For recording-first perception, open **Awareness** and choose **Create synthetic demo**, or explicitly import a supported local JSON recording. Replay uses saved observations without a model or network; it does not activate a microphone or camera. Read the [recording format, review flow and evidence limits](PERCEPTION_RECORDINGS.md).
+
 ## Check it without Internet
 
 1. Finish setup, start Ariadne and complete a short local conversation and fictional Service desk export.

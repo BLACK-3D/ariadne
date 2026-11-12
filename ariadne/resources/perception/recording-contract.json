@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ariadne:perception-recording:1",
+  "title": "Ariadne bounded recording-only observation bundle",
+  "description": "Documentation schema. Runtime also enforces duplicate keys, UTF-8/byte/depth limits, unique identifiers, declared sources/zones, ordered offsets/sequences, timestamps and calibration consistency. Import never invokes a detector or authenticates producer claims.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "recording_id", "title", "started_at", "duration_ms", "sensors", "zones", "observations"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "recording_id": {"$ref": "#/$defs/id"},
+    "title": {"type": "string", "minLength": 1, "maxLength": 160},
+    "started_at": {"$ref": "#/$defs/time"},
+    "duration_ms": {"type": "integer", "minimum": 0, "maximum": 86400000},
+    "zones": {"type": "array", "minItems": 1, "maxItems": 16, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+    "sensors": {"type": "array", "minItems": 1, "maxItems": 16, "items": {"$ref": "#/$defs/sensor"}},
+    "observations": {"type": "array", "minItems": 1, "maxItems": 512, "items": {"$ref": "#/$defs/observation"}}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"},
+    "time": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?Z$"},
+    "nullable_time": {"anyOf": [{"$ref": "#/$defs/time"}, {"type": "null"}]},
+    "nullable_hash": {"anyOf": [{"type": "string", "pattern": "^[a-f0-9]{64}$"}, {"type": "null"}]},
+    "nullable_id": {"anyOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]},
+    "sensor": {
+      "type": "object", "additionalProperties": false,
+      "required": ["registered_sensor_alias", "modality", "producer_revision", "zone_id"],
+      "properties": {
+        "registered_sensor_alias": {"$ref": "#/$defs/id"},
+        "modality": {"enum": ["wifi_csi", "wifi_rssi", "camera", "mmwave"]},
+        "producer_revision": {"type": "string", "minLength": 1, "maxLength": 80},
+        "zone_id": {"$ref": "#/$defs/id"},
+        "calibration_revision": {"$ref": "#/$defs/nullable_id"}
+      }
+    },
+    "observation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["event_id", "registered_sensor_alias", "producer_boot_id", "capture_origin", "observed_at", "sequence", "replay_offset_ms", "presence", "motion", "upstream_source_state"],
+      "properties": {
+        "schema_version": {"const": 1},
+        "event_id": {"$ref": "#/$defs/id"},
+        "registered_sensor_alias": {"$ref": "#/$defs/id"},
+        "producer_boot_id": {"$ref": "#/$defs/id"},
+        "source_event_id": {"$ref": "#/$defs/nullable_id"},
+        "capture_origin": {"enum": ["live", "synthetic", "unknown"]},
+        "processing_mode": {"enum": ["live", "replay", "simulation"], "description": "Producer declaration only; imports and replay force replay, explicit bundled demo forces simulation."},
+        "observed_at": {"$ref": "#/$defs/nullable_time"},
+        "producer_at": {"$ref": "#/$defs/nullable_time"},
+        "received_at": {"$ref": "#/$defs/nullable_time", "description": "Preserved as source_received_at; never used as hardware observation time."},
+        "sequence": {"type": ["integer", "null"], "minimum": 0, "maximum": 9007199254740991},
+        "replay_offset_ms": {"type": "integer", "minimum": 0, "maximum": 86400000},
+        "presence": {"enum": ["present", "absent", "unknown"]},
+        "motion": {"enum": ["detected", "not_detected", "unknown"]},
+        "upstream_source_state": {"enum": ["available", "unavailable", "disconnected", "stale", "waiting_for_frames", "invalid"]},
+        "local_qualification_status": {"enum": ["unqualified", "recorded_unverified"]},
+        "clock_kind": {"enum": ["hardware_unverified", "producer_unverified", "unknown"]},
+        "clock_epoch": {"type": ["string", "null"], "minLength": 1, "maxLength": 80},
+        "calibration_revision": {"$ref": "#/$defs/nullable_id"},
+        "coordinate_frame": {"type": "null"},
+        "units": {"type": "null"},
+        "quality_flags": {"type": "array", "maxItems": 16, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+        "objects": {"type": "array", "maxItems": 16, "items": {"type": "object", "additionalProperties": false, "required": ["label"], "properties": {"label": {"type": "string", "minLength": 1, "maxLength": 64}, "count": {"type": "integer", "minimum": 0, "maximum": 100}}}},
+        "score": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "score_kind": {"enum": ["unavailable", "uncalibrated_model_score"]},
+        "model_hash": {"$ref": "#/$defs/nullable_hash"},
+        "firmware_hash": {"$ref": "#/$defs/nullable_hash"},
+        "supporting_observation_ids": {"type": "array", "maxItems": 16, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}
+      }
+    }
+  }
+}

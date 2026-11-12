@@ -153,6 +153,9 @@ def catalog(app):
         group("speech_input", "Offline voice input", "Push-to-talk transcription with a local speech engine.", "Voice", set(), ready=voice["transcription"], details="Browser microphone permission is required; audio is not sent to cloud speech recognition."),
         group("speech_output", "Offline voice output", "Read responses through a local speech engine.", "Voice", set(), ready=voice["speech"]),
         group("workflows", "Checked workflows", "Run reusable local missions with explicit file expectations and bounded repair.", "Automation", set(), details="Checks verify selected file content, structure and exact numeric expectations. They do not certify overall business quality or deployment. A model's completion claim alone does not pass them."),
+        group("perception_recordings", "Recording-first awareness", "Import and replay bounded saved sensor observations with zone evidence, timelines and verified provenance.", "Local awareness", {"perception_read"},
+              ready=getattr(getattr(engine.tools, "perception", None), "_reader", None) is not None,
+              details="Offline deterministic replay only; no sensor capture, camera detector, model inference, RuView connection or physical action. Synthetic origin and original observation clocks remain explicit. Missing or conflicting evidence stays unknown. RuView is a future adapter, not an installed live radar."),
         group("python_runner", "Isolated Python runner", "Run workspace scripts in a restricted, networkless Docker snapshot.", "Execution", {"run_python"}, ready=bool(settings.enable_docker and shutil.which("docker")), details="Disabled by default. Requires a separately configured Docker daemon and pre-pulled image; no host shell tool is available."),
     ]
     desk = getattr(app, "client_handoff", None)

@@ -63,6 +63,27 @@ class ExportSourcePrivacyTests(unittest.TestCase):
         with zipfile.ZipFile(self.destination()) as archive:
             self.assertEqual(archive.read("README.md"), b"Committed public documentation\n")
 
+    def test_perception_guide_and_fictional_resources_are_bound_to_committed_source(self):
+        public = {
+            "ariadne/perception.py": b"# public replay implementation\n",
+            "ariadne/static/perception.js": b"// public recording interface\n",
+            "ariadne/resources/perception/demo.json": b'{"fictional":true,"observations":[]}\n',
+            "docs/PERCEPTION_RECORDINGS.md": b"Public recording guide.\n",
+        }
+        for name, raw in public.items():
+            self.write(name, raw)
+        self.commit()
+        for name in ("data/perception/recordings/owner.json", "data/perception/reports/replay.json"):
+            self.write(name, b"PRIVATE_RECORDING_SENTINEL")
+        source.export(self.destination(), root=self.root)
+        with zipfile.ZipFile(self.destination()) as archive:
+            pins = json.loads(archive.read("SOURCE-MANIFEST.json"))["sha256"]
+            for name, raw in public.items():
+                self.assertEqual(archive.read(name), raw)
+                self.assertEqual(pins[name], hashlib.sha256(raw).hexdigest())
+            self.assertFalse(any(name.startswith("data/") for name in archive.namelist()))
+            self.assertTrue(all(b"PRIVATE_RECORDING_SENTINEL" not in archive.read(name) for name in archive.namelist()))
+
     def test_staged_but_uncommitted_files_are_excluded(self):
         self.write("docs/staged-private.txt", b"SYNTHETIC_STAGED_PRIVATE_NOTE")
         self.git("add", "--", "docs/staged-private.txt")

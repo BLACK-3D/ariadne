@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "recording_id": "synthetic-zone-demo-v1",
+  "title": "Synthetic presence, disagreement, source loss and stale evidence",
+  "started_at": "2026-01-01T12:00:00Z",
+  "duration_ms": 15000,
+  "zones": ["study"],
+  "sensors": [
+    {"registered_sensor_alias": "demo-camera", "modality": "camera", "producer_revision": "fixture-1", "zone_id": "study"},
+    {"registered_sensor_alias": "demo-rf", "modality": "wifi_csi", "producer_revision": "fixture-1", "zone_id": "study"}
+  ],
+  "observations": [
+    {"event_id": "camera-1", "registered_sensor_alias": "demo-camera", "producer_boot_id": "demo-boot-1", "capture_origin": "synthetic", "observed_at": "2026-01-01T12:00:00Z", "sequence": 1, "replay_offset_ms": 0, "presence": "present", "motion": "not_detected", "upstream_source_state": "available"},
+    {"event_id": "rf-1", "registered_sensor_alias": "demo-rf", "producer_boot_id": "demo-boot-1", "capture_origin": "synthetic", "observed_at": "2026-01-01T12:00:00Z", "sequence": 1, "replay_offset_ms": 0, "presence": "present", "motion": "not_detected", "upstream_source_state": "available"},
+    {"event_id": "camera-2", "registered_sensor_alias": "demo-camera", "producer_boot_id": "demo-boot-1", "capture_origin": "synthetic", "observed_at": "2026-01-01T12:00:01Z", "sequence": 2, "replay_offset_ms": 1000, "presence": "present", "motion": "not_detected", "upstream_source_state": "available"},
+    {"event_id": "rf-2", "registered_sensor_alias": "demo-rf", "producer_boot_id": "demo-boot-1", "capture_origin": "synthetic", "observed_at": "2026-01-01T12:00:01Z", "sequence": 2, "replay_offset_ms": 1000, "presence": "present", "motion": "not_detected", "upstream_source_state": "available"},
+    {"event_id": "camera-3", "registered_sensor_alias": "demo-camera", "producer_boot_id": "demo-boot-1", "capture_origin": "synthetic", "observed_at": "2026-01-01T12:00:02Z", "sequence": 3, "replay_offset_ms": 2000, "presence": "absent", "motion": "not_detected", "upstream_source_state": "available"},
+    {"event_id": "camera-4", "registered_sensor_alias": "demo-camera", "producer_boot_id": "demo-boot-1", "capture_origin": "synthetic", "observed_at": "2026-01-01T12:00:03Z", "sequence": 4, "replay_offset_ms": 3000, "presence": "absent", "motion": "not_detected", "upstream_source_state": "available"},
+    {"event_id": "rf-3", "registered_sensor_alias": "demo-rf", "producer_boot_id": "demo-boot-1", "capture_origin": "synthetic", "observed_at": null, "sequence": 3, "replay_offset_ms": 4000, "presence": "unknown", "motion": "unknown", "upstream_source_state": "disconnected"}
+  ]
+}

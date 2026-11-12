@@ -281,6 +281,34 @@ class ModelAndEngineTests(CoreFixture):
 
 
 class PublicationTests(CoreFixture):
+    def test_perception_assets_follow_source_manifest_without_importing_owner_state(self):
+        public = {
+            "ariadne/perception.py": b"# recording-first public source\n",
+            "ariadne/static/perception.js": b"// explicit recording controls\n",
+            "ariadne/resources/perception/demo.json": b'{"fictional":true,"observations":[]}\n',
+            "docs/PERCEPTION_RECORDINGS.md": b"Public recording guide.\n",
+        }
+        for name, raw in public.items():
+            self.put(name, raw)
+            self.manifest["sha256"][name] = digest(raw)
+        self.put("SOURCE-MANIFEST.json", encoded(self.manifest))
+        self.seal()
+        private = ("data/perception/recordings/owner.json", "data/perception/reports/replay.json",
+                   "data/workspace/imports/recording.json")
+        for name in private:
+            self.put(name, OWNER)
+        target = self.target("perception")
+        exporter.export(target, root=self.root)
+        with zipfile.ZipFile(target) as archive:
+            rows = {row["path"]: row for row in json.loads(archive.read("CORE-MANIFEST.json"))["files"]}
+            source = json.loads(archive.read("SOURCE-MANIFEST.json"))["sha256"]
+            for name, raw in public.items():
+                self.assertEqual(archive.read(name), raw)
+                self.assertEqual(rows[name]["sha256"], digest(raw))
+                self.assertEqual(source[name], digest(raw))
+            self.assertFalse(set(private) & set(archive.namelist()))
+            self.assertTrue(all(OWNER not in archive.read(name) for name in archive.namelist()))
+
     def test_complete_export_excludes_owner_data_and_binds_every_artifact(self):
         self.seal()
         private=("data/server.token","data/ariadne.sqlite3","data/connectors.json","data/workspace/private.txt","runtime/python/Lib/site-packages/private.env")

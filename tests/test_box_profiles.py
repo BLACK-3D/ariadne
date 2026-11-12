@@ -158,6 +158,29 @@ class BoxProfileTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "hard-linked"):
             inventory(self.root)
 
+    def test_perception_source_resources_and_guide_are_exported_without_owner_recordings(self):
+        public = {
+            "ariadne/perception.py": b"# public recording replay implementation\n",
+            "ariadne/static/perception.js": b"// public recording review interface\n",
+            "ariadne/resources/perception/demo.json": b'{"fictional":true,"observations":[]}\n',
+            "docs/PERCEPTION_RECORDINGS.md": b"Public recording format and evidence limits.\n",
+        }
+        private = ("data/perception/recordings/owner.json", "data/perception/events.jsonl",
+                   "data/perception/reports/replay.json", "data/workspace/imports/recording.json")
+        for name, raw in {**public, **{name: b"PRIVATE_PERCEPTION_SENTINEL" for name in private}}.items():
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(raw)
+        output = self.root / "dist/perception.zip"
+        export(output, self.root)
+        with zipfile.ZipFile(output) as archive:
+            rows = {row["path"]: row for row in json.loads(archive.read("BOX-MANIFEST.json"))["files"]}
+            for name, raw in public.items():
+                self.assertEqual(archive.read(name), raw)
+                self.assertEqual(rows[name]["sha256"], hashlib.sha256(raw).hexdigest())
+            self.assertFalse(set(private) & set(archive.namelist()))
+            self.assertTrue(all(b"PRIVATE_PERCEPTION_SENTINEL" not in archive.read(name) for name in archive.namelist()))
+
     def test_export_never_overwrites_existing_sidecar(self):
         output = self.root / "dist/box.zip"
         output.parent.mkdir()
