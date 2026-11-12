@@ -210,6 +210,14 @@ class SourceRefreshTests(unittest.TestCase):
                 self.run_refresh()
             self.assert_unpublished()
 
+    def test_adding_byte_preservation_policy_is_not_a_silent_source_only_recipe_change(self):
+        self.assertTrue(refresh._source_member(".gitattributes"))
+        self.assertTrue(refresh._compatible_recipe(".gitattributes"))
+        self.write_source({**self.source_members, ".gitattributes": b"* -text\n"})
+        with self.assertRaisesRegex(ValueError, "recipes changed"):
+            self.run_refresh()
+        self.assert_unpublished()
+
     def test_private_source_runtime_weights_and_unknown_root_members_are_refused(self):
         for name in ("data/server.token", "runtime/ollama/ollama.exe", "config/private.env", "ariadne/private.sqlite3",
                      "ariadne/resources/model.gguf", "unreviewed-root.txt"):

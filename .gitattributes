@@ -1,0 +1,3 @@
+# Preserve the committed bytes used by source, runtime and notice SHA-256 pins.
+# Keep normal diff behavior; only Git's text/EOL conversion is disabled.
+* -text

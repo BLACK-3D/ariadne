@@ -219,13 +219,57 @@ class ExportSourcePrivacyTests(unittest.TestCase):
     def test_admitted_paths_are_accepted_by_unchanged_refresh_consumer(self):
         admitted = ("ariadne/module.py", "scripts/export_source.py", "tests/test_export_source.py",
             "docs/public.md", "config/connectors.example.json", "config/.env.example", "README.md",
-            "requirements-server.txt", "Setup Ariadne.cmd", "START_HERE.html",
+            "requirements-server.txt", "Setup Ariadne.cmd", "START_HERE.html", ".gitattributes",
             "docs/GET_STARTED.md", "scripts/setup_windows.py", "scripts/setup_windows.ps1")
         for name in admitted:
             with self.subTest(path=name):
                 self.assertEqual(source._member(name), name)
                 self.assertTrue(source.source_policy._source_member(name))
                 self.assertFalse(source.source_policy._private(name))
+
+    def test_clean_autocrlf_checkout_preserves_committed_source_recipe_and_notice_pins(self):
+        # Populate this tiny local repository from public committed blobs, never
+        # from a possibly converted or owner-modified working-tree source file.
+        from scripts import export_offline
+        attributes = (ROOT / ".gitattributes").read_bytes()
+        self.write(".gitattributes", attributes)
+        names = ["ariadne/qqq_data.py", "ariadne/qqq_recovery.py",
+                 "ariadne/resources/briefing/America_Chicago.tzif",
+                 "config/public-models.json", "config/speech-assets.json",
+                 "config/runtime-notices/catalog.json", "requirements-server.txt"]
+        catalog_raw = source._git(ROOT, "show", "HEAD:config/runtime-notices/catalog.json")
+        catalog = json.loads(catalog_raw)
+        names.extend("config/runtime-notices/" + asset["path"] for asset in catalog["assets"])
+        committed = {name: source._git(ROOT, "show", "HEAD:" + name) for name in names}
+        for name, raw in committed.items():
+            self.write(name, raw)
+        self.commit()
+        receiver = self.root / "staging/autocrlf-receiver"
+        receiver.parent.mkdir()
+        # Only this explicit local clone is permitted; no remote URL or lazy
+        # object fetch is involved and the checkout shares no object hardlinks.
+        env = source._environment()
+        env["GIT_ALLOW_PROTOCOL"] = "file"
+        subprocess.run(["git", "clone", "--quiet", "--no-local", "--config", "core.autocrlf=true",
+                        str(self.root), str(receiver)], env=env, stdin=subprocess.DEVNULL,
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30, check=True)
+        self.assertEqual(source._git(receiver, "config", "--get", "core.autocrlf").strip(), b"true")
+        for name, raw in committed.items():
+            with self.subTest(path=name):
+                self.assertEqual((receiver / name).read_bytes(), raw)
+        self.assertEqual((receiver / ".gitattributes").read_bytes(), attributes)
+        for name in ("ariadne/qqq_data.py", "config/runtime-notices/ollama/LICENSE"):
+            result = source._git(receiver, "check-attr", "text", "diff", "--", name).decode()
+            self.assertIn(": text: unset", result)
+            self.assertIn(": diff: unspecified", result)
+        export_offline._source_notice_files(receiver)
+        self.assertEqual(hashlib.sha256((receiver / "config/speech-assets.json").read_bytes()).hexdigest(),
+                         export_offline.SPEECH_CATALOG_SHA256)
+        source.export(self.destination(), root=self.root)
+        with zipfile.ZipFile(self.destination()) as archive:
+            self.assertEqual(archive.read(".gitattributes"), attributes)
+            pins = json.loads(archive.read("SOURCE-MANIFEST.json"))["sha256"]
+            self.assertEqual(pins[".gitattributes"], hashlib.sha256(attributes).hexdigest())
 
     def test_case_aliases_and_nonportable_paths_are_rejected(self):
         for name in ("docs/../private.txt", "docs/CON.txt", "docs/trailing. ", "C:/private.txt", "docs\\private.txt"):

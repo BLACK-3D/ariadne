@@ -283,6 +283,7 @@ class ModelAndEngineTests(CoreFixture):
 class PublicationTests(CoreFixture):
     def test_perception_assets_follow_source_manifest_without_importing_owner_state(self):
         public = {
+            ".gitattributes": b"* -text\n",
             "ariadne/perception.py": b"# recording-first public source\n",
             "ariadne/static/perception.js": b"// explicit recording controls\n",
             "ariadne/resources/perception/demo.json": b'{"fictional":true,"observations":[]}\n',

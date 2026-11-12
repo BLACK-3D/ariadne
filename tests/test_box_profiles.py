@@ -160,6 +160,7 @@ class BoxProfileTests(unittest.TestCase):
 
     def test_perception_source_resources_and_guide_are_exported_without_owner_recordings(self):
         public = {
+            ".gitattributes": b"* -text\n",
             "ariadne/perception.py": b"# public recording replay implementation\n",
             "ariadne/static/perception.js": b"// public recording review interface\n",
             "ariadne/resources/perception/demo.json": b'{"fictional":true,"observations":[]}\n',
