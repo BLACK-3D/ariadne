@@ -35,6 +35,9 @@ MAX_VIDEO_BYTES = 512 * 1024**2
 MAX_DURATION_MS = 120_000
 MAX_SAMPLES = 241
 MAX_OUTPUT_BYTES = 2 * 1024**2
+MAX_PREVIEW_BYTES = 64 * 1024
+MAX_PREVIEW_OUTPUT_BYTES = 16 * 1024**2
+PREVIEW_INTERVAL_MS = 1000
 MAX_THUMBNAIL_BYTES = 120_000
 MAX_ARTIFACT_BYTES = 4 * 1024**2
 MAX_LEDGER_BYTES = 8 * 1024**2
@@ -164,7 +167,59 @@ def vision_assets(*, verify=False, camera=False):
                 "reason": str(error)[:300]}
 
 
-def run_vision(payload, *, cancelled=None, stop=None, progress=None, camera=False):
+def _preview_jpeg(value):
+    """Decode one fixed encoder image without importing image/native modules."""
+    _fields(value, {"type", "sample_index", "frame_sha256", "jpeg_sha256", "width", "height", "jpeg_base64"}, label="vision preview")
+    if value["type"] != "preview":
+        raise WorkerError("Unexpected preview message type.")
+    _integer(value["sample_index"], "preview sample_index", 0, MAX_SAMPLES - 1)
+    width = _integer(value["width"], "preview width", 1, 640)
+    height = _integer(value["height"], "preview height", 1, 480)
+    for key in ("frame_sha256", "jpeg_sha256"):
+        if type(value[key]) is not str or not _HASH.fullmatch(value[key]):
+            raise WorkerError("Invalid preview hash.")
+    encoded = value["jpeg_base64"]
+    if type(encoded) is not str or len(encoded) > ((MAX_PREVIEW_BYTES + 2) // 3) * 4:
+        raise WorkerError("Vision preview exceeds its encoded byte limit.")
+    try:
+        data = base64.b64decode(encoded, validate=True)
+    except (ValueError, base64.binascii.Error):
+        raise WorkerError("Invalid preview encoding.") from None
+    if not 16 <= len(data) <= MAX_PREVIEW_BYTES or not data.startswith(b"\xff\xd8") or not data.endswith(b"\xff\xd9") or _sha(data) != value["jpeg_sha256"]:
+        raise WorkerError("Vision preview integrity or byte limit failed.")
+    # Check a bounded JPEG SOF marker against the producer's dimensions. The
+    # child uses OpenCV's fixed JPEG encoder; no owner metadata is copied.
+    position, dimensions = 2, None
+    while position < len(data) - 1:
+        if data[position] != 0xff:
+            raise WorkerError("Invalid preview JPEG segment.")
+        while position < len(data) and data[position] == 0xff:
+            position += 1
+        if position >= len(data):
+            break
+        marker = data[position]
+        position += 1
+        if marker in {0xd9, 0xda}:
+            break
+        if marker in {0xd8, 0x01} or 0xd0 <= marker <= 0xd7:
+            continue
+        if position + 2 > len(data):
+            raise WorkerError("Truncated preview JPEG segment.")
+        size = int.from_bytes(data[position:position+2], "big")
+        if size < 2 or position + size > len(data):
+            raise WorkerError("Invalid preview JPEG length.")
+        if marker in {0xc0, 0xc2}:
+            if size < 8:
+                raise WorkerError("Invalid preview JPEG dimensions.")
+            dimensions = (int.from_bytes(data[position+5:position+7], "big"), int.from_bytes(data[position+3:position+5], "big"))
+            break
+        position += size
+    if dimensions != (width, height):
+        raise WorkerError("Preview JPEG dimensions differ from their bounded metadata.")
+    return data
+
+
+def run_vision(payload, *, cancelled=None, stop=None, progress=None, preview=None, camera=False):
     """One finite OS-limited decoder/inference process, bounded streaming output."""
     raw = _bytes(payload)
     if len(raw) > 32_768:
@@ -194,25 +249,37 @@ def run_vision(payload, *, cancelled=None, stop=None, progress=None, camera=Fals
                                    env=environment, cwd=str(ROOT), start_new_session=os.name == "posix",
                                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         def read():
-            total = 0
+            total, preview_total = 0, 0
             try:
                 while True:
                     line = process.stdout.readline(128_001)
                     if not line:
                         break
-                    total += len(line)
-                    if total > MAX_OUTPUT_BYTES or len(line) > 128_000 or not line.endswith(b"\n"):
+                    if len(line) > 128_000 or not line.endswith(b"\n"):
                         overflow.set()
                         _terminate(process)
                         break
                     value = _load(line, 128_000)
                     if type(value) is not dict:
                         raise ValueError("Invalid vision worker response.")
+                    if value.get("type") == "preview":
+                        if payload.get("operation") != "camera" or payload.get("preview") is not True or preview is None:
+                            raise WorkerError("Unrequested camera preview output.")
+                        preview_total += len(line)
+                        if preview_total > MAX_PREVIEW_OUTPUT_BYTES:
+                            raise WorkerError("Camera preview exceeded its separate stream budget.")
+                        data = _preview_jpeg(value)
+                        preview({key: item for key, item in value.items() if key != "jpeg_base64"}, data)
+                        del data
+                        continue  # Never retain JPEGs in messages/results/evidence.
+                    total += len(line)
+                    if total > MAX_OUTPUT_BYTES:
+                        raise WorkerError("Vision metadata exceeded its byte limit.")
                     if value.get("type") == "frame" and progress:
                         progress(value["frame"])
                     with lock:
                         messages.append(value)
-            except (OSError, ValueError, KeyError) as exc:
+            except (OSError, ValueError, KeyError, WorkerError) as exc:
                 error.append(exc)
                 _terminate(process)
         reader = threading.Thread(target=read, daemon=True)
@@ -470,6 +537,95 @@ class Vision:
                 "motion": frame["motion"]["state"] if fresh else "unknown",
                 "objects": frame["detections"] if fresh else [], "source": "current_session" if fresh else None}
 
+    @staticmethod
+    def _clear_preview(active):
+        value = active.pop("preview_cache", None)
+        if value is not None:
+            # No preview file exists. Scrub our one mutable image buffer before
+            # dropping it; explicit description requests own separate copies.
+            value["jpeg"][:] = b"\x00" * len(value["jpeg"])
+
+    def _preview_state(self, active):
+        enabled = bool(active and active.get("operation") == "camera" and active.get("request", {}).get("preview") is True)
+        result = {"enabled": enabled, "available": False, "frame_id": None, "age_ms": None,
+                  "retained": False, "freshness_ms": FRESHNESS_MS, "freshness_remaining_ms": 0}
+        if not enabled:
+            return result
+        cached = active.get("preview_cache")
+        if (not cached or active.get("finished") or active["stop"].is_set()
+                or self._revoked(active["control_revision"]) or time.monotonic() > active["lease_deadline"]):
+            if cached:
+                self._clear_preview(active)
+            return result
+        source = {**active, "latest": cached["source_frame"], "latest_monotonic": cached["received_monotonic"]}
+        live = self._live(source)
+        if live["state"] != "fresh":
+            self._clear_preview(active)
+            return result
+        remaining = max(0, min(FRESHNESS_MS - live["age_ms"],
+                               FRESHNESS_MS - live["source_lag_ms"] - max(0, live["source_age_ms"]),
+                               int((active["lease_deadline"] - time.monotonic()) * 1000)))
+        if remaining <= 0:
+            self._clear_preview(active)
+            return result
+        return {**result, "available": True, "frame_id": cached["frame_id"], "age_ms": live["age_ms"],
+                "freshness_remaining_ms": remaining,
+                "acquired_at": cached["source_frame"]["acquired_at"], "source_pts_ms": cached["source_frame"]["source_pts_ms"],
+                "source_age_ms": live["source_age_ms"], "source_lag_ms": live["source_lag_ms"],
+                "sample_index": cached["sample_index"], "source_frame_sha256": cached["frame_sha256"],
+                "jpeg_sha256": cached["jpeg_sha256"], "width": cached["width"], "height": cached["height"],
+                "clock_kind": "producer_unverified", "driver_latency": "unknown"}
+
+    def frame_for_description(self, session_id, expected_frame_id=None):
+        """Freeze only an already-owned fresh frame; never acquire or renew."""
+        _identifier(session_id, "session_id")
+        if expected_frame_id is not None and (type(expected_frame_id) is not str or not _HASH.fullmatch(expected_frame_id)):
+            raise ValueError("Use the exact preview frame ID or omit it for the current fresh frame.")
+        with _LOCK:
+            active = _ACTIVE.get((self.key, session_id))
+            state = self._preview_state(active)
+            if not state["available"]:
+                raise VisionConflict("No fresh opted-in preview is available from that active camera session.")
+            if expected_frame_id is not None and expected_frame_id != state["frame_id"]:
+                raise VisionConflict("The requested preview frame changed; no description was started.")
+            return {**state, "session_id": session_id, "jpeg": bytes(active["preview_cache"]["jpeg"]),
+                    "control_revision": active["control_revision"]}
+
+    def preview(self, session_id):
+        """An authenticated HTTP adapter may serialize this one volatile image."""
+        frame = self.frame_for_description(session_id)
+        data = frame.pop("jpeg")
+        return {**frame, "jpeg_base64": base64.b64encode(data).decode("ascii")}
+
+    def description_source_valid(self, session_id, control_revision):
+        """Publication fence for a previously frozen explicit description."""
+        try:
+            _identifier(session_id, "session_id")
+            _integer(control_revision, "control_revision", 0, 2**53 - 1)
+            with _LOCK:
+                active = _ACTIVE.get((self.key, session_id))
+                if (not active or active.get("operation") != "camera" or active.get("request", {}).get("preview") is not True
+                        or active["control_revision"] != control_revision or self._revoked(control_revision)
+                        or active["stop"].is_set()):
+                    return False
+                if active.get("finished"):
+                    if active.get("terminal_status") != "completed" or active.get("terminal_reason") != "duration_complete":
+                        return False
+                    _, rows = self._rows()
+                    row = next((row for row in rows if row["request_id"] == session_id), None)
+                    return row is not None and self._verified(row)[0]["status"] == "completed"
+                return time.monotonic() <= active["lease_deadline"]
+        except (ValueError, OSError, KeyError, sqlite3.Error):
+            return False
+
+    @contextmanager
+    def description_source_guard(self, session_id, control_revision):
+        """Fence small receipt publication, never the model inference itself."""
+        with _LOCK, self._owner_guard(control_revision):
+            if not self.description_source_valid(session_id, control_revision):
+                raise VisionConflict("The camera source authority changed before description publication.")
+            yield
+
     def _summary(self, row):
         summary = _load(row["receipt"].encode(), MAX_ARTIFACT_BYTES)
         summary = {key: value for key, value in summary.items() if key != "artifacts"}
@@ -513,6 +669,8 @@ class Vision:
         if temporary is not None:
             summary["raw_video_retained"] = True
         summary["live"] = self._live(active)
+        with _LOCK:
+            summary["preview"] = self._preview_state(active)
         return summary
 
     def status(self):
@@ -531,7 +689,9 @@ class Vision:
                 "limits": {"video_bytes": MAX_VIDEO_BYTES, "duration_ms": MAX_DURATION_MS, "samples": MAX_SAMPLES,
                            "sample_interval_ms_min": 500, "sample_interval_ms_max": 10000, "frame_width": 1920, "frame_height": 1080,
                            "default_camera_duration_ms": 30000, "lease_ms": LEASE_SECONDS * 1000, "freshness_ms": FRESHNESS_MS,
-                           "retained_bytes": MAX_RETAINED_BYTES, "attempts": MAX_ATTEMPTS},
+                           "retained_bytes": MAX_RETAINED_BYTES, "attempts": MAX_ATTEMPTS,
+                           "preview_bytes": MAX_PREVIEW_BYTES, "preview_stream_bytes": MAX_PREVIEW_OUTPUT_BYTES,
+                           "preview_interval_ms": PREVIEW_INTERVAL_MS, "preview_width": 640, "preview_height": 480},
                 "microphone": "off", "camera_autostart": False, "network": False, "action_authority": False,
                 "recovery": "Failed or interrupted accepted work holds new jobs. Capture is never resumed automatically."}
 
@@ -566,7 +726,7 @@ class Vision:
         required = {"request_id", "expected_control_revision"}
         required |= {"source_path", "source_sha256"} if operation == "video" else {"device_id"}
         optional = {"expected_revision", "title", "zone_id", "sample_interval_ms", "thumbnail", "duration_ms"}
-        optional |= {"recording_started_at"} if operation == "video" else set()
+        optional |= {"recording_started_at"} if operation == "video" else {"preview"}
         _fields(request, required, optional, "vision request")
         request = dict(request)
         _identifier(request["request_id"], "request_id")
@@ -589,11 +749,14 @@ class Vision:
                 _date(started, "recording_started_at")
         else:
             _identifier(request["device_id"], "device_id")
+            if type(request.setdefault("preview", False)) is not bool:
+                raise ValueError("preview must be a boolean per-session opt-in.")
         return request
 
     def _reserve(self, request, operation):
         request_id = request["request_id"]
-        identity = {key: value for key, value in request.items() if key not in {"expected_revision", "expected_control_revision"}}
+        identity = {key: value for key, value in request.items() if key not in {"expected_revision", "expected_control_revision"}
+                    and not (key == "preview" and value is False)}
         digest = _sha(_bytes({"operation": operation, **identity}))
         with _LOCK:
             paused, controls = self._controls()
@@ -633,6 +796,8 @@ class Vision:
                        "source_path": request.get("source_path"), "source_sha256": request.get("source_sha256"),
                        "recording_started_at": request.get("recording_started_at"), "duration_ms": request["duration_ms"],
                        "device_id": request.get("device_id"), "microphone": "off", "action_authority": False}
+            if operation == "camera":
+                attempt["preview_opt_in"] = request["preview"]
             with self._owner_guard(controls), self._database(create=True) as db:
                 if db.execute("SELECT revision FROM vision_meta WHERE id=1").fetchone()[0] != revision:
                     raise VisionConflict("Vision revision changed before dispatch.")
@@ -708,13 +873,16 @@ class Vision:
             active = _ACTIVE.get((self.key, request["session_id"]))
             if active and active["operation"] == "camera":
                 active["stop"].set()
+                self._clear_preview(active)
         return {"session_id": request["session_id"], "stop_requested": True, "live": self._live()}
 
     def close(self):
         with _LOCK:
-            active = [value for key, value in _ACTIVE.items() if key[0] == self.key and not value["finished"]]
-            for value in active:
+            owned = [value for key, value in _ACTIVE.items() if key[0] == self.key]
+            active = [value for value in owned if not value["finished"]]
+            for value in owned:
                 value["stop"].set()
+                self._clear_preview(value)
         for value in active:
             thread = value.get("thread")
             if thread and thread is not threading.current_thread():
@@ -797,16 +965,40 @@ class Vision:
             source = self._snapshot_source(request, snapshot) if snapshot else {"device_id": request["device_id"], "capture_origin": "live", "raw_video_retained": False, "microphone": "off", "clock_kind": "producer_unverified", "source_verification": "software_frame_arrival_only_raw_not_retained", "driver_latency": "unknown"}
             payload = {"operation": operation, "duration_ms": request["duration_ms"], "sample_interval_ms": request["sample_interval_ms"], "thumbnail": request["thumbnail"]}
             payload.update({"source_path": str(snapshot), "source_sha256": request["source_sha256"]} if snapshot else {"device_id": request["device_id"]})
+            if operation == "camera" and request.get("preview") is True:
+                payload["preview"] = True
             def progress(frame):
                 self._validate_frame(frame)
                 with _LOCK:
                     active["latest"], active["latest_monotonic"] = frame, time.monotonic()
+            def preview(message, data):
+                with _LOCK:
+                    frame = active.get("latest")
+                    if (operation != "camera" or request.get("preview") is not True or frame is None
+                            or message["sample_index"] != frame["sample_index"] or message["frame_sha256"] != frame["frame_sha256"]
+                            or message["width"] > frame["width"] or message["height"] > frame["height"]
+                            or not 16 <= len(data) <= MAX_PREVIEW_BYTES or _sha(data) != message["jpeg_sha256"]):
+                        raise WorkerError("A preview does not bind its known sampled camera frame.")
+                    previous = active.get("preview_last_offset")
+                    if previous is not None and frame["timeline_offset_ms"] - previous < PREVIEW_INTERVAL_MS:
+                        raise WorkerError("Preview producer exceeded its one-frame-per-second limit.")
+                    active["preview_last_offset"] = frame["timeline_offset_ms"]
+                    self._clear_preview(active)
+                    if self._live(active)["state"] != "fresh":
+                        return
+                    frame_id = _sha(_bytes({"session_id": request_id, "sample_index": frame["sample_index"],
+                        "frame_sha256": frame["frame_sha256"], "jpeg_sha256": message["jpeg_sha256"], "control_revision": active["control_revision"]}))
+                    active["preview_cache"] = {**message, "frame_id": frame_id, "jpeg": bytearray(data),
+                        "source_frame": _load(_bytes(frame), MAX_ARTIFACT_BYTES), "received_monotonic": active["latest_monotonic"]}
             def stopping():
                 if operation == "camera" and time.monotonic() > active["lease_deadline"]:
                     active["stop"].set()
                     active["stop_reason"] = "owner_lease_expired"
+                    with _LOCK:
+                        self._clear_preview(active)
                 return active["stop"].is_set()
-            result = run_vision(payload, cancelled=lambda: self._revoked(active["control_revision"]), stop=stopping, progress=progress, camera=operation == "camera")
+            result = run_vision(payload, cancelled=lambda: self._revoked(active["control_revision"]), stop=stopping,
+                                progress=progress, preview=preview if request.get("preview") is True else None, camera=operation == "camera")
             frames = result["frames"]
             stopped_empty = not frames and operation == "camera" and (active["stop"].is_set() or result.get("stop_reason") in {"owner_stop", "worker_lease_expired", "worker_lease_timeout", "parent_disconnected"})
             if not frames and not stopped_empty:
@@ -861,6 +1053,7 @@ class Vision:
                 self._verified({"request_id": request_id, "receipt": raw.decode(), "receipt_sha256": _sha(raw)})
                 db.execute("UPDATE vision_attempts SET status=?,receipt=?,receipt_sha256=? WHERE request_id=? AND status='accepted'", (terminal_status, raw.decode(), _sha(raw), request_id))
                 db.execute("UPDATE vision_meta SET revision=revision+1 WHERE id=1")
+                active["terminal_status"], active["terminal_reason"] = terminal_status, receipt["stop_reason"]
             return receipt
         except BaseException as error:
             message = (str(error) or type(error).__name__)[:500]
@@ -879,6 +1072,7 @@ class Vision:
             with _LOCK:
                 active["finished"] = True
                 active["latest"] = None
+                self._clear_preview(active)
             if snapshot and snapshot.exists():
                 # Only this fixed private temporary filename is ever removed.
                 with self.registry._directory(folder):

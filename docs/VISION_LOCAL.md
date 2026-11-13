@@ -1,4 +1,6 @@
-# Local vision (0.39)
+# Local vision (0.40)
+
+See **[Live preview and Ask Ariadne](VISION_PREVIEW.md)** for the camera image, on-demand descriptions, privacy and start/stop workflow. The detector/runtime qualification below is the original 0.39 reference measurement; those sealed assets are unchanged.
 
 The optional Windows x64 vision pack detects COCO object classes, including people, in an explicitly selected local video or a bounded USB-camera session. It uses YOLOX-Nano with OpenCV DNN on the CPU. Detection does not call Ollama, a vision language model, or an online API. An idle installation does not run a detector. The pack does not identify people, recognize faces, explain actions, or supply safety-critical monitoring.
 
@@ -8,10 +10,10 @@ The inference environment is isolated in `runtime/vision/python`: `opencv-python
 
 ## Install a prepared offline pack
 
-Use the 0.39.0 Windows x64 Ariadne starter/core and its matching `ariadne-offline-vision-0.39.0.zip`. Keep the add-on ZIP in that Ariadne folder and use its published checksum with the offline installer:
+Use the 0.40.0 Windows x64 Ariadne starter/core and its matching `ariadne-offline-vision-0.40.0.zip`. Keep the add-on ZIP in that Ariadne folder and use its published checksum with the offline installer:
 
 ```powershell
-.\runtime\python\python.exe -I -B scripts\install_vision_pack.py --archive ariadne-offline-vision-0.39.0.zip --sha256 PUBLISHED_64_CHARACTER_SHA256
+.\runtime\python\python.exe -I -B scripts\install_vision_pack.py --archive ariadne-offline-vision-0.40.0.zip --sha256 PUBLISHED_64_CHARACTER_SHA256
 ```
 
 The installer verifies the entire ZIP against the supplied checksum and the starter's shipped file seal before writing. It rejects missing/extra/private/linked/duplicate paths and differing existing assets, installs only runtime files, and publishes readiness last. The add-on contains the qualified runtime, detector weights, wheel cache, FFmpeg adapter, notices and corresponding FFmpeg source. It contains no camera selection, owner database, recordings, photos, credentials or inference evidence. Use the installer rather than extracting an unverified ZIP over a working installation.
@@ -53,7 +55,7 @@ After local provisioning succeeds, inventory and export only the sealed public a
 
 ```powershell
 .\runtime\python\python.exe -I -B scripts\export_vision.py --plan
-.\runtime\python\python.exe -I -B scripts\export_vision.py --output dist\ariadne-offline-vision-0.39.0.zip
+.\runtime\python\python.exe -I -B scripts\export_vision.py --output dist\ariadne-offline-vision-0.40.0.zip
 ```
 
 The standalone add-on avoids rebuilding the historical full optional-tools appliance. To include vision in a new prepared core export, use `scripts/export_core.py --with-vision --output dist\ariadne-offline-core-with-vision.zip`; it still requires the released starter's verified source/core assets. Full appliance export includes vision only when its complete seal verifies. Exporters admit a closed list of hashed assets, omit unknown files and test recordings, and fail on mismatches. They never export arbitrary contents of the vision directory.

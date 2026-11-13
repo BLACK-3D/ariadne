@@ -71,6 +71,9 @@ class Application:
         self.engine.tools.perception.bind(self.perception_read)
         from .vision import Vision
         self.vision = Vision(self.engine.tools, self.store)
+        from .vision_descriptions import VisionDescriptions
+        self.vision_descriptions = VisionDescriptions(self.vision, self.engine.model, self.store,
+            lambda: self.store.setting("model", self.settings.model))
         self.engine.tools.vision.bind(self.vision_read)
         from .internet import InternetService
         self.internet = InternetService(settings, self.store, self.engine.tools)
@@ -217,7 +220,10 @@ class Application:
 
     def stop_services(self):
         try:
-            self.vision.close()
+            try:
+                self.vision_descriptions.close()
+            finally:
+                self.vision.close()
         finally:
             try:
                 self.wake_voice.stop()
@@ -516,6 +522,15 @@ class Application:
             raise ValueError("Perception accepts no query parameters; use explicit saved recording actions.")
         if parts and parts[0] == "vision" and env.get("QUERY_STRING", ""):
             raise ValueError("Vision accepts no query parameters; use the explicit source and session actions.")
+        if parts[:2] in (["vision", "preview"], ["vision", "descriptions"]):
+            import ipaddress
+            try:
+                address = ipaddress.ip_address(env.get("REMOTE_ADDR", ""))
+                local = address.is_loopback or bool(getattr(address, "ipv4_mapped", None) and address.ipv4_mapped.is_loopback)
+            except ValueError:
+                local = False
+            if not local:
+                raise HTTPError(403, "Live images and frame descriptions are available only on this PC.")
         if parts == ["status"] and method == "GET":
             with self.status_lock:
                 if time.monotonic() - self.status_at > 5 or self.status_cache is None:
@@ -535,6 +550,14 @@ class Application:
             result = self.vision.status()
         elif parts == ["vision", "cameras"] and method == "GET":
             result = self.vision.discover_cameras()
+        elif len(parts) == 3 and parts[:2] == ["vision", "preview"] and method == "GET":
+            if self.engine.is_paused():
+                raise HTTPError(409, "Autonomy is paused; live preview is unavailable.")
+            result = self.vision.preview(parts[2])
+        elif parts == ["vision", "descriptions"] and method == "GET":
+            result = self.vision_descriptions.status()
+        elif len(parts) == 3 and parts[:2] == ["vision", "descriptions"] and method == "GET":
+            result = self.vision_descriptions.detail(parts[2])
         elif len(parts) == 3 and parts[:2] == ["vision", "jobs"] and method == "GET":
             result = self.vision.detail(parts[2])
         elif len(parts) == 3 and parts[:2] == ["vision", "snapshots"] and method == "GET":
@@ -548,6 +571,8 @@ class Application:
                         ("camera", "start"):self.vision.start_camera,
                         ("camera", "stop"):self.vision.stop_camera,
                         ("camera", "lease"):self.vision.touch_camera,
+                        ("descriptions",):self.vision_descriptions.start,
+                        ("descriptions", "acknowledge"):self.vision_descriptions.acknowledge_failure,
                         ("acknowledge",):self.vision.acknowledge_failure}
             action = handlers.get(tuple(parts[1:]))
             if action is None:

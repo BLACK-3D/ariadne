@@ -12,6 +12,7 @@ import zipfile
 from scripts import install_vision_pack as installer
 from scripts.provision_vision import wheel_members
 from scripts.provision_vision import assets, catalog, exact_runtime_inventory
+from ariadne import __version__
 
 
 class VisionPackAdmissionTests(unittest.TestCase):
@@ -29,7 +30,7 @@ class VisionPackAdmissionTests(unittest.TestCase):
     def archive(self, changes=None, *, extras=None, link=False, duplicate=False):
         path = self.root / "pack.zip"
         values = {**self.payloads, **(changes or {}), **(extras or {})}
-        manifest = {"schema": 1, "profile": "ariadne-offline-vision-v1", "application_version": "0.39.0",
+        manifest = {"schema": 1, "profile": "ariadne-offline-vision-v1", "application_version": __version__,
                     "private_state_included": False,
                     "files": [{"path": name, **row} for name, row in self.expected.items()]}
         with zipfile.ZipFile(path, "w") as archive:

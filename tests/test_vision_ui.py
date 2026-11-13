@@ -21,12 +21,18 @@ class VisionUIContractTests(unittest.TestCase):
         receipt = json.loads(result.stdout)
         self.assertEqual(result.returncode, 0, json.dumps(receipt.get("failed", []), indent=2) + result.stderr)
         self.assertEqual(receipt["failures"], 0)
-        self.assertGreaterEqual(len(receipt["checks"]), 28)
+        self.assertGreaterEqual(len(receipt["checks"]), 63)
         for name in (
             "Opening and global status ticks never discover or start a sensor",
             "Stale or disconnected evidence never shows current presence or an all clear",
             "Only the explicitly started session renews a private capture lease",
             "Late status and detail reads cannot restore locked evidence",
             "Malicious device and object labels remain inert text",
+            "Source backlog and owner-lease TTL clear the preview before the next poll",
+            "Descriptions require one explicit question on a fresh owned preview",
+            "Description submission never disables Stop or blocks camera lease renewal",
+            "A normal terminal lease conflict reconciles completed status without an error",
+            "A replaced shown frame is rejected without image substitution or regeneration",
+            "Unconfigured local descriptions show their reason and never submit an image",
         ):
             self.assertIn(name, receipt["checks"])

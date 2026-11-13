@@ -19,7 +19,7 @@ from scripts.provision_vision import verified_files, digest
 
 PUBLIC_SOURCE_FILES = ("config/vision-assets.json", "requirements-vision.txt", "ariadne/resources/vision/model-manifest.json",
     "scripts/provision_vision.py", "scripts/build_vision_decoder.py", "scripts/build_vision_decoder.sh",
-    "scripts/install_vision_pack.py", "docs/VISION_LOCAL.md")
+    "scripts/install_vision_pack.py", "docs/VISION_LOCAL.md", "docs/VISION_PREVIEW.md")
 
 
 def inventory(root=ROOT):
@@ -73,7 +73,7 @@ def export(destination, *, root=ROOT):
                 rows.append({"path": name, "bytes": size, "sha256": expected})
             manifest = {"schema": 1, "profile": "ariadne-offline-vision-v1", "application_version": __version__,
                 "platform": "win_amd64", "python": "3.13", "private_state_included": False,
-                "requires": "Ariadne 0.39.0 Windows x64 offline core with bundled CPython 3.13", "files": rows}
+                "requires": f"Ariadne {__version__} Windows x64 offline core with bundled CPython 3.13", "files": rows}
             archive.writestr("VISION-PACK-MANIFEST.json", json.dumps(manifest, sort_keys=True, indent=2) + "\n")
             archive.close()
             output.flush()

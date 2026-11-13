@@ -27,6 +27,9 @@ FRAME_BYTES = WIDTH * HEIGHT * 3
 MAX_SAMPLES = 241
 MAX_DECODED_FRAMES = 14_400
 MAX_DURATION_MS = 120_000
+MAX_PREVIEW_BYTES = 64 * 1024
+MAX_PREVIEW_OUTPUT_BYTES = 16 * 1024**2
+PREVIEW_INTERVAL_MS = 1000
 LABELS = ("person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat", "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple", "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch", "potted plant", "bed", "dining table", "toilet", "tv", "laptop", "mouse", "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush")
 _PTS = re.compile(r"\bn:\s*(\d+)\s+pts:\s*(-?\d+)\s+pts_time:\s*(-?[0-9.eE+]+)")
 _DIM = re.compile(r"\bs:(\d+)x(\d+)\b")
@@ -202,6 +205,14 @@ class Detector:
                   "threshold": 8.0, "previous_frame_sha256": self.previous_hash}
         self.previous, self.previous_hash = gray, frame_hash
         return detections, motion, frame_hash, input_hash, round((time.monotonic() - start) * 1000, 3)
+
+    def encode_preview(self, frame):
+        """One transient JPEG; never write camera imagery to a filesystem."""
+        for quality in (65, 45, 25, 10):
+            good, encoded = self.cv.imencode(".jpg", frame, [self.cv.IMWRITE_JPEG_QUALITY, quality])
+            if good and 16 <= len(encoded) <= MAX_PREVIEW_BYTES:
+                return encoded.tobytes()
+        raise ValueError("The bounded camera preview could not be encoded.")
 
 
 def container_header(source):
@@ -381,6 +392,7 @@ def _decode(request, executable, detector, stop_event, *, source=None):
     for thread in readers:
         thread.start()
     count, latest, first_pts, last_pts = 0, None, None, None
+    preview_offset, preview_output_bytes = None, 0
     try:
         while True:
             if stop_event.is_set():
@@ -419,6 +431,19 @@ def _decode(request, executable, detector, stop_event, *, source=None):
                    "acquired_at": received_at if operation == "camera" else None, "width": WIDTH, "height": HEIGHT, "source_width": original_width, "source_height": original_height,
                    "frame_sha256": frame_hash, "inference_input_sha256": input_hash, "detections": detections, "motion": motion, "inference_ms": inference_ms}
             emit({"type": "frame", "frame": row})
+            if operation == "camera" and request.get("preview") is True and (preview_offset is None or offset - preview_offset >= PREVIEW_INTERVAL_MS):
+                jpeg = detector.encode_preview(frame)
+                if not 16 <= len(jpeg) <= MAX_PREVIEW_BYTES or not jpeg.startswith(b"\xff\xd8") or not jpeg.endswith(b"\xff\xd9"):
+                    raise ValueError("Preview encoder exceeded its fixed JPEG bound.")
+                message = {"type": "preview", "sample_index": count, "frame_sha256": frame_hash,
+                           "jpeg_sha256": hashlib.sha256(jpeg).hexdigest(), "width": WIDTH, "height": HEIGHT,
+                           "jpeg_base64": base64.b64encode(jpeg).decode("ascii")}
+                preview_output_bytes += len((json.dumps(message, allow_nan=False, separators=(",", ":")) + "\n").encode())
+                if preview_output_bytes > MAX_PREVIEW_OUTPUT_BYTES:
+                    raise ValueError("Preview stream exceeded its explicit encoded-byte budget.")
+                emit(message)
+                preview_offset = offset
+                del jpeg, message
             count += 1
             latest = frame.copy() if request["thumbnail"] else None
         if failures:
@@ -472,7 +497,8 @@ def main():
             emit({"type": "result", "devices": devices})
             return
         expected = {"operation", "duration_ms", "sample_interval_ms", "thumbnail"} | ({"source_path", "source_sha256"} if request["operation"] == "video" else {"device_id"})
-        if set(request) != expected or type(request["duration_ms"]) is not int or not 1000 <= request["duration_ms"] <= MAX_DURATION_MS or type(request["sample_interval_ms"]) is not int or not 500 <= request["sample_interval_ms"] <= 10000 or type(request["thumbnail"]) is not bool:
+        optional = {"preview"} if request["operation"] == "camera" else set()
+        if not expected <= set(request) <= expected | optional or type(request.get("preview", False)) is not bool or type(request["duration_ms"]) is not int or not 1000 <= request["duration_ms"] <= MAX_DURATION_MS or type(request["sample_interval_ms"]) is not int or not 500 <= request["sample_interval_ms"] <= 10000 or type(request["thumbnail"]) is not bool:
             raise ValueError("Invalid bounded vision request.")
         # NumPy/OpenBLAS initialization on Windows can query CRT stdin state.
         # A simultaneous blocking CRT read of fd 0 deadlocks that DLL import.

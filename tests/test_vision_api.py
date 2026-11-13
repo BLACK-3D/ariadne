@@ -16,6 +16,9 @@ TOKEN = "synthetic-vision-api-token"
 
 
 class NoModel:
+    def vision_identity(self, model):
+        return {"model":model,"provider":"http://127.0.0.1:11434"}
+
     def status(self):
         return {"available": False, "models": []}
 
@@ -53,12 +56,14 @@ class VisionAPITests(unittest.TestCase):
         with patch("ariadne.server.Voice", return_value=PassiveVoice()):
             self.app = Application(self.settings, self.store, self.engine)
         self.addCleanup(self.app.vision.close)
+        self.addCleanup(self.app.vision_descriptions.close)
 
     def request(self, suffix="", method="GET", body=None, *, raw=None, auth=True,
                 host="localhost:8080", origin=None, query="", stream=None, length=None,
-                content_type="application/json"):
+                content_type="application/json", remote="127.0.0.1"):
         raw = json.dumps(body if body is not None else {}).encode() if raw is None else raw
         env = {"HTTP_HOST": host, "REQUEST_METHOD": method, "PATH_INFO": "/api/vision"+suffix,
+               "REMOTE_ADDR": remote,
                "CONTENT_TYPE": content_type, "CONTENT_LENGTH": str(len(raw) if length is None else length),
                "wsgi.input": io.BytesIO(raw) if stream is None else stream, "QUERY_STRING": query}
         if auth:
@@ -138,6 +143,74 @@ class VisionAPITests(unittest.TestCase):
             result = self.request("/snapshots/clip-one")
             self.assertEqual(result["body"],b"synthetic-jpeg")
             self.assertIn("no-store",result["headers"]["Cache-Control"])
+
+    def test_live_preview_auth_pause_and_cache_controls_do_not_acquire_or_lease(self):
+        public = {"session_id":"camera-one","frame_id":"f"*64,"jpeg_base64":"synthetic-bounded-fixture"}
+        with patch.object(self.app.vision,"preview",return_value=public) as preview, patch.object(self.app.vision,"touch_camera") as lease, patch.object(self.app.vision,"start_camera") as start:
+            self.assertEqual(self.request("/preview/camera-one",auth=False)["status"],401)
+            preview.assert_not_called()
+            self.store.set_setting("paused",True)
+            self.assertEqual(self.request("/preview/camera-one")["status"],409)
+            preview.assert_not_called()
+            self.store.set_setting("paused",False)
+            result=self.request("/preview/camera-one")
+            self.assertEqual(result["status"],200,result)
+            self.assertEqual(result["body"],public)
+            self.assertIn("no-store",result["headers"]["Cache-Control"])
+            self.assertEqual(self.request("/preview/camera-one",query="renew=true")["status"],400)
+            lease.assert_not_called()
+            start.assert_not_called()
+
+    def test_description_route_is_explicit_strict_and_pause_fenced(self):
+        body={"request_id":"ask-one","session_id":"camera-one","expected_control_revision":0,"question":"Describe this frame."}
+        with patch.object(self.app.vision_descriptions,"start",return_value={"request_id":"ask-one","status":"running"}) as start:
+            self.assertEqual(self.request("/descriptions","POST",stream=Unreadable(),auth=False)["status"],401)
+            self.store.set_setting("paused",True)
+            self.assertEqual(self.request("/descriptions","POST",stream=Unreadable())["status"],409)
+            start.assert_not_called()
+            self.store.set_setting("paused",False)
+            self.assertEqual(self.request("/descriptions","POST",raw=b'{"question":"a","question":"b"}')["status"],400)
+            self.assertEqual(self.request("/descriptions","POST",stream=Unreadable(),length=16385)["status"],413)
+            start.assert_not_called()
+            self.assertEqual(self.request("/descriptions","POST",body)["status"],200)
+            start.assert_called_once_with(body)
+
+    def test_description_status_and_saved_read_never_generate_or_read_pixels(self):
+        status={"revision":0,"control_revision":0,"paused":False,"hold":False,"descriptions":[]}
+        with patch.object(self.app.vision_descriptions,"status",return_value=status), patch.object(self.app.vision_descriptions,"start") as start, patch.object(self.app.vision,"frame_for_description") as frame:
+            self.assertEqual(self.request("/descriptions")["status"],200)
+            result=self.engine.tools.execute("vision_read",{"action":"description"})
+            self.assertFalse(result["ok"])
+            start.assert_not_called()
+            frame.assert_not_called()
+        detail={"receipt":{"request_id":"ask-one","status":"completed","verified":True},
+                "description":{"answer":"Synthetic public fixture interpretation.","source":{"acquired_at":"2026-01-01T00:00:00Z"}}}
+        with patch.object(self.app.vision_descriptions,"status",return_value={**status,"descriptions":[detail["receipt"]]}), patch.object(self.app.vision_descriptions,"detail",return_value=detail) as read:
+            result=self.engine.tools.execute("vision_read",{"action":"description"})
+            self.assertFalse(result["ok"])
+            read.assert_not_called()
+        schema=next(s for s in self.engine.tools.schemas() if s["function"]["name"]=="vision_read")
+        self.assertNotIn("description",schema["function"]["parameters"]["properties"]["action"]["enum"])
+
+    def test_camera_questions_discover_only_the_passive_vision_tool(self):
+        names={s["function"]["name"] for s in self.engine.tools.schemas_for("What do you see in the camera?",[])}
+        self.assertIn("vision_read",names)
+        self.assertNotIn("vision_describe",names)
+
+    def test_live_images_and_descriptions_reject_nonlocal_and_unknown_peers(self):
+        with patch.object(self.app.vision,"preview") as preview, patch.object(self.app.vision_descriptions,"start") as generate:
+            for address in ("192.0.2.1", "10.0.0.5", "", "localhost", "::ffff:192.0.2.1"):
+                self.assertEqual(self.request("/preview/camera-one",remote=address)["status"],403)
+                self.assertEqual(self.request("/descriptions","POST",remote=address,stream=Unreadable())["status"],403)
+            preview.assert_not_called()
+            generate.assert_not_called()
+
+    def test_saved_private_description_is_not_exported_to_general_agent_context(self):
+        with patch.object(self.app.vision_descriptions,"status") as status, patch.object(self.app.vision_descriptions,"detail") as detail:
+            result=self.engine.tools.execute("vision_read",{"action":"description","job_id":"ask-one"})
+            self.assertFalse(result["ok"])
+            status.assert_not_called()
+            detail.assert_not_called()
 
     def test_agent_read_is_bounded_passive_and_scoped(self):
         with patch.object(self.app.vision,"touch_camera") as lease, patch.object(self.app.vision,"start_camera") as start:
