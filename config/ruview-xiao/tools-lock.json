@@ -1,0 +1,664 @@
+{
+  "schema": 1,
+  "sdk": {
+    "repository": "https://github.com/espressif/esp-idf",
+    "revision": "67c1de1eebe095d554d281952fde63c16ee2dca0",
+    "version": "v5.4",
+    "archive_sha256": "46c27defd623ebdfe797fa8029c920b4afbc0e4ae2e368235c624cfeb8958b86",
+    "archive_url": "https://codeload.github.com/espressif/esp-idf/zip/67c1de1eebe095d554d281952fde63c16ee2dca0",
+    "extra_archive_version_file": "version.txt = v5.4 (standard ESP-IDF archive version fallback)",
+    "submodules": [
+      {
+        "destination": "components/json/cJSON",
+        "repository": "DaveGamble/cJSON",
+        "revision": "acc76239bee01d8e9c858ae2cab296704e52d916",
+        "archive_sha256": "384a24c257bf63310564b045afa10b7dc9e16a4a89014fda239b26fc2a611b1a"
+      },
+      {
+        "destination": "components/mbedtls/mbedtls",
+        "repository": "espressif/mbedtls",
+        "revision": "98fcfd6d2cea90d306e8fde8e5bffd6087c9cda8",
+        "archive_sha256": "8e6d6cafa4d676979b7e9982325fbe38ffd8294493eda9d591993479b58a5ad4"
+      },
+      {
+        "destination": "components/lwip/lwip",
+        "repository": "espressif/esp-lwip",
+        "revision": "a587d929899304264d81a469dc843316d0db5e64",
+        "archive_sha256": "062db7636c3b1e1d2c9dfc308fba580067c96795ae9111faa90a23baf57cb049"
+      },
+      {
+        "destination": "components/heap/tlsf",
+        "repository": "espressif/tlsf",
+        "revision": "ba64d198a845df70b481e2c55004521ca643dea6",
+        "archive_sha256": "66b76373a60d70aa6b31e67d97fae4468e56d99b996a7b77afd6a3115d3cd2c8"
+      },
+      {
+        "destination": "components/esp_wifi/lib",
+        "repository": "espressif/esp32-wifi-lib",
+        "revision": "a29b11bf0fe019ca0ade5459714b0b2426dfe020",
+        "archive_sha256": "81eb295d273ff8572552c50752e9500d5ed4cb08f90f22c418aa40866b6d419e"
+      },
+      {
+        "destination": "components/esp_phy/lib",
+        "repository": "espressif/esp-phy-lib",
+        "revision": "f5f852b53c90c2a23bfbd6b9c4897c25f0ae6155",
+        "archive_sha256": "b3e146eab89ae18abf0acfe60e9b333e0bead08ca70d9b4226be97a7515db464"
+      },
+      {
+        "destination": "components/esp_coex/lib",
+        "repository": "espressif/esp-coex-lib",
+        "revision": "ad30777643ca4c97fbce790f01aebd474ae4946f",
+        "archive_sha256": "550f37ad5261922ba310b30c1aae4381420fe64d8fdd8e7d657885612ebb556c"
+      },
+      {
+        "destination": "components/bootloader/subproject/components/micro-ecc/micro-ecc",
+        "repository": "kmackay/micro-ecc",
+        "revision": "24c60e243580c7868f4334a1ba3123481fe1aa48",
+        "archive_sha256": "5c7883ae2c1f8c124442a2b859ad883ba46240ad23eb474586a5038ea80c23e1"
+      },
+      {
+        "destination": "components/mqtt/esp-mqtt",
+        "repository": "espressif/esp-mqtt",
+        "revision": "cac1552e62b0474c162547b7cce345d7cd1aecfe",
+        "archive_sha256": "a2fa130b5c04d0af966a73dfbf0a1a1c85c46b5a48506bd0a9646829a1898481"
+      }
+    ]
+  },
+  "tools": [
+    {
+      "name": "xtensa-esp-elf",
+      "version": "esp-14.2.0_20241119",
+      "license": "GPL-3.0-with-GCC-exception",
+      "sha256": "62ae704777d73c30689efff6e81178632a1ca44d1a2d60f4621eb997e040e028",
+      "size": 386316009,
+      "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-14.2.0_20241119/xtensa-esp-elf-14.2.0_20241119-x86_64-w64-mingw32.zip"
+    },
+    {
+      "name": "cmake",
+      "version": "3.30.2",
+      "license": "BSD-3-Clause",
+      "sha256": "48bf4b3dc2d668c578e0884cac7878e146b036ca6b5ce4f8b5572f861b004c25",
+      "size": 45404613,
+      "url": "https://github.com/Kitware/CMake/releases/download/v3.30.2/cmake-3.30.2-windows-x86_64.zip"
+    },
+    {
+      "name": "ninja",
+      "version": "1.12.1",
+      "license": "Apache-2.0",
+      "rename_dist": "ninja-win-v1.12.1.zip",
+      "sha256": "f550fec705b6d6ff58f2db3c374c2277a37691678d6aba463adcbb129108467a",
+      "size": 275425,
+      "url": "https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-win.zip"
+    },
+    {
+      "name": "esp-rom-elfs",
+      "version": "20241011",
+      "license": "Apache-2.0",
+      "sha256": "921f000164a421c7628fbfee55b173384aafaa51883adc65cd27bf9b0af9e9a9",
+      "size": 3540038,
+      "url": "https://github.com/espressif/esp-rom-elfs/releases/download/20241011/esp-rom-elfs-20241011.tar.gz"
+    }
+  ],
+  "python": {
+    "version": "3.13.15",
+    "platform": "Windows x64",
+    "wheel_lock_sha256": "fb4f02c3990a1df38eba115aee92181abfb657f661e5c14211777d4a18490ad0",
+    "packages": [
+      {
+        "name": "annotated-types",
+        "version": "0.8.0",
+        "filename": "annotated_types-0.8.0-py3-none-any.whl",
+        "sha256": "f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0",
+        "bytes": 13427,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "bitarray",
+        "version": "3.12.3",
+        "filename": "bitarray-3.12.3-cp313-cp313-win_amd64.whl",
+        "sha256": "f53b870384c5f2fb51dce8f9fe83d401c2251db6c934df4285ee20ff5df26e72",
+        "bytes": 184758,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "bitstring",
+        "version": "4.4.0",
+        "filename": "bitstring-4.4.0-py3-none-any.whl",
+        "sha256": "feac49524fcf3ef27e6081e86f02b10d2adf6c3773bf22fbe0e7eea9534bc737",
+        "bytes": 76846,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "certifi",
+        "version": "2026.10.23",
+        "filename": "certifi-2026.10.23-py3-none-any.whl",
+        "sha256": "e9b54de76e530bb6cf0ccd036787103acb58fd42ba930ea8bf948ddbaa2f61d1",
+        "bytes": 135082,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "cffi",
+        "version": "2.1.1",
+        "filename": "cffi-2.1.1-cp313-cp313-win_amd64.whl",
+        "sha256": "1aa5645c30469b09530c4ebca77ebf8f17618293c58f8549cb1a543a50236e7d",
+        "bytes": 185688,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "charset-normalizer",
+        "version": "3.5.2",
+        "filename": "charset_normalizer-3.5.2-cp313-cp313-win_amd64.whl",
+        "sha256": "78456a747de8dc58360ffa581f30a002baf5aa28cb262536545e91f113ed7639",
+        "bytes": 206489,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "click",
+        "version": "8.1.8",
+        "filename": "click-8.1.8-py3-none-any.whl",
+        "sha256": "63c132bbbed01578a06712a2d1f497bb62d9c1c0d329b7903a866228027263b2",
+        "bytes": 98188,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "colorama",
+        "version": "0.4.6",
+        "filename": "colorama-0.4.6-py2.py3-none-any.whl",
+        "sha256": "4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6",
+        "bytes": 25335,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "construct",
+        "version": "2.10.70",
+        "filename": "construct-2.10.70-py3-none-any.whl",
+        "sha256": "c80be81ef595a1a821ec69dc16099550ed22197615f4320b57cc9ce2a672cb30",
+        "bytes": 63020,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "cryptography",
+        "version": "44.0.3",
+        "filename": "cryptography-44.0.3-cp39-abi3-win_amd64.whl",
+        "sha256": "5d186f32e52e66994dce4f766884bcb9c68b8da62d61d9d215bfe5fb56d21334",
+        "bytes": 3210375,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "ecdsa",
+        "version": "0.19.2",
+        "filename": "ecdsa-0.19.2-py2.py3-none-any.whl",
+        "sha256": "840f5dc5e375c68f36c1a7a5b9caad28f95daa65185c9253c0c08dd952bb7399",
+        "bytes": 150818,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "esp-coredump",
+        "version": "1.18.1",
+        "filename": "esp_coredump-1.18.1-py3-none-any.whl",
+        "sha256": "a8a0a2a0feacc89f495e5ee0a95b9178008719bdff86d9db27c818ed0c86dd33",
+        "bytes": 51018,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "esp-idf-kconfig",
+        "version": "2.5.4",
+        "filename": "esp_idf_kconfig-2.5.4-py3-none-any.whl",
+        "sha256": "b2aaafb54c9eca2cef362adbda69a026265cc4a818aa10202ec16b9c7042ebe6",
+        "bytes": 146551,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "esp-idf-monitor",
+        "version": "1.10.0",
+        "filename": "esp_idf_monitor-1.10.0-py3-none-any.whl",
+        "sha256": "b7a328f580f771ce1c3e306f6ac7d8c2c2e54f9091fa3f60908214be072feb48",
+        "bytes": 73919,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "esp_idf_nvs_partition_gen",
+        "version": "0.1.9",
+        "filename": "esp_idf_nvs_partition_gen-0.1.9-py3-none-any.whl",
+        "sha256": "9655b81dcfac034372bc00ac301f26830619abdd622949efb70cb7f78c80ba12",
+        "bytes": 22374,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "esp_idf_panic_decoder",
+        "version": "1.5.0",
+        "filename": "esp_idf_panic_decoder-1.5.0-py3-none-any.whl",
+        "sha256": "c711abafb99efdc343e19c45b6416b14a863fbe29115fafa8264cefaab85b8ea",
+        "bytes": 21474,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "esp-idf-size",
+        "version": "1.7.1",
+        "filename": "esp_idf_size-1.7.1-py3-none-any.whl",
+        "sha256": "34d35fe95f4b1e971099457591ad9399fc09c08fd1cc0d157aa11961dfb4562f",
+        "bytes": 82438,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "esp-pylib",
+        "version": "1.2.1",
+        "filename": "esp_pylib-1.2.1-py3-none-any.whl",
+        "sha256": "fb05017676200e38dc182013c994e62d9088d377081c88562e14a2f5aaae6456",
+        "bytes": 59344,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "esptool",
+        "version": "4.13.0",
+        "filename": "esptool-4.13.0-py3-none-any.whl",
+        "sha256": "e4a9933cef0eb660997f18bb5724143ba2d8e028f8d2572f42447e85b36c43bd",
+        "bytes": 631261,
+        "source": "locally_built_reviewed_sdist",
+        "source_sha256": "bb0eda612f45aef49a58c401e5c1814fa62b5e66f0825e051b31a0c3e3f50336"
+      },
+      {
+        "name": "freertos-gdb",
+        "version": "1.0.4",
+        "filename": "freertos_gdb-1.0.4-py3-none-any.whl",
+        "sha256": "f924aa5c51318d9978afffca57bb07b979569a2c0adddacfcd931ac8d58ee53b",
+        "bytes": 14771,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "idf-component-manager",
+        "version": "2.5.2",
+        "filename": "idf_component_manager-2.5.2-py3-none-any.whl",
+        "sha256": "a03989e62f6522dc09475587d1f6395dde408dbc2fb71fc7609c648e477a097a",
+        "bytes": 184749,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "idna",
+        "version": "3.20",
+        "filename": "idna-3.20-py3-none-any.whl",
+        "sha256": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c",
+        "bytes": 69583,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "intelhex",
+        "version": "2.3.0",
+        "filename": "intelhex-2.3.0-py2.py3-none-any.whl",
+        "sha256": "87cc5225657524ec6361354be928adfd56bcf2a3dcc646c40f8f094c39c07db4",
+        "bytes": 50914,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "jsonref",
+        "version": "1.1.0",
+        "filename": "jsonref-1.1.0-py3-none-any.whl",
+        "sha256": "590dc7773df6c21cbf948b5dac07a72a251db28b0238ceecce0a2abfa8ec30a9",
+        "bytes": 9425,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "markdown-it-py",
+        "version": "4.2.0",
+        "filename": "markdown_it_py-4.2.0-py3-none-any.whl",
+        "sha256": "9f7ebbcd14fe59494226453aed97c1070d83f8d24b6fc3a3bcf9a38092641c4a",
+        "bytes": 91687,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "mdurl",
+        "version": "0.1.2",
+        "filename": "mdurl-0.1.2-py3-none-any.whl",
+        "sha256": "84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8",
+        "bytes": 9979,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "packaging",
+        "version": "26.3",
+        "filename": "packaging-26.3-py3-none-any.whl",
+        "sha256": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c",
+        "bytes": 129956,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "pathvalidate",
+        "version": "3.3.1",
+        "filename": "pathvalidate-3.3.1-py3-none-any.whl",
+        "sha256": "5263baab691f8e1af96092fa5137ee17df5bdfbd6cff1fcac4d6ef4bc2e1735f",
+        "bytes": 24305,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "psutil",
+        "version": "7.2.2",
+        "filename": "psutil-7.2.2-cp37-abi3-win_amd64.whl",
+        "sha256": "eb7e81434c8d223ec4a219b5fc1c47d0417b12be7ea866e24fb5ad6e84b3d988",
+        "bytes": 137737,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "pyclang",
+        "version": "0.7.0",
+        "filename": "pyclang-0.7.0-py3-none-any.whl",
+        "sha256": "a19d333ab02ab0df486e29fabf961b8e3748d8b5343d8170764e49f114bb8393",
+        "bytes": 13207,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "pycparser",
+        "version": "3.12",
+        "filename": "pycparser-3.12-py3-none-any.whl",
+        "sha256": "a076f3f489b39b43ed13563a1dafe42447445bec2e294154ec5c57fcdda4c85e",
+        "bytes": 62600,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "pydantic",
+        "version": "2.14.2",
+        "filename": "pydantic-2.14.2-py3-none-any.whl",
+        "sha256": "7efbf7507b937931cd32a5755acb00ea1cf5ccb1d4e8067a5850d5069e382118",
+        "bytes": 490403,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "pydantic_core",
+        "version": "2.50.2",
+        "filename": "pydantic_core-2.50.2-cp313-cp313-win_amd64.whl",
+        "sha256": "e5c801bdf3cc92274b8fc2c7023c8751e5ae81260c009ac558ff55ce712a2d45",
+        "bytes": 2250556,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "pydantic-settings",
+        "version": "2.16.2",
+        "filename": "pydantic_settings-2.16.2-py3-none-any.whl",
+        "sha256": "8d523e5c129b097686bde019bd6109bff53f4c8c3f63f1ddf9933ffa42e5ab4f",
+        "bytes": 81994,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "pyelftools",
+        "version": "0.33",
+        "filename": "pyelftools-0.33-py3-none-any.whl",
+        "sha256": "f215ad5f47d3f1373a21496a6c9e0707c622840d0622f23ff7ce08678b020036",
+        "bytes": 201178,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "pygdbmi",
+        "version": "0.11.0.0",
+        "filename": "pygdbmi-0.11.0.0-py3-none-any.whl",
+        "sha256": "f7cac28e1d558927444c880ed1e65da1a5d8686121a3aac16f42fb84d3ceb60d",
+        "bytes": 21258,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "Pygments",
+        "version": "2.21.0",
+        "filename": "pygments-2.21.0-py3-none-any.whl",
+        "sha256": "2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9",
+        "bytes": 1250147,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "pyparsing",
+        "version": "3.2.5",
+        "filename": "pyparsing-3.2.5-py3-none-any.whl",
+        "sha256": "e38a4f02064cf41fe6593d328d0512495ad1f3d8a91c4f73fc401b3079a59a5e",
+        "bytes": 113890,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "pyserial",
+        "version": "3.5",
+        "filename": "pyserial-3.5-py2.py3-none-any.whl",
+        "sha256": "c4451db6ba391ca6ca299fb3ec7bae67a5c55dde170964c7a14ceefec02f2cf0",
+        "bytes": 90585,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "python-dotenv",
+        "version": "1.2.4",
+        "filename": "python_dotenv-1.2.4-py3-none-any.whl",
+        "sha256": "42269a8a5b3fd54ffa6f3d84b18abed50064717576b4ecf03dc4a55d8aa04fdc",
+        "bytes": 23266,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "PyYAML",
+        "version": "6.0.3",
+        "filename": "pyyaml-6.0.3-cp313-cp313-win_amd64.whl",
+        "sha256": "79005a0d97d5ddabfeeea4cf676af11e647e41d81c9a7722a193022accdb6b7c",
+        "bytes": 154090,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "reedsolo",
+        "version": "1.7.0",
+        "filename": "reedsolo-1.7.0-py3-none-any.whl",
+        "sha256": "2b6a3e402a1ee3e1eea3f932f81e6c0b7bbc615588074dca1dbbcdeb055002bd",
+        "bytes": 32360,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "requests",
+        "version": "2.34.2",
+        "filename": "requests-2.34.2-py3-none-any.whl",
+        "sha256": "2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0",
+        "bytes": 73075,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "requests-file",
+        "version": "3.0.1",
+        "filename": "requests_file-3.0.1-py2.py3-none-any.whl",
+        "sha256": "d0f5eb94353986d998f80ac63c7f146a307728be051d4d1cd390dbdb59c10fa2",
+        "bytes": 4514,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "requests-toolbelt",
+        "version": "1.0.0",
+        "filename": "requests_toolbelt-1.0.0-py2.py3-none-any.whl",
+        "sha256": "cccfdd665f0a24fcf4726e690f65639d272bb0637b9b92dfd91a5568ccf6bd06",
+        "bytes": 54481,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "rich",
+        "version": "15.0.0",
+        "filename": "rich-15.0.0-py3-none-any.whl",
+        "sha256": "33bd4ef74232fb73fe9279a257718407f169c09b78a87ad3d296f548e27de0bb",
+        "bytes": 310654,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "rich-click",
+        "version": "1.9.9",
+        "filename": "rich_click-1.9.9-py3-none-any.whl",
+        "sha256": "365e7a9d0adb42e41ea832a0a12e02c44c079a26536dee688125eb9814f97274",
+        "bytes": 71910,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "ruamel.yaml",
+        "version": "0.19.1",
+        "filename": "ruamel_yaml-0.19.1-py3-none-any.whl",
+        "sha256": "27592957fedf6e0b62f281e96effd28043345e0e66001f97683aa9a40c667c93",
+        "bytes": 118102,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "setuptools",
+        "version": "84.2.1",
+        "filename": "setuptools-84.2.1-py3-none-any.whl",
+        "sha256": "ca140b45d5325a9478f880e351484f62fef15f336462e449ca0c03c873d589c2",
+        "bytes": 876263,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "six",
+        "version": "1.17.0",
+        "filename": "six-1.17.0-py2.py3-none-any.whl",
+        "sha256": "4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274",
+        "bytes": 11050,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "tibs",
+        "version": "0.5.7",
+        "filename": "tibs-0.5.7-cp38-abi3-win_amd64.whl",
+        "sha256": "a61d36155f8ab8642e1b6744e13822f72050fc7ec4f86ec6965295afa04949e2",
+        "bytes": 304135,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "tqdm",
+        "version": "4.70.1",
+        "filename": "tqdm-4.70.1-py3-none-any.whl",
+        "sha256": "c293e525e6fef9c20e8728fd4612df02a0aa31bb5fe91ecd93e123b1b7bffa73",
+        "bytes": 80199,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "truststore",
+        "version": "0.10.5",
+        "filename": "truststore-0.10.5-py3-none-any.whl",
+        "sha256": "9aaaedaefaf06d8b206278cf8b5012bc897f485a874503501e12d776df78951c",
+        "bytes": 19017,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "typing_extensions",
+        "version": "4.16.0",
+        "filename": "typing_extensions-4.16.0-py3-none-any.whl",
+        "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+        "bytes": 45571,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "typing-inspection",
+        "version": "0.4.4",
+        "filename": "typing_inspection-0.4.4-py3-none-any.whl",
+        "sha256": "65b8397ba37ccbce054456aaccddfc91e6e3083c92824df348d96ca832f3f147",
+        "bytes": 14750,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "urllib3",
+        "version": "1.26.20",
+        "filename": "urllib3-1.26.20-py2.py3-none-any.whl",
+        "sha256": "0ed14ccfbf1c30a9072c7ca157e4319b70d65f623e91e7b32fadb2853431016e",
+        "bytes": 144225,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "websockets",
+        "version": "17.3",
+        "filename": "websockets-17.3-cp313-cp313-win_amd64.whl",
+        "sha256": "66027e401c70d0cf55021b91b8a7ec2cd5810e20602f945b4fe6ae8b37ed232b",
+        "bytes": 219026,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "wheel",
+        "version": "0.48.0",
+        "filename": "wheel-0.48.0-py3-none-any.whl",
+        "sha256": "3217dcc807155e45db462d7ef2431f5ddda0d7273b700d05a67b271ceb1287ab",
+        "bytes": 33320,
+        "source": "pypi",
+        "source_sha256": null
+      },
+      {
+        "name": "windows-curses",
+        "version": "2.4.2",
+        "filename": "windows_curses-2.4.2-cp313-cp313-win_amd64.whl",
+        "sha256": "1bf3d0c902374b6c430a954adcb686a5ecd7a31fc4195d31136385b5c1bea925",
+        "bytes": 82200,
+        "source": "pypi",
+        "source_sha256": null
+      }
+    ]
+  },
+  "managed_components_used": [
+    {
+      "name": "espressif/led_strip",
+      "version": "3.0.3",
+      "registry_url": "https://components.espressif.com/",
+      "registry_component_hash": "28621486f77229aaf81c71f5e15d6fbf36c2949cf11094e07090593e659e7639",
+      "materialized_source_index_sha256": "7c051049b6b9968ae9cba2efadd08ed604c2d17e6303d8d748a4fa2140c53a74"
+    },
+    {
+      "name": "espressif/mdns",
+      "version": "1.15.1",
+      "registry_url": "https://components.espressif.com/",
+      "registry_component_hash": "2fa43caa78cc170842255bc7bf71f306bc815cae12e9496bfb12372423019ac7",
+      "materialized_source_index_sha256": "0a14825c7e54b5725ff92277ef2b5410c28c0bff60708e621ec4630f42b500bb"
+    }
+  ],
+  "managed_dependency_lock_sha256": "3ec69a0e198e13a8558138fbbb315986a69a9652b8a4ba777044a89b7cd2d6e0",
+  "sources_frozen_before_final_build": 14158,
+  "build_tool_install_scope": "private isolated directories, no OS install",
+  "optional_tools_not_downloaded": [
+    "debugger",
+    "OpenOCD",
+    "RISC-V toolchain"
+  ]
+}

@@ -68,6 +68,8 @@ The existing global pause and perception revision fence block new imports, examp
 
 ## Physical CSI pilot: what remains
 
+For the selected three plain XIAO ESP32-S3 boards, use the [headless firmware kit and arrival workflow](XIAO_THREE_NODE_SETUP.md). Its offline preparation and flash-plan actions do not operate a device. USB onboarding and physical transport/room qualification remain separate explicit steps.
+
 The existing USB cameras provide real visual images, but they do not produce Wi-Fi Channel State Information. The next physical experiment needs a correctly matched **ESP32-S3 CSI receiver**, compatible controlled Wi-Fi packet traffic/AP, USB power and fixed placement. Confirm the exact board, flash capacity and upstream firmware variant before buying or flashing anything. The upstream hardware guide treats C6 as research and C5 as experimental; start with a single S3 link before considering a mesh.
 
 The initial aim is measured single-room presence/motion evidence, including failure cases. It is not reliable radar “anywhere.” A later live connector must use explicit real-source selection, reject automatic simulation fallback, preserve source age/outages and keep physical acquisition separate from the model loop.

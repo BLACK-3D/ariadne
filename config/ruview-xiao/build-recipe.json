@@ -1,0 +1,95 @@
+{
+  "schema": 1,
+  "profile": "ariadne-ruview-xiao-s3-headless-v1",
+  "application_version": "ariadne-xiao-v1",
+  "target": "esp32s3",
+  "upstream_revision": "094e1400719ded1283c67d23b9c737f6738a3244",
+  "source_archive_sha256": "72d3162bb6c9bdb14d92cbc3dc609d034c88c0cfbab48064420e95accfa5e710",
+  "patch_sha256": "965bff4a7f5abd417c6a83175a85a36c6ae2c8339f48b3f03d4a488790957147",
+  "override_sha256": "a03c303d54c613e7d8b8681db7489cee24c029bdf9b43af73113c4bb1998aae9",
+  "tools_lock_sha256": "a026251ab6a80536d6481a9795436d34ae73523cc6a96bab9deffaf1060baf74",
+  "sdkconfig_sha256": "33b4fccf9300f18e6880e0da5721b8485014adf1cc766829b9e7867e194f7d3c",
+  "source_date_epoch": 1794441600,
+  "parallel_jobs": 2,
+  "prepare_online_once": [
+    "Acquire the exact SDK archive and recorded Gitlink sources; verify each Git blob at the pinned revision. Keep SDK sdkconfig.rename.",
+    "Acquire exact tool ZIPs and all Python wheels listed in tools-lock.json; verify SHA-256 before executing.",
+    "Materialize the two named, pinned registry components as project/components/led_strip and project/components/mdns.",
+    "Extract the complete selected upstream firmware source archive, apply headless-xiao.patch, and add sdkconfig.defaults.xiao.",
+    "Write the standard SDK archive version fallback file version.txt with v5.4. Do not use a partial Git checkout as version evidence."
+  ],
+  "offline_environment": {
+    "IDF_PATH": "<SDK>",
+    "IDF_TOOLS_PATH": "<PRIVATE_TOOL_STATE>",
+    "IDF_PYTHON_ENV_PATH": "<BUILD_VENV>",
+    "IDF_COMPONENT_MANAGER": "0",
+    "IDF_SKIP_CHECK_SUBMODULES": "1",
+    "IDF_TARGET": "esp32s3",
+    "SOURCE_DATE_EPOCH": "1794441600",
+    "TEMP": "<PRIVATE_TMP>",
+    "TMP": "<PRIVATE_TMP>",
+    "GIT_ALLOW_PROTOCOL": "",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "HTTP_PROXY": "http://127.0.0.1:1",
+    "HTTPS_PROXY": "http://127.0.0.1:1",
+    "ALL_PROXY": "http://127.0.0.1:1",
+    "NO_PROXY": ""
+  },
+  "component_dirs": {
+    "project": [
+      "main",
+      "components"
+    ],
+    "sdk": "Every directory directly under SDK/components except the exact excluded list.",
+    "excluded": [
+      "bt",
+      "cmock",
+      "esp_ble_mesh",
+      "mqtt",
+      "openthread",
+      "protobuf-c",
+      "spiffs",
+      "unity"
+    ]
+  },
+  "configure_argv": [
+    "<CMAKE>",
+    "-G",
+    "Ninja",
+    "-S",
+    "<PROJECT>",
+    "-B",
+    "<FRESH_BUILD>",
+    "-DIDF_TARGET=esp32s3",
+    "-DPYTHON=<BUILD_PYTHON>",
+    "-DCOMPONENT_DIRS=<SEMICOLON_JOINED_COMPONENT_DIRS>",
+    "-DSDKCONFIG=<FRESH_BUILD>/sdkconfig",
+    "-DSDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.defaults.devkitc;sdkconfig.defaults.xiao"
+  ],
+  "build_argv": [
+    "<NINJA>",
+    "-C",
+    "<FRESH_BUILD>",
+    "-j2"
+  ],
+  "export": {
+    "bootloader.bin": "bootloader/bootloader.bin",
+    "partition-table.bin": "partition_table/partition-table.bin",
+    "ota_data_initial.bin": "ota_data_initial.bin",
+    "esp32-csi-node.bin": "esp32-csi-node.bin"
+  },
+  "qualification": {
+    "fresh_clean_offline_rebuild_passed": true,
+    "four_segments_equal_previous_build": true,
+    "python_network_guard_denials": 0,
+    "native_http_proxies_blocked": true,
+    "OS_network_sandbox": false,
+    "hardware_qualified": false,
+    "camera_microphone_RF_or_serial_opened": false
+  },
+  "restrictions": [
+    "Never copy private ELF/debug/log/snapshot files into a release.",
+    "Never embed Wi-Fi credentials or an NVS image.",
+    "Inspect the generated sdkconfig, verify all segment hashes and image/partition checks, then scan public bytes for owner data."
+  ]
+}

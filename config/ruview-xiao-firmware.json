@@ -1,0 +1,7 @@
+{
+  "schema": 1,
+  "profile": "ariadne-ruview-xiao-s3-headless-v1",
+  "source_revision": "094e1400719ded1283c67d23b9c737f6738a3244",
+  "manifest_sha256": "8c03c69207f935aadbc7f2abc8ebeb03f2072e00577a487d971b232688df281f",
+  "qualification": "compiled_not_hardware_tested"
+}

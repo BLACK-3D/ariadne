@@ -8,6 +8,8 @@ Local vision also includes a **live camera preview** and **Ask Ariadne about thi
 
 **[Download the Windows starter](https://github.com/BLACK-3D/ariadne/releases/latest/download/ariadne-windows-starter.zip)** · **[Full fresh-PC setup guide](docs/GET_STARTED.md)** · **[Source ZIP](https://github.com/BLACK-3D/ariadne/archive/refs/heads/main.zip)**
 
+For three **XIAO ESP32-S3** boards, the [offline firmware and arrival workflow](docs/XIAO_THREE_NODE_SETUP.md) prepares a hash-verified headless kit, three node records and inert flash plans. Physical flashing/provisioning remains an explicit hardware step; preparing or reading the kit never activates a radio.
+
 ## Start on a fresh Windows PC
 
 You need **Windows 10/11 x64**, a writable local folder and Internet for the first setup. **No separate Python, Git, Docker or Node installation, administrator session, AI account or paid model API is required for the core starter.** Setup prepares a private Python runtime inside the Ariadne folder.

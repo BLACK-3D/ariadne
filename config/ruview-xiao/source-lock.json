@@ -1,0 +1,19 @@
+{
+  "upstream_repository": "https://github.com/ruvnet/RuView",
+  "revision": "094e1400719ded1283c67d23b9c737f6738a3244",
+  "archive_sha256": "72d3162bb6c9bdb14d92cbc3dc609d034c88c0cfbab48064420e95accfa5e710",
+  "patch_sha256": "965bff4a7f5abd417c6a83175a85a36c6ae2c8339f48b3f03d4a488790957147",
+  "override_sha256": "a03c303d54c613e7d8b8681db7489cee24c029bdf9b43af73113c4bb1998aae9",
+  "application_version": "ariadne-xiao-v1",
+  "profile": "ariadne-ruview-xiao-s3-headless-v1",
+  "changed_files": [
+    "CMakeLists.txt",
+    "components/wasm3/CMakeLists.txt",
+    "main/CMakeLists.txt",
+    "main/Kconfig.projbuild",
+    "main/main.c",
+    "main/serial_onboarding.c",
+    "main/serial_onboarding_protocol.c",
+    "main/serial_onboarding_protocol.h"
+  ]
+}

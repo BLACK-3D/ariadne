@@ -1,0 +1,253 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -3,6 +3,7 @@
+ cmake_minimum_required(VERSION 3.16)
+ 
+ set(EXTRA_COMPONENT_DIRS "")
++set(COMPONENTS main)
+ 
+ # Read firmware version from version.txt so esp_app_get_description()->version
+ # matches the release tag.  Fixes issue #354 (version mismatch after flashing).
+@@ -10,4 +11,6 @@
+ string(STRIP "${PROJECT_VER}" PROJECT_VER)
+ 
+ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+-project(esp32-csi-node VERSION ${PROJECT_VER})
++# Ariadne USB-only XIAO pilot: visible fork version, closed component set.
++set(PROJECT_VER "ariadne-xiao-v1")
++project(esp32-csi-node)
+--- a/components/wasm3/CMakeLists.txt
++++ b/components/wasm3/CMakeLists.txt
+@@ -11,6 +11,12 @@
+ # Or run: scripts/fetch-wasm3.sh
+ 
+ cmake_minimum_required(VERSION 3.16)
++
++# A disabled runtime must never fetch an unpinned interpreter during configuration.
++if(NOT CONFIG_WASM_ENABLE)
++    idf_component_register()
++    return()
++endif()
+ 
+ set(WASM3_DIR "${CMAKE_CURRENT_SOURCE_DIR}/wasm3-src")
+ 
+--- a/main/CMakeLists.txt
++++ b/main/CMakeLists.txt
+@@ -30,6 +30,7 @@
+     esp_netif
+     esp_event
+     nvs_flash
++    esp_psram
+     app_update
+     esp_http_server
+     esp_http_client
+--- a/main/Kconfig.projbuild
++++ b/main/Kconfig.projbuild
+@@ -1,4 +1,11 @@
+ menu "CSI Node Configuration"
++
++    config ARIADNE_XIAO_PILOT
++        bool "Ariadne USB-only plain XIAO ESP32-S3 pilot"
++        default n
++        help
++            Disable unsupported board GPIO/peripherals and network control servers.
++            An unconfigured node holds before Wi-Fi starts; USB onboarding stays available.
+ 
+     config C5_STATUS_LED_GPIO
+         int "ESP32-C5 addressable status LED GPIO (-1 disables)"
+--- a/main/main.c
++++ b/main/main.c
+@@ -27,6 +27,7 @@
+ #include "nvs_config.h"
+ #include "config_api.h"
+ #include "serial_onboarding.h"
++#include "serial_onboarding_protocol.h"
+ #include "edge_processing.h"
+ #include "ota_update.h"
+ #include "ota_health.h"
+@@ -350,18 +351,32 @@
+ {
+     /* Initialize NVS */
+     esp_err_t ret = nvs_flash_init();
++#ifdef CONFIG_ARIADNE_XIAO_PILOT
++    if (ret != ESP_OK) {
++        ESP_LOGE(TAG, "Ariadne XIAO pilot NVS unavailable: %s; no erase, WiFi off", esp_err_to_name(ret));
++        return;
++    }
++#else
+     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+         ESP_ERROR_CHECK(nvs_flash_erase());
+         ret = nvs_flash_init();
+     }
+     ESP_ERROR_CHECK(ret);
++#endif
+ 
+     /* Load runtime config (NVS overrides Kconfig defaults) */
+     /* Before loading config: if the last change is still on trial this arms
+      * the revert timer, so settings that cannot associate undo themselves. */
++#ifndef CONFIG_ARIADNE_XIAO_PILOT
+     config_trial_boot_check();
++#endif
+ 
+     nvs_config_load(&g_nvs_config);
++#ifdef CONFIG_ARIADNE_XIAO_PILOT
++    /* Retained NVS may not expand the fixed raw-transport pilot profile. */
++    g_nvs_config.edge_tier = 0;
++    g_nvs_config.power_duty = 100;
++#endif
+ 
+     /* Capture node_id IMMEDIATELY — before wifi_init_sta() can corrupt
+      * g_nvs_config. See #232/#375/#390: WiFi driver init clobbers the struct
+@@ -399,12 +414,24 @@
+         ESP_LOGW(TAG, "USB onboarding unavailable: %s", esp_err_to_name(onboarding_ret));
+     }
+ 
++#ifdef CONFIG_ARIADNE_XIAO_PILOT
++    /* Fresh/unconfigured pilot boards must stay USB-only. Existing NVS is
++     * intentionally not erased; a previously provisioned board can retain it. */
++    if (g_nvs_config.wifi_ssid[0] == '\0' ||
++        strlen(g_nvs_config.wifi_password) < 8 ||
++        g_nvs_config.node_id < 1 || g_nvs_config.node_id > 3 ||
++        !ruview_onboarding_target_is_private(g_nvs_config.target_ip)) {
++        ESP_LOGI(TAG, "Ariadne XIAO pilot unconfigured: USB onboarding only; WiFi off");
++        return;
++    }
++#endif
++
+     /* Onboard WS2812. C6 wires the LED to GPIO 8; S3 to GPIO 38 (DevKitC-1 v1.0)
+      * or GPIO 48 (DevKitC-1 v1.1 / N16R8 — see #962). On S3 we drive 48 (the
+      * common module). On C6, GPIO 38/48 don't exist (only 0-30) — gate by target.
+      * Behaviour is set by CONFIG_LED_GAMMA_VIZ (ADR-183): on = 40 Hz gamma flicker
+      * coloured by CSI motion; off = clear the LED at boot. */
+-#if !defined(CONFIG_IDF_TARGET_ESP32C5) || CONFIG_C5_STATUS_LED_GPIO >= 0
++#if !defined(CONFIG_ARIADNE_XIAO_PILOT) && (!defined(CONFIG_IDF_TARGET_ESP32C5) || CONFIG_C5_STATUS_LED_GPIO >= 0)
+ #if defined(CONFIG_IDF_TARGET_ESP32C5)
+     const int led_gpio = CONFIG_C5_STATUS_LED_GPIO;
+ #elif defined(CONFIG_IDF_TARGET_ESP32C6)
+@@ -522,6 +549,7 @@
+          * destroys, which is the whole reason this fleet has no post-mortem for
+          * a remote fault. node_log_init failing is non-fatal by design -- the
+          * node comes up either way, it just has no memory. */
++#ifndef CONFIG_ARIADNE_XIAO_PILOT
+         if (node_log_init() == ESP_OK) {
+             uint32_t prev_uptime_s = 0;
+             nvs_handle_t nh;
+@@ -535,6 +563,7 @@
+             ESP_LOGI(TAG, "on-node log active: boot_id=%u, %u records retained",
+                      (unsigned)node_log_boot_id(), (unsigned)node_log_count());
+         }
++#endif /* Pilot never mounts/formats persistent FAT or writes boot-log NVS. */
+     }
+ 
+     /* Bring thermal monitoring up before the radio is loaded, so the first
+@@ -591,9 +620,9 @@
+                  esp_err_to_name(edge_ret));
+     }
+ 
+-    /* Initialize OTA update HTTP server (requires network). */
++    /* No OTA, WASM-upload or network configuration server in this USB-only pilot. */
+     httpd_handle_t ota_server = NULL;
+-#ifndef CONFIG_CSI_MOCK_SKIP_WIFI_CONNECT
++#if !defined(CONFIG_CSI_MOCK_SKIP_WIFI_CONNECT) && !defined(CONFIG_ARIADNE_XIAO_PILOT)
+     esp_err_t ota_ret = ota_update_init_ex(&ota_server);
+     if (ota_ret != ESP_OK) {
+         ESP_LOGW(TAG, "OTA server init failed: %s", esp_err_to_name(ota_ret));
+@@ -605,7 +634,7 @@
+ #endif
+ #else
+     esp_err_t ota_ret = ESP_ERR_NOT_SUPPORTED;
+-    ESP_LOGI(TAG, "Mock CSI mode: skipping OTA server (no network)");
++    ESP_LOGI(TAG, "OTA/control HTTP server disabled in this build profile");
+ #endif
+ 
+     /* ADR-040: Initialize WASM programmable sensing runtime. */
+@@ -640,7 +669,10 @@
+         }
+     }
+ 
+-    /* ADR-063: Initialize mmWave sensor (auto-detect on UART). */
++    /* The plain XIAO pilot has no attached mmWave device or assigned sensor UART. */
++#ifdef CONFIG_ARIADNE_XIAO_PILOT
++    esp_err_t mmwave_ret = ESP_ERR_NOT_SUPPORTED;
++#else
+     esp_err_t mmwave_ret = mmwave_sensor_init(-1, -1);  /* -1 = use default GPIO pins */
+     if (mmwave_ret == ESP_OK) {
+         mmwave_state_t mw;
+@@ -652,9 +684,11 @@
+         ESP_LOGI(TAG, "No mmWave sensor detected (CSI-only mode)");
+     }
+ 
++#endif /* !CONFIG_ARIADNE_XIAO_PILOT: mmWave probe */
++
+     /* ADR-066: Initialize swarm bridge to Cognitum Seed (if configured). */
+     esp_err_t swarm_ret = ESP_ERR_INVALID_ARG;
+-#ifndef CONFIG_CSI_MOCK_SKIP_WIFI_CONNECT
++#if !defined(CONFIG_CSI_MOCK_SKIP_WIFI_CONNECT) && !defined(CONFIG_ARIADNE_XIAO_PILOT)
+     if (g_nvs_config.seed_url[0] != '\0') {
+         swarm_config_t swarm_cfg = {
+             .heartbeat_sec = g_nvs_config.swarm_heartbeat_sec,
+@@ -675,7 +709,7 @@
+         ESP_LOGI(TAG, "Swarm bridge disabled (no seed_url configured)");
+     }
+ #else
+-    ESP_LOGI(TAG, "Mock CSI mode: skipping swarm bridge");
++    ESP_LOGI(TAG, "Remote swarm bridge disabled in this build profile");
+ #endif
+ 
+     /* ADR-081 Layer 1: register the active radio ops binding.
+@@ -749,6 +783,7 @@
+          * Also refresh the uptime NVS cell, which is what lets the NEXT boot
+          * record say how long the previous session actually survived -- the
+          * difference between "it rebooted" and "it wedged after 225 s". */
++#ifndef CONFIG_ARIADNE_XIAO_PILOT
+         node_log_periodic();
+         {
+             static uint32_t s_last_persist_s;
+@@ -763,5 +798,6 @@
+                 }
+             }
+         }
++#endif /* Pilot host records the raw transport; no periodic flash/NVS logging. */
+     }
+ }
+--- a/main/serial_onboarding.c
++++ b/main/serial_onboarding.c
+@@ -49,7 +49,8 @@
+     const bool configured = s_current_config.wifi_ssid[0] != '\0' &&
+                             s_current_config.target_ip[0] != '\0';
+     printf("RUVIEW_HELLO_OK_V1 nonce=%s chip=%s version=%s node_id=%u "
+-           "target_ip=%s target_port=%u configured=%u device_digest=%s\n",
++           "target_ip=%s target_port=%u configured=%u device_digest=%s "
++           "profile=ariadne-ruview-xiao-s3-headless-v1\n",
+            nonce, chip_name(), description->version,
+            (unsigned)s_current_config.node_id, s_current_config.target_ip,
+            (unsigned)s_current_config.target_port, configured ? 1U : 0U, digest);
+--- a/main/serial_onboarding_protocol.c
++++ b/main/serial_onboarding_protocol.c
+@@ -68,6 +68,16 @@
+     if (sscanf(value, "%u.%u", &first, &second) != 2) return false;
+     return first == 10U || (first == 172U && second >= 16U && second <= 31U) ||
+            (first == 192U && second == 168U);
++}
++
++bool ruview_onboarding_target_is_private(const char *value)
++{
++    if (!valid_private_ipv4(value)) return false;
++    unsigned a, b, c, d;
++    char canonical[16];
++    if (sscanf(value, "%u.%u.%u.%u", &a, &b, &c, &d) != 4) return false;
++    snprintf(canonical, sizeof(canonical), "%u.%u.%u.%u", a, b, c, d);
++    return strcmp(canonical, value) == 0;
+ }
+ 
+ static int base64_value(char c)
+--- a/main/serial_onboarding_protocol.h
++++ b/main/serial_onboarding_protocol.h
+@@ -39,4 +39,7 @@
+ 
+ const char *ruview_onboarding_result_name(ruview_onboarding_result_t result);
+ 
++/* Shared pure RFC1918 predicate for the pilot's retained-NVS startup guard. */
++bool ruview_onboarding_target_is_private(const char *value);
++
+ #endif
