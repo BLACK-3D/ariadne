@@ -75,9 +75,13 @@ These routes use the existing paired local API and its owner authority. Read the
 
 The example revisions illustrate separate requests, not a sequence to copy unchanged. Fetch the actual revision before each action. A replay's `recording_id` identifies a saved import request; the bundle's declared `recording_id` is source metadata. Passive agent access uses the bounded `perception_read` tool and cannot import, replay, capture, identify people, configure sensors or authorize an action. Presence evidence does not replace any existing approval, safety or business control.
 
-## RuView adapter boundary for a later release
+## RuView recording adapter
 
-The observation contract is the extension boundary; there is no RuView connection in 0.38. A later separately qualified adapter must translate pinned upstream events into this bounded format, preserving real versus synthetic capture origin, producer clock semantics, source age, declared quality and calibration. It must not promote an upstream live/verified label to local physical qualification or turn unavailable room evidence into absence. Explicit physical source selection must reject simulator fallback.
+Version 0.41 adds an explicit, pinned native RuView JSONL recording adapter and a fictional RuView-shaped example. See [RuView intake, source policies, clock semantics and the physical CSI plan](RUVIEW_WIFI.md). The adapter preserves exact original bytes, source policy and producer clocks through verified replay. ESP32-only admission rejects simulator fallback; recorded-any admission preserves synthetic/unknown origin. Server timestamps do not become physical RF observation clocks, and saved recordings never establish current occupancy.
+
+## Future live RuView acquisition boundary
+
+The observation contract remains the live-acquisition extension boundary. The recording adapter does not connect to a RuView service or acquire CSI. A later separately qualified live adapter must preserve real versus synthetic capture origin, producer clock semantics, source age, declared quality and calibration. It must not promote an upstream live/verified label to local physical qualification or turn unavailable room evidence into absence. Explicit physical source selection must reject simulator fallback.
 
 Keep acquisition outside the model loop and keep its endpoints/devices owner-registered. Future live acquisition needs its own explicit controls, network/transport review and field tests; importing a recording does not register or enable that source. Current recording APIs deliberately provide no capture, configuration, firmware, actuator or model-loading route.
 

@@ -377,6 +377,61 @@ def fuse_recording(bundle, source_sha256, *, processing_mode="replay"):
         "authority": "Read-only evidence; observations grant no action authority."}
 
 
+def _ruview_catalog():
+    """Static adapter metadata only; importing this pure parser starts nothing."""
+    from .ruview import PROFILE, UPSTREAM_REVISION
+    return {"profile": PROFILE, "pinned_commit": UPSTREAM_REVISION, "available": True,
+        "source_policies": ["esp32_only", "recorded_any"], "source_format": "ruview_native_jsonl",
+        "source_clock": "producer_server_timestamp_not_radio_capture",
+        "hardware_qualified": False, "live_available": False,
+        "fixture_path": "ariadne/resources/perception/ruview-synthetic.jsonl"}
+
+
+def _ruview_material(raw, source_policy, mode="replay"):
+    """Convert frozen native bytes, never a URL, device or live producer."""
+    from .ruview import PROFILE, UPSTREAM_REVISION, normalize_ruview
+    if type(source_policy) is not str or source_policy not in {"esp32_only", "recorded_any"}:
+        raise ValueError("Choose the explicit RuView source policy.")
+    if type(raw) is not bytes or not raw or len(raw) > MAX_SOURCE_BYTES:
+        raise ValueError("RuView recording exceeds its source byte bound.")
+    result = normalize_ruview(raw, source_policy=source_policy)
+    _fields(result, {"bundle", "provenance"}, label="RuView normalization")
+    bundle_raw = _bytes(result["bundle"])
+    bundle = validate_bundle(bundle_raw)
+    provenance = result["provenance"]
+    if (type(provenance) is not dict or provenance.get("profile") != PROFILE
+            or provenance.get("upstream_revision") != UPSTREAM_REVISION
+            or provenance.get("source_policy") != source_policy
+            or provenance.get("source_format") != "ruview_native_jsonl"
+            or provenance.get("source_sha256") != _sha(raw)
+            or provenance.get("normalized_sha256") != _sha(bundle_raw)):
+        raise ValueError("RuView converter provenance does not bind the selected source.")
+    if mode not in {"replay", "simulation"}:
+        raise ValueError("RuView recordings cannot establish live processing.")
+    if mode == "simulation" and any(row["capture_origin"] != "synthetic" for row in bundle["observations"]):
+        raise ValueError("The RuView demonstration must remain entirely synthetic.")
+    adapter = {**provenance, "source_clock": "producer_server_timestamp_not_radio_capture",
+        "hardware_qualified": False, "bundle_sha256": _sha(bundle_raw), "processing_mode": mode}
+    adapter_raw = _bytes(adapter)
+    metadata = {"source_profile": PROFILE, "source_policy": source_policy,
+        "source_format": "ruview_native_jsonl", "source_clock": adapter["source_clock"],
+        "hardware_qualified": False, "adapter_sha256": _sha(adapter_raw),
+        "bundle_sha256": _sha(bundle_raw)}
+    return bundle, {"bundle.json": bundle_raw, "adapter.json": adapter_raw}, metadata
+
+
+def _recording_artifacts(bundle, raw, mode, *, adapter_artifacts=None, adapter_metadata=None):
+    """One canonical derivation shared by publication and RuView read verification."""
+    evidence = fuse_recording(bundle, _sha(raw), processing_mode=mode)
+    if adapter_metadata is not None:
+        evidence["adapter"] = {key: value for key, value in adapter_metadata.items()
+                               if key not in {"adapter_sha256", "bundle_sha256"}}
+    normalized = {key: value for key, value in bundle.items() if key != "observations"}
+    normalized["observations"] = evidence["observations"]
+    return evidence, {"source.json": raw, **(adapter_artifacts or {}),
+        "normalized.json": _bytes(normalized), "evidence.json": _bytes(evidence)}
+
+
 class Perception:
     """Finite owner-selected JSON imports with fail-stop execution receipts."""
 
@@ -391,11 +446,14 @@ class Perception:
         return {"schema_version": 1, "implementation": IMPLEMENTATION,
             "operations": [{"id": "import", "name": "Import selected recording JSON"},
                            {"id": "replay", "name": "Replay a verified recording"},
-                           {"id": "synthetic_demo", "name": "Create explicit synthetic demonstration"}],
+                           {"id": "synthetic_demo", "name": "Create explicit synthetic demonstration"},
+                           {"id": "import_ruview", "name": "Import selected RuView native recording"},
+                           {"id": "ruview_demo", "name": "Create explicit synthetic RuView demonstration"}],
             "scope": "Owner-selected recording JSON and explicit synthetic fixtures only; no live acquisition, devices, network, model or action authority.",
             "limits": self._limits(), "model_calls": 0,
             "example_path": "ariadne/resources/perception/example-recording.json",
             "schema_path": "ariadne/resources/perception/recording-contract.json",
+            "ruview": _ruview_catalog(),
             "recovery": "An accepted failed or incomplete attempt holds further writes. No automatic retries or reset in v1."}
 
     @staticmethod
@@ -484,20 +542,59 @@ class Perception:
         receipt = _load(receipt_raw, MAX_ARTIFACT_BYTES)
         if receipt["request_id"] != row["request_id"] or receipt["status"] != "completed":
             raise ValueError("Perception receipt identity verification failed.")
+        adapted = "source_profile" in receipt
+        expected_files = {"attempt.json", "source.json", "normalized.json", "evidence.json"}
+        if adapted:
+            from .ruview import PROFILE
+            if receipt["source_profile"] != PROFILE or receipt.get("operation") not in {"import_ruview", "ruview_demo", "replay"}:
+                raise ValueError("Unsupported retained perception adapter profile.")
+            expected_files |= {"bundle.json", "adapter.json"}
+        elif receipt.get("operation") in {"import_ruview", "ruview_demo"}:
+            raise ValueError("A RuView receipt must bind its adapter profile.")
         files = {}
         for artifact in receipt["artifacts"]:
             name = artifact["name"]
-            if name not in {"attempt.json", "source.json", "normalized.json", "evidence.json"} or name in files:
+            if name not in expected_files or name in files:
                 raise ValueError("Unexpected perception artifact.")
             raw = self._read(self.root / row["request_id"] / name, MAX_ARTIFACT_BYTES)
             if len(raw) != artifact["bytes"] or _sha(raw) != artifact["sha256"]:
                 raise ValueError("Perception artifact integrity verification failed: " + name)
             files[name] = raw
-        if set(files) != {"attempt.json", "source.json", "normalized.json", "evidence.json"}:
+        if set(files) != expected_files:
             raise ValueError("Missing retained perception artifact.")
         if _sha(files["source.json"]) != receipt["source_sha256"] or _sha(files["evidence.json"]) != receipt["canonical_sha256"]:
             raise ValueError("Perception source or canonical evidence hash mismatch.")
         evidence = _load(files["evidence.json"], MAX_ARTIFACT_BYTES)
+        if adapted:
+            bundle, extra, metadata = _ruview_material(files["source.json"], receipt.get("source_policy"), receipt.get("processing_mode"))
+            if any(type(receipt.get(key)) is not type(value) or receipt.get(key) != value
+                   for key, value in metadata.items()):
+                raise ValueError("Retained RuView receipt profile or source binding changed.")
+            derived, expected = _recording_artifacts(bundle, files["source.json"], receipt["processing_mode"],
+                adapter_artifacts=extra, adapter_metadata=metadata)
+            if any(files[name] != raw for name, raw in expected.items()):
+                raise ValueError("RuView retained conversion differs from its frozen native source.")
+            derived_summary = {"capture_origins": derived["capture_origins"],
+                "observations": len(derived["observations"]), "zones": len(derived["zones"]),
+                "model_calls": 0, "live_available": False, "verified": True,
+                "implementation": IMPLEMENTATION, "schema_version": 1}
+            if any(type(receipt.get(key)) is not type(value) or receipt.get(key) != value
+                   for key, value in derived_summary.items()):
+                raise ValueError("RuView receipt claims differ from its recorded source qualification.")
+            attempt = _load(files["attempt.json"], MAX_ARTIFACT_BYTES)
+            common = {"schema_version", "request_id", "operation", "created_at", "digest", "source_sha256",
+                      "processing_mode", "capture_origins", "observations", "zones", "model_calls", *metadata}
+            provenance_key = {"import_ruview": "selected_workspace_path", "ruview_demo": "fixture_id",
+                              "replay": "parent_request_id"}[receipt["operation"]]
+            common.add(provenance_key)
+            if (set(attempt) != common | {"status"} or attempt.get("status") != "accepted"
+                    or any(attempt.get(key) != receipt.get(key) for key in common)):
+                raise ValueError("RuView attempt and receipt identity do not match.")
+            identity = {"operation": receipt["operation"], "source_sha256": receipt["source_sha256"],
+                        "processing_mode": receipt["processing_mode"], **metadata,
+                        provenance_key: receipt[provenance_key]}
+            if _sha(_bytes(identity)) != receipt["digest"]:
+                raise ValueError("RuView receipt fingerprint does not bind its source profile.")
         return {**receipt, "verified": True}, evidence, files
 
     def _summary(self, row):
@@ -523,6 +620,7 @@ class Perception:
         return {"revision": revision, "paused": bool(self.store.setting("paused", False)),
             "hold": held is not None, "hold_reason": None if held is None else held.get("error", "Integrity failure."),
             "mode": "recording_only", "live_available": False, "recordings": records,
+            "ruview": _ruview_catalog(),
             "limits": self._limits(), "model_calls": 0,
             "note": "Saved recording evidence only. Replay cannot refresh physical evidence or grant action authority."}
 
@@ -545,7 +643,7 @@ class Perception:
         row = self._row(request_id)
         if row["status"] != "completed":
             return {"receipt": self._summary(row), "evidence": None, "current_zones": []}
-        receipt, evidence, _ = self._verified(row)
+        receipt, evidence, files = self._verified(row)
         # Dynamic age is deliberately excluded from the canonical recording hash.
         now = datetime.now(UTC)
         latest = {}
@@ -562,7 +660,10 @@ class Perception:
                 "physical_freshness": freshness, "presence": "unknown", "motion": "unknown",
                 "state": "stale" if freshness == "stale" else "unknown",
                 "reasons": ["saved_recording_is_not_live"], "processing_mode": evidence["processing_mode"]})
-        return {"receipt": receipt, "evidence": evidence, "current_zones": current}
+        result = {"receipt": receipt, "evidence": evidence, "current_zones": current}
+        if "adapter.json" in files:
+            result["adapter"] = _load(files["adapter.json"], MAX_ARTIFACT_BYTES)
+        return result
 
     def _controls(self):
         if self.store.setting("paused", False):
@@ -600,6 +701,19 @@ class Perception:
         return self._run("import", request_id, raw, bundle, "replay", expected_revision,
                          {"selected_workspace_path": source.relative_to(self.registry.root).as_posix()})
 
+    def import_ruview(self, path, request_id, *, expected_revision=None, source_policy="esp32_only"):
+        _identifier(request_id, "request_id")
+        if type(source_policy) is not str or source_policy not in {"esp32_only", "recorded_any"}:
+            raise ValueError("Choose the explicit RuView source policy.")
+        source = self.registry._path(path)
+        if source.suffix.lower() not in {".jsonl", ".ndjson"}:
+            raise ValueError("Choose a Workspace RuView .jsonl or .ndjson recording.")
+        raw = self._read(source, MAX_SOURCE_BYTES)
+        bundle, extra, metadata = _ruview_material(raw, source_policy)
+        return self._run("import_ruview", request_id, raw, bundle, "replay", expected_revision,
+            {"selected_workspace_path": source.relative_to(self.registry.root).as_posix(), **metadata},
+            adapter_artifacts=extra, adapter_metadata=metadata)
+
     def replay(self, import_id, request_id, *, expected_revision=None):
         _identifier(import_id, "recording_id")
         _identifier(request_id, "request_id")
@@ -607,8 +721,13 @@ class Perception:
             row = self._row(import_id)
             if row["status"] != "completed":
                 raise PerceptionConflict("Replay requires a completed verified recording.")
-            _, _, files = self._verified(row)
+            receipt, _, files = self._verified(row)
             raw = files["source.json"]
+            if "source_profile" in receipt:
+                bundle, extra, metadata = _ruview_material(raw, receipt["source_policy"])
+                return self._run("replay", request_id, raw, bundle, "replay", expected_revision,
+                    {"parent_request_id": import_id, **metadata},
+                    adapter_artifacts=extra, adapter_metadata=metadata)
             bundle = validate_bundle(raw)
             return self._run("replay", request_id, raw, bundle, "replay", expected_revision,
                              {"parent_request_id": import_id})
@@ -623,10 +742,20 @@ class Perception:
         return self._run("synthetic_demo", request_id, raw, bundle, "simulation", expected_revision,
                          {"fixture_id": "synthetic-zone-demo-v1"})
 
+    def ruview_demo(self, request_id, *, expected_revision=None):
+        _identifier(request_id, "request_id")
+        fixture = Path(__file__).parent / "resources" / "perception" / "ruview-synthetic.jsonl"
+        raw = self._read(fixture, MAX_SOURCE_BYTES)
+        bundle, extra, metadata = _ruview_material(raw, "recorded_any", "simulation")
+        return self._run("ruview_demo", request_id, raw, bundle, "simulation", expected_revision,
+            {"fixture_id": "synthetic-ruview-native-094e140-1", **metadata},
+            adapter_artifacts=extra, adapter_metadata=metadata)
+
     def _checkpoint(self, phase):
         """Test seam for revocation and interrupted publication; never an adapter."""
 
-    def _run(self, operation, request_id, raw, bundle, mode, expected_revision, provenance):
+    def _run(self, operation, request_id, raw, bundle, mode, expected_revision, provenance,
+             *, adapter_artifacts=None, adapter_metadata=None):
         source_sha = _sha(raw)
         identity = {"operation": operation, "source_sha256": source_sha, "processing_mode": mode, **provenance}
         digest = _sha(_bytes(identity))
@@ -649,10 +778,8 @@ class Perception:
                 raise ValueError("Perception attempt capacity reached.")
             total = sum(len(row["receipt"].encode("utf-8")) + sum(artifact["bytes"] for artifact in _load(row["receipt"].encode("utf-8"), MAX_ARTIFACT_BYTES).get("artifacts", [])) for row in rows)
             # Upper-bound outputs before reservation, including dense zone timelines.
-            evidence = fuse_recording(bundle, source_sha, processing_mode=mode)
-            normalized = {key: value for key, value in bundle.items() if key != "observations"}
-            normalized["observations"] = evidence["observations"]
-            artifacts = {"source.json": raw, "normalized.json": _bytes(normalized), "evidence.json": _bytes(evidence)}
+            evidence, artifacts = _recording_artifacts(bundle, raw, mode,
+                adapter_artifacts=adapter_artifacts, adapter_metadata=adapter_metadata)
             if any(len(value) > MAX_ARTIFACT_BYTES for value in artifacts.values()) or total + sum(map(len, artifacts.values())) + 32_768 > MAX_TOTAL_BYTES:
                 raise ValueError("Perception retained byte capacity reached.")
             created = _stamp(datetime.now(UTC))

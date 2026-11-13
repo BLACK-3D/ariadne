@@ -2,13 +2,14 @@
 
 // Saved evidence only. Opening this desk cannot start a producer or a replay.
 (() => {
-  let app, attached, board=null, detail=null, receiptInspection=null, selected="", importPath="", notice="";
+  let app, attached, board=null, detail=null, receiptInspection=null, selected="", importPath="", ruviewPath="", sourcePolicy="esp32_only", notice="";
   let visible=false, busy=false, loading=false, stale=false, uncertain=null, generation=0, selection=0;
   let writes=[], reads=[], fields=[];
   const $=id=>document.getElementById(id);
   const text=(value,max=800)=>typeof value==="string"?value.slice(0,max):"";
   const list=(value,max)=>Array.isArray(value)?value.slice(0,max):[];
   const ident=/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+  const hash=/^[a-f0-9]{64}$/;
   const e=(tag,cls="",value)=>app.node(tag,cls,value);
   const p=(parent,value,cls="perception-note")=>parent.append(e("p",cls,value));
   const active=()=>Boolean(app?.state.authenticated&&visible&&app.state.view==="perception");
@@ -20,19 +21,32 @@
   const held=()=>Boolean(state().hold);
   const ready=()=>active()&&board&&!busy&&!loading&&!stale&&!uncertain&&!paused()&&!held()&&Number.isSafeInteger(revision())&&revision()>=0;
   const id=()=>"perception-ui-"+crypto.randomUUID().replaceAll("-","");
-  const operation=kind=>kind==="demo"?"synthetic_demo":kind;
+  const RU_PROFILE="ruview-sensing-094e140-1",RU_FORMAT="ruview_native_jsonl";
+  const RU_CLOCK="producer_server_timestamp_not_radio_capture";
+  const sourcePolicies=["esp32_only","recorded_any"];
+  const operation=kind=>kind==="demo"?"synthetic_demo":kind==="import-ruview"?"import_ruview":kind==="ruview-demo"?"ruview_demo":kind;
+  const ruviewCatalog=()=>board?.catalog?.ruview||board?.ruview||state().ruview;
+  const ruviewSupported=()=>{const value=ruviewCatalog();return value?.available===true&&value.profile===RU_PROFILE&&value.source_format===RU_FORMAT&&value.source_clock===RU_CLOCK&&value.hardware_qualified===false&&value.live_available===false&&sourcePolicies.every(policy=>value.source_policies?.includes(policy));};
   const cleanId=value=>{if(typeof value!=="string"||value.length>64||!ident.test(value))throw new Error("Choose an ordinary saved recording identifier.");return value;};
 
-  function path(value) {
+  function recordingPath(value,extension) {
     const raw=text(value,1001),valuePath=raw.replaceAll("\\","/");
-    if(raw!==raw.trim()||!valuePath||valuePath.length>1000||!valuePath.toLowerCase().endsWith(".json")||valuePath.startsWith("/")||/[\u0000-\u001f\u007f:<>"|?*]/.test(valuePath)||valuePath.split("/").some(part=>!part||part==="."||part===".."||/[. ]$/.test(part)||/^(?:con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(?:\.|$)/i.test(part)))throw new Error("Enter an ordinary .json path inside Ariadne Workspace, such as perception/room-session.json.");
+    if(raw!==raw.trim()||!valuePath||valuePath.length>1000||!valuePath.toLowerCase().endsWith(extension)||valuePath.startsWith("/")||/[\u0000-\u001f\u007f:<>"|?*]/.test(valuePath)||valuePath.split("/").some(part=>!part||part==="."||part===".."||/[. ]$/.test(part)||/^(?:con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(?:\.|$)/i.test(part)))throw new Error("Enter an ordinary "+extension+" path inside Ariadne Workspace, such as perception/room-session"+extension+".");
     return valuePath;
   }
+  const path=value=>recordingPath(value,".json");
+  const ruviewRecordingPath=value=>recordingPath(value,typeof value==="string"&&value.toLowerCase().endsWith(".ndjson")?".ndjson":".jsonl");
   function request(kind,extra={},requestId=id()) {
     if(!Number.isSafeInteger(revision())||revision()<0)throw new Error("Refresh saved evidence before creating a receipt.");
     const body={request_id:cleanId(requestId),expected_revision:revision()};
     if(kind==="import")body.path=path(extra.path);
+    else if(kind==="import-ruview"){
+      if(!ruviewSupported())throw new Error("The supported local RuView recording adapter is unavailable. Refresh its status before importing.");
+      body.path=ruviewRecordingPath(extra.path);body.source_policy=extra.source_policy??"esp32_only";
+      if(!sourcePolicies.includes(body.source_policy))throw new Error("Choose the ESP32-only or explicit recorded-sources policy.");
+    }
     else if(kind==="replay")body.recording_id=cleanId(extra.recording_id);
+    else if(kind==="ruview-demo"){if(!ruviewSupported())throw new Error("The supported local RuView recording adapter is unavailable. Refresh its status before creating a fixture.");}
     else if(kind!=="demo")throw new Error("Unsupported awareness action.");
     return body;
   }
@@ -65,6 +79,10 @@
     const receipt=value?.receipt;
     if(!receipt||receipt.request_id!==recordingId||receipt.status!=="completed"||receipt.verified!==true)throw new Error("This recording lacks a matching completed, hash-verified receipt. Evidence is withheld.");
     if(!value.evidence||!["replay","simulation"].includes(value.evidence.processing_mode))throw new Error("This saved evidence has an unsupported mode. Evidence is withheld.");
+    if(["import_ruview","ruview_demo"].includes(receipt.operation)||receipt.source_profile||value.adapter||value.evidence.adapter){
+      const adapter=value.adapter,compact=value.evidence.adapter;
+      if(!adapter||adapter.profile!==RU_PROFILE||receipt.source_profile!==RU_PROFILE||adapter.source_format!==RU_FORMAT||receipt.source_format!==RU_FORMAT||!sourcePolicies.includes(adapter.source_policy)||adapter.source_policy!==receipt.source_policy||adapter.hardware_qualified!==false||receipt.hardware_qualified!==false||adapter.physical_clock_available!==false||adapter.source_clock!==RU_CLOCK||receipt.source_clock!==RU_CLOCK||!hash.test(receipt.source_sha256)||!hash.test(receipt.bundle_sha256)||adapter.source_sha256!==receipt.source_sha256||adapter.bundle_sha256!==receipt.bundle_sha256||!compact||compact.source_profile!==RU_PROFILE||compact.source_format!==RU_FORMAT||compact.source_policy!==adapter.source_policy||compact.source_clock!==RU_CLOCK||compact.hardware_qualified!==false||!Array.isArray(adapter.frames))throw new Error("RuView adapter provenance does not match the verified recording. Evidence is withheld.");
+    }
     return value;
   }
   function renderHero(root) {
@@ -89,6 +107,23 @@
     form.addEventListener("submit",async event=>{event.preventDefault();if(ready())await mutate("import",{path:importPath});});panel.append(form);
     const demo=e("div","perception-demo");demo.append(e("span","perception-demo-label","SYNTHETIC / FIXED FIXTURE"));p(demo,"Explore known, unknown, stale and conflicting evidence using the same deterministic local demo.");demo.append(writeButton("Create synthetic demo",()=>mutate("demo")));panel.append(demo);parent.append(panel);
   }
+  function renderRuViewIntake(parent) {
+    const panel=e("section","perception-panel perception-rf-intake"),badges=e("div","perception-chips");
+    chip(badges,"LOCAL RECORDING");chip(badges,"NO HARDWARE CONNECTION","quiet");panel.append(badges,e("h3","","Wi-Fi sensing / RuView"));
+    p(panel,"Import saved RuView sensing events, then inspect their original claims and clocks. This does not connect to Wi-Fi hardware, start a producer or turn a recording into current room awareness.");
+    const profile=e("dl","perception-facts");row(profile,"Supported profile",RU_PROFILE);row(profile,"Protocol pin",text(ruviewCatalog()?.pinned_commit,64)||"Unavailable");row(profile,"Adapter",ruviewSupported()?"Ready for explicit local-file import":"Unavailable or unsupported profile");panel.append(profile);
+    const form=e("form","perception-import"),label=e("label","perception-field","Workspace RuView JSONL / NDJSON path"),input=e("input");
+    input.type="text";input.name="ruview_path";input.value=ruviewPath;input.maxLength=1000;input.placeholder="perception/ruview-session.jsonl";input.setAttribute("aria-label","Workspace RuView JSONL / NDJSON path");input.spellcheck=false;
+    input.addEventListener("input",()=>{ruviewPath=input.value;controls();});fields.push(input);label.append(input);
+    const policyLabel=e("label","perception-field","Recorded source policy"),policy=e("select");policy.name="ruview_source_policy";policy.setAttribute("aria-label","Recorded source policy");
+    for(const [value,label] of [["esp32_only","ESP32 recordings only — reject fallback"],["recorded_any","Recorded sources including simulation — explicit"]]){const option=e("option","",label);option.value=value;policy.append(option);}policy.value=sourcePolicy;
+    policy.addEventListener("change",()=>{sourcePolicy=policy.value;const note=$("ruview-policy-note");if(note)note.textContent=policyWarning();controls();});fields.push(policy);policyLabel.append(policy);
+    const warning=e("p","perception-warning",policyWarning());warning.id="ruview-policy-note";
+    form.append(label,policyLabel,warning,writeButton("Import RuView recording",()=>mutate("import-ruview",{path:ruviewPath,source_policy:sourcePolicy}),()=>ruviewSupported()&&Boolean(ruviewPath.trim()),true));
+    form.addEventListener("submit",async event=>{event.preventDefault();if(ready())await mutate("import-ruview",{path:ruviewPath,source_policy:sourcePolicy});});panel.append(form);
+    const demo=e("div","perception-demo");demo.append(e("span","perception-demo-label","SYNTHETIC / RUVIEW FORMAT"));p(demo,"Try a fixed fictional RuView recording without hardware or acquisition. Its synthetic origin remains visible during import and replay.");demo.append(writeButton("Try synthetic RuView demo",()=>mutate("ruview-demo"),()=>ruviewSupported()));panel.append(demo);parent.append(panel);
+  }
+  const policyWarning=()=>sourcePolicy==="recorded_any"?"Explicit recorded-sources mode can include simulation and other supported recorded sources. It never establishes physical CSI or hardware qualification.":"ESP32-only admission rejects simulation and other source families. It does not authenticate or qualify an ESP32 source claim.";
   function renderRecordings(parent) {
     const panel=e("section","perception-panel"),heading=e("div","perception-panel-heading");heading.append(e("h3","","Saved receipts"),e("small","",count(records().length)+" / 32 shown"));panel.append(heading);
     if(!records().length)p(panel,"No recordings saved. Import a workspace bundle or explicitly create the synthetic demo.","perception-empty");
@@ -99,7 +134,7 @@
       const valid=record.status==="completed"&&record.verified===true;
       chip(badges,knownMode(record.processing_mode),record.processing_mode==="simulation"?"synthetic":"");chip(badges,valid?"HASH VERIFIED":"UNVERIFIED / "+(text(record.status,30)||"UNKNOWN").toUpperCase(),valid?"verified":"warning");
       item.append(badges,e("h4","",text(record.request_id,96)||"Unknown receipt"));
-      p(item,(record.operation==="synthetic_demo"?"Fixed synthetic fixture":text(record.operation,30)||"Saved run")+" · "+count(record.observations)+" observations · "+count(record.zones)+" zones");
+      p(item,(record.operation==="synthetic_demo"?"Fixed synthetic fixture":record.operation==="ruview_demo"?"Synthetic RuView fixture":record.source_profile===RU_PROFILE?"RuView recording · "+(record.operation==="replay"?"replay":"import"):text(record.operation,30)||"Saved run")+" · "+count(record.observations)+" observations · "+count(record.zones)+" zones");
       p(item,origins(record.capture_origins),"perception-origin");
       if(record.created_at)p(item,"Receipt created "+text(record.created_at,80),"perception-small");
       if(record.error)p(item,text(record.error),"perception-warning");
@@ -158,6 +193,27 @@
     }
     if((evidence.observations?.length||0)>80)p(observations,"Showing the first 80 retained observations.");panel.append(observations);parent.append(panel);
   }
+  function renderRuViewEvidence(parent,adapter) {
+    if(!adapter)return;
+    const panel=e("section","perception-panel perception-rf-evidence"),badges=e("div","perception-chips");chip(badges,"RUVIEW / RECORDED CLAIMS");chip(badges,"UNQUALIFIED","warning");chip(badges,"NO PHYSICAL CLOCK","warning");panel.append(badges,e("h3","","RF recording provenance"));
+    p(panel,"These are upstream declarations in a saved file. Server timestamps and ticks are not radio capture times. Source labels do not authenticate hardware, and a model score is uncalibrated. Current room presence and motion remain unknown.");
+    const facts=e("dl","perception-facts");row(facts,"Adapter profile",text(adapter.profile,80));row(facts,"Supported upstream pin",text(adapter.upstream_revision,64)||"See supported profile");row(facts,"Source policy",adapter.source_policy==="esp32_only"?"ESP32-only recording admission":"Explicit recorded sources, including simulation");row(facts,"Raw JSONL SHA-256",text(adapter.source_sha256,64));row(facts,"Normalized bundle SHA-256",text(adapter.bundle_sha256,64));row(facts,"Physical capture clock","Unavailable / unknown");row(facts,"Source clock",text(adapter.source_clock,100));row(facts,"Hardware qualification","Not established");panel.append(facts);
+    p(panel,"No metric radar range, body pose, person count or vital signs are established by this adapter.","perception-warning");
+    const frames=list(adapter.frames,32),events=e("div","perception-rf-frames");
+    for(const frame of frames){
+      if(!frame||typeof frame!=="object")continue;
+      const item=e("article","perception-rf-frame"),heading=e("div","perception-panel-heading");heading.append(e("h4","",text(frame.event_id,96)||"Recorded RF event"));chip(heading,originLabel(frame.capture_origin),frame.capture_origin==="synthetic"?"synthetic":"warning");if(list(frame.quality_flags,16).some(flag=>["node_disagreement","room_node_conflict","classification_conflict","motion_disagreement"].includes(flag)))chip(heading,"SOURCE CLAIMS CONFLICT","warning");item.append(heading);
+      const meta=e("dl","perception-facts");row(meta,"Raw source line",count(frame.source_line));row(meta,"Declared source family",text(frame.source_family,80));row(meta,"Server timestamp",finiteText(frame.server_timestamp));row(meta,"Producer timestamp",text(frame.producer_at,80));row(meta,"Server tick (not capture)",finiteText(frame.tick));row(meta,"Upstream age (not hardware age)",frame.age_ms===null?"Unknown":finiteText(frame.age_ms)+" ms");row(meta,"Normalized presence / motion",(text(frame.presence,20)||"unknown")+" / "+(text(frame.motion,24)||"unknown"));
+      if(frame.room&&typeof frame.room==="object"){row(meta,"Declared room class",text(frame.room.classification,80));row(meta,"Room model score",modelScore(frame.room.confidence));row(meta,"Contributing nodes",count(frame.room.contributing_nodes));}
+      if(list(frame.quality_flags,16).length)row(meta,"Quality flags",list(frame.quality_flags,16).map(value=>text(value,96)).join(" · "));item.append(meta);
+      const source=e("details","perception-rf-source");source.append(e("summary","","Original declared source (may contain a network name)"));p(source,text(frame.source,160)||"Unknown declared source","perception-small");item.append(source);
+      const nodes=e("div","perception-rf-nodes");for(const node of list(frame.nodes,16)){if(!node||typeof node!=="object")continue;const copy=e("p","perception-small");copy.textContent="Node "+count(node.node_id)+" · class "+(text(node.classification,80)||"unknown")+" · "+modelScore(node.confidence)+" · upstream age "+(node.age_ms===null?"unknown":finiteText(node.age_ms)+" ms");nodes.append(copy);}item.append(nodes);if((frame.nodes?.length||0)>16)p(item,"Showing the first 16 recorded node claims.","perception-small");events.append(item);
+    }
+    if(!events.childNodes.length)p(panel,"No RF frame provenance is retained. This does not establish an empty room.","perception-empty");
+    panel.append(events);p(panel,"Showing "+count(frames.length)+" of "+count(adapter.frames.length)+" retained RF events. Saved source claims do not establish current physical conditions.","perception-small");parent.append(panel);
+  }
+  const finiteText=value=>typeof value==="number"&&Number.isFinite(value)?String(value).slice(0,40):"Unknown";
+  const modelScore=value=>typeof value==="number"&&Number.isFinite(value)&&value>=0&&value<=1?String(value)+" (uncalibrated model score)":"Uncalibrated model score unavailable";
   function renderReceipt(parent) {
     if(!receiptInspection||detail)return;
     const receipt=receiptInspection,panel=e("section","perception-panel perception-receipt-review");panel.append(e("span","eyebrow","RETAINED RECEIPT / EVIDENCE WITHHELD"),e("h3","","Inspect the saved outcome"));
@@ -171,11 +227,11 @@
     status.textContent=busy?"Saving a local receipt…":loading?"Reading retained evidence…":paused()?"Global pause is active or authority is unavailable. Saved evidence remains readable.":held()?"Failure hold: "+(text(state().hold_reason)||"Inspect the retained failure receipt before any further work."):stale?"Refresh and inspect saved evidence before another action.":"Local recording desk ready. Every import, replay and demo requires an explicit action.";root.append(status);
     if(notice){const note=e("p","perception-notice",notice);note.setAttribute("role","alert");root.append(note);}
     if(uncertain){const box=e("section","perception-uncertain");box.append(e("strong","","Request outcome needs inspection"));p(box,"Request "+uncertain.id+" · "+uncertain.operation+". No automatic retry. Inspect this request before starting another action.");box.append(readButton("Inspect interrupted request",inspectUncertain));root.append(box);}
-    const layout=e("div","perception-layout"),left=e("div","perception-sidebar"),right=e("div","perception-evidence");renderControls(left);renderRecordings(left);renderReceipt(right);
+    const layout=e("div","perception-layout"),left=e("div","perception-sidebar"),right=e("div","perception-evidence");renderRuViewIntake(left);renderControls(left);renderRecordings(left);renderReceipt(right);
     if(detail){
       const selectedPanel=e("section","perception-selection");selectedPanel.append(e("span","eyebrow","SELECTED RECORDING"),e("h3","",text(detail.evidence.title,160)||"Saved observation recording"),e("strong","",text(selected,96)));p(selectedPanel,"Original timeline starts "+(text(detail.evidence.started_at,80)||"at an unknown time")+" · duration "+(Number.isFinite(detail.evidence.duration_ms)?(detail.evidence.duration_ms/1000).toFixed(1)+" s":"unknown"));
       selectedPanel.append(writeButton("Replay selected recording",()=>mutate("replay",{recording_id:selected}),()=>detail?.receipt?.verified===true,true));p(selectedPanel,"A replay creates a separate saved receipt. Capture origin and original observation time are preserved.");right.append(selectedPanel);
-      renderCurrent(right,detail);renderZones(right,detail.evidence);renderTimeline(right,detail.evidence);renderProvenance(right,detail);
+      renderCurrent(right,detail);renderRuViewEvidence(right,detail.adapter);renderZones(right,detail.evidence);renderTimeline(right,detail.evidence);renderProvenance(right,detail);
     }else{const empty=e("section","perception-panel perception-waiting");empty.append(e("span","eyebrow","NO VERIFIED RECORDING SELECTED"),e("h3","","Unknown is a useful answer."));p(empty,"Choose a saved recording to inspect its zone states, timeline and provenance. No evidence selected does not mean no activity.");right.append(empty);}
     layout.append(left,right);root.append(layout);controls();
   }
@@ -209,7 +265,7 @@
       const response=await app.api("/perception/"+kind,{method:"POST",body});if(!current(mark,token))return;
       const receipt=response?.receipt||response;
       if(receipt?.request_id!==pending.id||receipt?.operation!==pending.operation||receipt?.status!=="completed")throw new Error("The action response does not match a completed receipt; its outcome is uncertain.");
-      uncertain=null;busy=false;notice=kind==="import"?"Recording imported. Inspect it, then explicitly replay it when ready.":kind==="demo"?"Synthetic fixture saved. Its provenance stays synthetic.":"Replay completed. Physical freshness remains tied to original evidence.";
+      uncertain=null;busy=false;notice=kind==="import-ruview"?"RuView recording imported locally. Inspect its retained source claims before any explicit replay.":kind==="ruview-demo"?"Synthetic RuView fixture saved. Its origin stays synthetic; no hardware was connected.":kind==="import"?"Recording imported. Inspect it, then explicitly replay it when ready.":kind==="demo"?"Synthetic fixture saved. Its provenance stays synthetic.":"Replay completed. Physical freshness remains tied to original evidence.";
       await load();if(active())await selectRecording(pending.id,{keepNotice:true});
     } catch(error) {
       if(!current(mark,token))return;
@@ -217,10 +273,10 @@
       else {uncertain=pending;notice="Request outcome is uncertain: "+text(error.message)+" No automatic retry.";}
     } finally {if(current(mark,token)){busy=false;render();}}
   }
-  function clear() {generation++;selection++;visible=false;busy=false;loading=false;board=null;detail=null;receiptInspection=null;selected="";importPath="";notice="";stale=false;writes=[];reads=[];fields=[];$("perception-content")?.replaceChildren();}
+  function clear() {generation++;selection++;visible=false;busy=false;loading=false;board=null;detail=null;receiptInspection=null;selected="";importPath="";ruviewPath="";sourcePolicy="esp32_only";notice="";stale=false;writes=[];reads=[];fields=[];$("perception-content")?.replaceChildren();}
   window.ariadnePerception={
     attach(value){app=value;if(attached===app)return;attached=app;$("refresh-perception")?.addEventListener("click",()=>load());},
-    load,selectRecording,mutate,inspectUncertain,path,request,
+    load,selectRecording,mutate,inspectUncertain,path,ruviewRecordingPath,request,
     status(){if(!active())return;controls();const gate=$("perception-status");if(gate)gate.textContent=paused()?"Global pause is active or authority is unavailable. Saved evidence remains readable.":held()?"Failure hold: "+(text(state().hold_reason)||"Inspect the retained failure receipt before any further work."):stale?"Refresh and inspect saved evidence before another action.":busy?"Saving a local receipt…":loading?"Reading retained evidence…":"Local recording desk ready. Every import, replay and demo requires an explicit action.";},
     leave:clear,
     locked(){clear();},

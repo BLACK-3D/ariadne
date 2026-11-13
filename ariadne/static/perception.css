@@ -2,3 +2,12 @@
 .perception-current{border-color:#6d624e;background:linear-gradient(120deg,#24231d,#131e27)}.perception-current-zones{display:grid;gap:9px;margin-top:16px}.perception-current-zone{padding:12px 14px;border:1px solid #545342;border-radius:5px;background:#141d23}.perception-current-zone>span{font-size:12px;color:#c6d4dc;overflow-wrap:anywhere}.perception-current-zone>strong{float:right;margin-left:12px;font:10px/1.8 var(--mono,Consolas,monospace);letter-spacing:1px;color:#f1cf99}.perception-current-zone p{clear:both;margin:5px 0 0}
 .perception-selection h3{font:400 23px/1.3 var(--display,"Segoe UI",sans-serif);margin:2px 0 0;overflow-wrap:anywhere}.perception-selection .perception-note{margin:0 0 6px}
 @media(max-width:600px){.perception-desk>.page-heading{flex-direction:column;align-items:flex-start;gap:18px}.perception-desk>.page-heading>.button{align-self:flex-start;max-width:none}}
+.perception-rf-intake{border-color:#486b72;background:linear-gradient(145deg,#142c32,#101d26)}
+.perception-rf-intake>.perception-chips{margin-bottom:16px}.perception-rf-intake .perception-fact{grid-template-columns:115px minmax(0,1fr)}
+.perception-field select{width:100%;min-width:0;padding:11px 12px;border:1px solid #4a6675;border-radius:5px;background:#09131d;color:#eef7fa;font:12px/1.5 var(--mono,Consolas,monospace)}
+.perception-rf-evidence{border-color:#586652}.perception-rf-evidence>h3{margin-top:18px}
+.perception-rf-frames{display:grid;gap:14px;max-height:720px;overflow-y:auto;scrollbar-width:thin;margin-top:20px;padding-right:3px}
+.perception-rf-frame{border:1px solid #36525d;border-radius:7px;padding:16px;background:#0b1821;min-width:0}.perception-rf-frame h4{font:12px/1.8 var(--mono,Consolas,monospace);margin:0;color:#d9edf0;overflow-wrap:anywhere}
+.perception-rf-frame .perception-facts{margin:10px 0}.perception-rf-frame .perception-fact{grid-template-columns:150px minmax(0,1fr);padding:8px 0}
+.perception-rf-source summary{font-size:11px;line-height:1.8;cursor:pointer;color:#aee5ee}.perception-rf-source{margin:12px 0}.perception-rf-nodes{border-top:1px solid #2e4654;padding-top:6px}
+@media(max-width:600px){.perception-rf-intake .perception-fact,.perception-rf-frame .perception-fact{grid-template-columns:1fr;gap:4px}.perception-rf-frame{padding:13px}}

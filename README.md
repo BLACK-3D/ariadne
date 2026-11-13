@@ -2,7 +2,9 @@
 
 An AI assistant that runs on your PC, opens in your browser and keeps its workspace on your disk. Use it for conversations, files, business drafts, a client service desk, research and controlled local workflows. Prepare it once online, then use its installed local capabilities without Internet or Codex.
 
-Version 0.40 adds a **live camera preview** and **Ask Ariadne about this view** to optional local vision. Explicitly start a bounded, video-only USB session to see transient preview frames; ask a question to describe one fresh frame using your selected installed vision-capable model. Preview uses no model, and descriptions run only on demand through a verified local endpoint. Camera access stays off on startup; no audio or automatic captions. The pinned CPU YOLOX detector still analyzes objects/motion without a model API. Run **Enable Vision.cmd** after Setup or install the matching prepared offline vision add-on. See [setup, privacy, limits and portable packaging](docs/VISION_LOCAL.md).
+Version 0.41 adds a **RuView Wi-Fi recording adapter** to Awareness. Explicitly import a supported local RuView JSONL recording, inspect its source/clock/quality evidence and replay the frozen bytes. A separate synthetic example exercises the same adapter without pretending hardware is connected. The default ESP32-only policy rejects simulator fallback; replay never establishes current occupancy. This standard-library feature needs no RuView installation, model download or network connection. Physical Wi-Fi CSI acquisition still needs compatible hardware and a separate measured setup. See [RuView setup, evidence and hardware plan](docs/RUVIEW_WIFI.md).
+
+Local vision also includes a **live camera preview** and **Ask Ariadne about this view**. Explicitly start a bounded, video-only USB session to see transient preview frames; ask a question to describe one fresh frame using your selected installed vision-capable model. Preview uses no model, and descriptions run only on demand through a verified local endpoint. Camera access stays off on startup; no audio or automatic captions. The pinned CPU YOLOX detector still analyzes objects/motion without a model API. Run **Enable Vision.cmd** after Setup or install the matching prepared offline vision add-on. See [setup, privacy, limits and portable packaging](docs/VISION_LOCAL.md).
 
 **[Download the Windows starter](https://github.com/BLACK-3D/ariadne/releases/latest/download/ariadne-windows-starter.zip)** · **[Full fresh-PC setup guide](docs/GET_STARTED.md)** · **[Source ZIP](https://github.com/BLACK-3D/ariadne/archive/refs/heads/main.zip)**
 
@@ -60,6 +62,7 @@ The [Threadline interface](docs/INTERFACE.md) brings observed system state, a di
 
 - [Fresh-PC setup, first use, offline check and troubleshooting](docs/GET_STARTED.md)
 - [Recording-first perception: demo, import, replay and evidence limits](docs/PERCEPTION_RECORDINGS.md)
+- [RuView Wi-Fi recordings, source policies and physical CSI setup](docs/RUVIEW_WIFI.md)
 - [Existing-installation launcher repair](docs/LAUNCHER_REPAIR.md)
 - [Advanced manual setup and optional packs](docs/BUILD_FROM_SOURCE.md)
 - [Service desk workflow](docs/SERVICE_DESK_0_20.md)

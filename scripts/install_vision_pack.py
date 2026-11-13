@@ -47,8 +47,8 @@ def install(archive_path, sha256, *, root=ROOT):
     path = _allowed_path(archive_path)
     if type(sha256) is not str or not re.fullmatch(r"[a-f0-9]{64}", sha256):
         raise ValueError("Supply the published SHA-256 as 64 lowercase hexadecimal characters")
-    if __version__ != "0.40.0":
-        raise ValueError("This vision pack requires its matching Ariadne 0.40.0 starter")
+    if __version__ != "0.41.0":
+        raise ValueError("This vision pack requires its matching Ariadne 0.41.0 starter")
     expected = expected_files(root)
     guard = object.__new__(ToolRegistry)
     with guard._directory(path.parent) as directory:

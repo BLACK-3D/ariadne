@@ -38,6 +38,7 @@ DOCS.update({"BUSINESS_OPS_0_15.md", "MARKET_RESEARCH_0_15.md", "LOCAL_CONTROLS_
 DOCS.update({"PORTABLE_0_16.md", "AUTONOMOUS_OPERATIONS_0_16.md"})
 DOCS.add("PERCEPTION_RECORDINGS.md")
 DOCS.add("VISION_LOCAL.md")
+DOCS.update({"VISION_PREVIEW.md", "RUVIEW_WIFI.md"})
 EXAMPLE_FILES = {"business-erpnext-demo.json", "business-quote-demo.json", "market-demo.csv", "market-demo.json",
                  "control-connectors.json", "control-home-assistant.json", "control-states-demo.json"}
 RUNTIME_DIRS = ("runtime/python", "runtime/ollama", "runtime/whisper", "runtime/ocr/models", "runtime/ocr/wheels", "runtime/ocr/notices",

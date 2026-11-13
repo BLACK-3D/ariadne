@@ -386,6 +386,7 @@ class ToolRegistry:
             "business_ops": ("business", "invoice", "quote", "erp", "cash", "stock", "reorder"),
             "service_desk_read": ("service desk", "intake", "quote", "review", "needs attention", "customer"),
             "workroom_read": ("project", "workroom", "dependency", "handoff", "next task"),
+            "perception_read": ("perception", "ruview", "wi-fi", "wifi", "csi", "occupancy", "room awareness"),
             "vision_read": ("camera", "vision", "what do you see", "room awareness", "frame description"),
             "market_research": ("trading", "backtest", "market data", "ohlcv", "walk-forward", "strategy", "openbb", "holdout"),
             "etf_research": ("etf", "swing", "position", "momentum", "monthly", "nav", "holdout", "backtest"),

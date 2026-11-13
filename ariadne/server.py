@@ -585,18 +585,28 @@ class Application:
         elif len(parts) == 3 and parts[:2] == ["perception", "recordings"] and method == "GET":
             result = self.perception.detail(parts[2])
         elif parts and parts[0] == "perception" and method == "POST":
-            if len(parts) != 2 or parts[1] not in {"import", "replay", "demo"}:
+            if len(parts) != 2 or parts[1] not in {"import", "replay", "demo", "import-ruview", "ruview-demo"}:
                 raise HTTPError(404, "Unknown saved-perception action")
             if self.engine.is_paused():
                 raise HTTPError(409, "Autonomy is paused; perception imports and replays are held.")
             data = self.client_handoff_body(env, limit=8 * 1024)
             required = {"request_id", "expected_revision"}
-            required |= {"path"} if parts[1] == "import" else {"recording_id"} if parts[1] == "replay" else set()
+            required |= ({"path", "source_policy"} if parts[1] == "import-ruview" else
+                         {"path"} if parts[1] == "import" else
+                         {"recording_id"} if parts[1] == "replay" else set())
             if set(data) != required:
                 raise ValueError("Use only the selected saved-perception action's exact fields.")
+            if parts[1] == "import-ruview" and (type(data["source_policy"]) is not str
+                    or data["source_policy"] not in {"esp32_only", "recorded_any"}):
+                raise ValueError("Choose the explicit ESP32-only or recorded-sources RuView policy.")
             revision = venture_revision(data)
             if parts[1] == "import":
                 result = self.perception.import_bundle(data["path"], data["request_id"], expected_revision=revision)
+            elif parts[1] == "import-ruview":
+                result = self.perception.import_ruview(data["path"], data["request_id"], expected_revision=revision,
+                                                       source_policy=data["source_policy"])
+            elif parts[1] == "ruview-demo":
+                result = self.perception.ruview_demo(data["request_id"], expected_revision=revision)
             elif parts[1] == "replay":
                 result = self.perception.replay(data["recording_id"], data["request_id"], expected_revision=revision)
             else:
