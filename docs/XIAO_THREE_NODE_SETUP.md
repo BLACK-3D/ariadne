@@ -71,9 +71,16 @@ if ($LASTEXITCODE -ne 0 -or $XiaoKitCheck.status -ne 'completed' -or $XiaoKitChe
 if (Test-Path -LiteralPath '.\runtime\ruview-flash') { throw 'The tool environment already exists; inspect its receipt instead of overwriting it.' }
 $XiaoPreviousTemp, $XiaoPreviousTmp = $env:TEMP, $env:TMP
 $XiaoPreviousEsptoolConfig = $env:ESPTOOL_CFGFILE
+$XiaoPreviousPipEnvironment = @{}
+Get-ChildItem Env:PIP_* | ForEach-Object { $XiaoPreviousPipEnvironment[$_.Name] = $_.Value }
 $XiaoSetupTemp = Join-Path $PWD 'runtime\tmp\ruview-flash'
 New-Item -ItemType Directory -Path $XiaoSetupTemp -Force | Out-Null
 try {
+    Get-ChildItem Env:PIP_* | ForEach-Object { Remove-Item -LiteralPath ('Env:' + $_.Name) }
+    $env:PIP_CONFIG_FILE = 'nul'
+    $env:PIP_NO_INDEX = '1'
+    $env:PIP_NO_INPUT = '1'
+    $env:PIP_DISABLE_PIP_VERSION_CHECK = '1'
     $env:TEMP, $env:TMP = $XiaoSetupTemp, $XiaoSetupTemp
     $env:ESPTOOL_CFGFILE = Join-Path $PWD 'data\workspace\ruview-kits\xiao-three-node\esptool.cfg'
     & .\runtime\python\python.exe -I -B -m venv .\runtime\ruview-flash
@@ -83,12 +90,14 @@ try {
     & .\runtime\ruview-flash\Scripts\python.exe -I -B -m esptool version
     & .\runtime\ruview-flash\Scripts\python.exe -I -B -m pip check
 } finally {
+    Get-ChildItem Env:PIP_* | ForEach-Object { Remove-Item -LiteralPath ('Env:' + $_.Name) }
+    foreach ($XiaoPipName in $XiaoPreviousPipEnvironment.Keys) { Set-Item -LiteralPath ('Env:' + $XiaoPipName) -Value $XiaoPreviousPipEnvironment[$XiaoPipName] }
     $env:TEMP, $env:TMP = $XiaoPreviousTemp, $XiaoPreviousTmp
     $env:ESPTOOL_CFGFILE = $XiaoPreviousEsptoolConfig
 }
 ```
 
-Use a new empty environment; do not overwrite or silently repair a failed/partial installation. The verified kit's empty `esptool.cfg` prevents esptool from discovering inherited or home-directory configuration. Use the complete generated flash plan, including its environment fence and restoration. This installation and the `version` action do not open USB. The wheel pack is qualified for its recorded Windows/Python platform; use its actual receipt and hashes, not an arbitrary similarly named download. This interpreter is also the replacement for `<ESPTOOL_PYTHON>` in an inert flash plan.
+Use a new empty environment; do not overwrite or silently repair a failed/partial installation. Clearing all inherited `PIP_*` settings and selecting lowercase `nul` configuration prevents redirecting installation to an external target/cache/index. The spelling matches Python's Windows `os.devnull`; pip compares the sentinel as a string. The verified kit's empty `esptool.cfg` prevents esptool from discovering inherited or home-directory configuration. Use the complete generated flash plan, including its environment fence and restoration. This installation and the `version` action do not open USB. The wheel pack is qualified for its recorded Windows/Python platform; use its actual receipt and hashes, not an arbitrary similarly named download. This interpreter is also the replacement for `<ESPTOOL_PYTHON>` in an inert flash plan.
 
 Identify the flashed board using its application-mode COM port:
 
