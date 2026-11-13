@@ -108,7 +108,44 @@ class RuViewSetupTests(unittest.TestCase):
         self.assertEqual([node["node_id"] for node in nodes["nodes"]], [1, 2, 3])
         self.assertTrue(all(node["placement"] is None and node["usb_port"] is None and
                             node["hardware_identity"] is None for node in nodes["nodes"]))
-        self.assertEqual(set(os.listdir(kit)), {"attempt.json", "firmware", "nodes.json", "flash-plan.json", "SETUP.html", "receipt.json"})
+        self.assertEqual(set(os.listdir(kit)), {"attempt.json", "firmware", "nodes.json", "flash-plan.json", "esptool.cfg", "SETUP.html", "receipt.json"})
+        self.assertEqual((kit / "esptool.cfg").read_bytes(), b"[esptool]\n")
+        receipt = json.loads((kit / "receipt.json").read_bytes())
+        self.assertEqual(receipt["files"]["esptool.cfg"], {"bytes": 10, "sha256": setup._sha(b"[esptool]\n")})
+
+    def test_manual_plan_isolates_and_restores_tool_configuration_without_reading_inherited_paths(self):
+        result = setup.prepare(self.bundle, root=self.root)
+        forbidden = "E:/not-authorized/esptool.cfg"
+        with mock.patch.dict(os.environ, {"ESPTOOL_CFGFILE": forbidden}):
+            plan = setup.flash_plan("xiao-three-node", 1, "COM5", root=self.root)
+            self.assertEqual(os.environ["ESPTOOL_CFGFILE"], forbidden)
+        expected = str(self.root / result["kit"] / "esptool.cfg")
+        self.assertEqual(plan["required_environment"], {"ESPTOOL_CFGFILE": expected})
+        block = plan["powershell"][0]
+        self.assertNotIn(forbidden, block)
+        self.assertIn("try {", block)
+        self.assertIn("} finally {", block)
+        self.assertIn("$ariadneXiaoSavedEspConfig = $env:ESPTOOL_CFGFILE", block)
+        self.assertIn("$env:ESPTOOL_CFGFILE = $ariadneXiaoSavedEspConfig", block)
+        self.assertLess(block.index("$env:ESPTOOL_CFGFILE = '" + expected.replace("'", "''") + "'"), block.index("    & "))
+        self.assertLess(block.index("Read-Host"), block.index("'write_flash'"))
+
+    def test_missing_or_rehashed_modified_tool_config_blocks_status_and_plan(self):
+        for name, raw in (("xiao-missing-config", None), ("xiao-changed-config", b"[esptool]\ncustom_reset_sequence=1\n")):
+            result = setup.prepare(self.bundle, name, root=self.root)
+            kit = self.root / result["kit"]
+            config = kit / "esptool.cfg"
+            if raw is None:
+                config.unlink()
+            else:
+                config.write_bytes(raw)
+                receipt = json.loads((kit / "receipt.json").read_bytes())
+                receipt["files"]["esptool.cfg"] = {"bytes": len(raw), "sha256": setup._sha(raw)}
+                (kit / "receipt.json").write_bytes(setup._bytes(receipt))
+            for operation in (lambda: setup.status(name, root=self.root),
+                              lambda: setup.flash_plan(name, 1, "COM5", root=self.root)):
+                with self.assertRaises((ValueError, OSError)):
+                    operation()
 
     def test_manifest_needs_the_fixed_source_seal_not_a_self_declared_hash(self):
         self.manifest["target"]["mock"] = True

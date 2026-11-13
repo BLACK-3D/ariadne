@@ -27,6 +27,7 @@ PROFILE = "ariadne-ruview-xiao-s3-headless-v1"
 UPSTREAM_REVISION = "094e1400719ded1283c67d23b9c737f6738a3244"
 SEAL_PATH = "config/ruview-xiao-firmware.json"
 MANIFEST = "firmware-manifest.json"
+ESPTOOL_CONFIG = b"[esptool]\n"
 FLASH_BYTES = 8 * 1024 * 1024
 MAX_JSON_BYTES = 64 * 1024
 SEGMENTS = (
@@ -292,6 +293,8 @@ def _plan():
     return {"schema": 1, "profile": PROFILE, "execution": "manual_only_not_executed",
             "python_placeholder": "<ESPTOOL_PYTHON>", "port_placeholder": "<CONFIRMED_COM_PORT>",
             "working_directory": "kit directory", "node_ids": [1, 2, 3],
+            "required_environment": {"ESPTOOL_CFGFILE": "esptool.cfg"},
+            "esptool_config": {"path": "esptool.cfg", "bytes": len(ESPTOOL_CONFIG), "sha256": _sha(ESPTOOL_CONFIG)},
             "required_before_flash": ["Confirm the exact XIAO ESP32-S3 board and USB port.",
                 "Read chip identity/revision and verify 8 MB flash with the reviewed esptool environment.",
                 "Confirm first-install intent; preserve any existing firmware/private NVS separately."],
@@ -307,7 +310,7 @@ def _page(manifest_sha, name):
 <title>Ariadne · Three XIAO RuView nodes</title><style>body{max-width:950px;margin:3rem auto;padding:0 1rem;background:#101919;color:#e9eee8;font:17px/1.6 system-ui}section{padding:1rem 1.5rem;margin:1rem 0;border:1px solid #52615a;border-radius:12px}code{overflow-wrap:anywhere;color:#cedba5}a{color:#b8d8ee}li{margin:.5rem 0}</style>
 <h1>Three XIAO ESP32-S3 nodes</h1><p>Offline preparation complete · no device connected, flashed, provisioned or physically qualified by this workflow.</p>
 <section><h2>1 · Check each board</h2><p>Use the plain Seeed XIAO ESP32-S3, 8 MB flash / 8 MB PSRAM, USB-C data cable and supplied antenna. Attach the antenna with power off. An existing 2.4 GHz access point and controlled local traffic are required. Headers, camera, microphone and a display are not needed for this pilot.</p></section>
-<section><h2>2 · Start with one node</h2><p>Keep node IDs <strong>1, 2 and 3</strong> unique. All USB ports, hardware identities and placements are deliberately unset. The saved plan contains no Wi-Fi credentials. Confirm the board/port and first-install intent before a manual flash. A reused board may contain private state that must be reviewed separately.</p><p>Generate an inert, port-specific plan with <code>scripts/ruview_nodes.py plan --name KIT_NAME --node 1 --port COM5</code> from Ariadne. This prints commands; it does not execute them. Replace the Python placeholder only with the separately reviewed esptool environment. Do not use an arbitrary online display-enabled firmware image.</p></section>
+<section><h2>2 · Start with one node</h2><p>Keep node IDs <strong>1, 2 and 3</strong> unique. All USB ports, hardware identities and placements are deliberately unset. The saved plan contains no Wi-Fi credentials. Confirm the board/port and first-install intent before a manual flash. A reused board may contain private state that must be reviewed separately.</p><p>Generate an inert, port-specific plan with <code>scripts/ruview_nodes.py plan --name KIT_NAME --node 1 --port COM5</code> from Ariadne. This prints commands; it does not execute them. Use the complete PowerShell plan, including its ESPTOOL_CFGFILE try/finally fence; bare argv omits that required isolation. The kit's hash-checked <code>esptool.cfg</code> contains only an empty [esptool] section, preventing inherited or home-directory tool configuration from redirecting work. The plan restores the previous process environment afterward without reading its referenced file. Replace the Python placeholder only with the separately reviewed esptool environment. Do not use an arbitrary online display-enabled firmware image.</p></section>
 <section><h2>3 · Provision locally, then verify CSI</h2><p>After manually flashing the verified bytes, use the separately reviewed Python environment with pyserial 3.5. Replace the placeholders below with the physically confirmed port, owner-reviewed declared device digest, and intended private-LAN receiver. These are inert examples, not actions taken by this page.</p><p><code>scripts/ruview_onboard.py identify --name KIT_NAME --node 1 --port &lt;COM_PORT&gt; --request-id usb-node-1-id --open-usb</code></p><p>Inspect the exact identification receipt. Device digest, profile and version are declarations, not authentication or firmware attestation. Then explicitly configure the same identified board:</p><p><code>scripts/ruview_onboard.py configure --name KIT_NAME --node 1 --port &lt;COM_PORT&gt; --request-id usb-node-1-config --identification usb-node-1-id --expected-device &lt;DEVICE_DIGEST&gt; --target-ip &lt;RECEIVER_IPV4&gt; --target-port &lt;UDP_PORT&gt; --apply-to-device</code></p><p>The SSID and password are requested through hidden local prompts, never command arguments or local credential files. Configuration intentionally stores them in board NVS and requests a reboot. Ordinary USB transport and this pilot's NVS are not encrypted secret storage; protect the physical board and any later private NVS backup. No encryption/eFuse operation is part of this workflow.</p><p>Keep Wi-Fi passwords out of chat, source, command lines and public reports. A configuration acknowledgement is not persistent-state or RF verification. Verify packet yield, source IDs, source age and loss/outage behavior after reboot. A successful ping is not proof of CSI reception.</p></section>
 <section><h2>4 · Add the other two nodes</h2><p>Repeat the identity, flash and unique-ID checks one board at a time. Choose fixed placements and record the actual arrangement. Compare occupied/empty, moving/still, interference and disconnected-source trials against labeled ground truth. More nodes do not establish pose, distance, accurate people counts or current occupancy by themselves.</p></section>
 <section><h2>Evidence and limits</h2><p>Manifest SHA-256: <code>MANIFEST_SHA</code></p><p><a href="receipt.json">Preparation receipt</a> · <a href="nodes.json">Unset node worksheet</a> · <a href="flash-plan.json">Manual plan and gates</a></p><p>The source-distributed seal and format checks bind reviewed firmware bytes. They do not attest physical hardware, runtime provisioning, radio clocks, RF accuracy or truth. This kit includes no NVS image and writes no devices. Its setup commands are inert text. Failed or interrupted preparation is preserved and must not be replayed automatically.</p></section>"""
@@ -362,8 +365,9 @@ def prepare(bundle, name="xiao-three-node", *, root):
             _write(root, output / "firmware" / filename, raw)
         _write(root, output / "nodes.json", _bytes(_nodes()))
         _write(root, output / "flash-plan.json", _bytes(_plan()))
+        _write(root, output / "esptool.cfg", ESPTOOL_CONFIG)
         _write(root, output / "SETUP.html", _page(verified["manifest_sha256"], name))
-        retained = {"attempt.json", "nodes.json", "flash-plan.json", "SETUP.html"} | {"firmware/" + name for name in files}
+        retained = {"attempt.json", "nodes.json", "flash-plan.json", "esptool.cfg", "SETUP.html"} | {"firmware/" + name for name in files}
         receipt = {"schema": 1, "profile": PROFILE, "status": "completed", "manifest_sha256": verified["manifest_sha256"],
                    "node_ids": [1, 2, 3], "hardware_qualified": False, "flashed": False,
                    "credentials_provisioned": False, "network_used": False, "process_started": False,
@@ -395,7 +399,7 @@ def _verified_kit(root, name):
              "Kit control revision is invalid.")
     verified, files = _bundle(root, output / "firmware")
     _require(receipt["manifest_sha256"] == verified["manifest_sha256"], "Kit manifest receipt differs.")
-    expected = {"attempt.json", "nodes.json", "flash-plan.json", "SETUP.html"} | {"firmware/" + name for name in files}
+    expected = {"attempt.json", "nodes.json", "flash-plan.json", "esptool.cfg", "SETUP.html"} | {"firmware/" + name for name in files}
     _require(type(receipt["files"]) is dict and set(receipt["files"]) == expected, "Kit receipt inventory differs.")
     for filename, record in receipt["files"].items():
         _fields(record, {"bytes", "sha256"}, "kit artifact")
@@ -403,6 +407,7 @@ def _verified_kit(root, name):
         _require(type(record["bytes"]) is int and record["bytes"] == len(raw) and record["sha256"] == _sha(raw), "Kit artifact integrity differs.")
     _require(_read(root, output / "nodes.json", MAX_JSON_BYTES) == _bytes(_nodes()) and
              _read(root, output / "flash-plan.json", MAX_JSON_BYTES) == _bytes(_plan()) and
+             _read(root, output / "esptool.cfg", MAX_JSON_BYTES) == ESPTOOL_CONFIG and
              _read(root, output / "SETUP.html", MAX_JSON_BYTES) == _page(verified["manifest_sha256"], name), "Kit worksheet or plan differs from the frozen workflow.")
     attempt = _json(_read(root, output / "attempt.json", MAX_JSON_BYTES))
     _fields(attempt, {"schema", "profile", "status", "manifest_sha256", "created_at", "control_revision"}, "kit attempt")
@@ -411,7 +416,7 @@ def _verified_kit(root, name):
              type(attempt["control_revision"]) is int and attempt["control_revision"] == receipt["control_revision"] and
              type(attempt["created_at"]) is str and len(attempt["created_at"]) <= 40,
              "Kit attempt metadata differs.")
-    _require(set(_entries(root, output, 6)) == {"attempt.json", "firmware", "nodes.json", "flash-plan.json", "SETUP.html", "receipt.json"},
+    _require(set(_entries(root, output, 7)) == {"attempt.json", "firmware", "nodes.json", "flash-plan.json", "esptool.cfg", "SETUP.html", "receipt.json"},
              "Kit has extra or uncertain artifacts.")
     return receipt
 
@@ -438,10 +443,28 @@ def flash_plan(name, node, port, *, root):
     commands = [prefix + ["chip_id"], prefix + ["flash_id"],
                 prefix + ["--baud", "460800", "write_flash", "--flash_mode", "dio", "--flash_size", "8MB"] + addresses,
                 prefix + ["verify_flash"] + addresses]
+    config = _kit(root, name) / "esptool.cfg"
+    quote = lambda value: "'" + value.replace("'", "''") + "'"
+    lines = ["$ariadneXiaoHadEspConfig = Test-Path Env:ESPTOOL_CFGFILE",
+             "$ariadneXiaoSavedEspConfig = $env:ESPTOOL_CFGFILE", "try {",
+             "    $env:ESPTOOL_CFGFILE = " + quote(str(config))]
+    for index, command in enumerate(commands):
+        if index == 2:
+            confirmation = "FLASH-NODE-" + str(node)
+            lines += ["    $ariadneXiaoFlashConfirm = Read-Host " + quote("Review the chip/flash results and this board. Type " + confirmation + " to write the reviewed first-install images"),
+                      "    if ($ariadneXiaoFlashConfirm -cne " + quote(confirmation) + ") { throw 'First-install intent was not confirmed; no image write was requested.' }"]
+        lines += ["    & " + " ".join(quote(part) for part in command),
+                  "    if (-not $? -or $LASTEXITCODE -ne 0) { throw 'esptool stopped; inspect this attempt before any fresh action.' }"]
+    lines += ["} finally {", "    if ($ariadneXiaoHadEspConfig) {",
+              "        $env:ESPTOOL_CFGFILE = $ariadneXiaoSavedEspConfig", "    } else {",
+              "        Remove-Item Env:ESPTOOL_CFGFILE -ErrorAction SilentlyContinue", "    }",
+              "    Remove-Variable ariadneXiaoHadEspConfig,ariadneXiaoSavedEspConfig,ariadneXiaoFlashConfirm -ErrorAction SilentlyContinue", "}"]
     return {"status": "manual_plan_only", "kit": str(_kit(root, name).relative_to(Path(root).absolute())),
             "manifest_sha256": receipt["manifest_sha256"], "node_id": node, "port": port,
             "port_is_owner_supplied_not_detected": True, "device_opened": False, "executed": False,
             "node_id_must_be_provisioned_separately": True, "python_placeholder_must_be_resolved": True,
+            "required_environment": {"ESPTOOL_CFGFILE": str(config)},
+            "esptool_config_sha256": _sha(ESPTOOL_CONFIG),
             "argv": commands,
-            "powershell": ["& " + " ".join("'" + part.replace("'", "''") + "'" for part in command) for command in commands],
+            "powershell": ["\n".join(lines)],
             "required_gates": _plan()["required_before_flash"], "required_after_flash": _plan()["required_after_flash"]}
